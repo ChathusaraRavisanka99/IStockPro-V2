@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-page: 245 247 250;
+  --bg-card: 255 255 255;
+  --text-primary: 15 23 42;
+  --text-muted: 71 85 105;
+  --line: 226 232 240;
+}
+
+.dark {
+  --bg-page: 8 15 32;
+  --bg-card: 15 23 42;
+  --text-primary: 241 245 249;
+  --text-muted: 148 163 184;
+  --line: 51 65 85;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  color: rgb(var(--text-primary));
+  background:
+    radial-gradient(circle at 12% 12%, rgba(120, 166, 255, 0.22), transparent 35%),
+    radial-gradient(circle at 92% 4%, rgba(255, 255, 255, 0.55), transparent 42%),
+    linear-gradient(180deg, rgb(var(--bg-page)) 0%, rgb(238, 243, 251) 100%);
+}
+
+.dark body {
+  background:
+    radial-gradient(circle at 10% 10%, rgba(67, 97, 181, 0.35), transparent 35%),
+    radial-gradient(circle at 88% 8%, rgba(35, 55, 99, 0.4), transparent 40%),
+    linear-gradient(180deg, rgb(var(--bg-page)) 0%, rgb(2, 6, 23) 100%);
+}
+
+*:focus-visible {
+  outline: 2px solid rgb(59 130 246);
+  outline-offset: 2px;
+}
