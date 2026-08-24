@@ -6,6 +6,8 @@ import { MobileNav } from "@/components/ui/mobile-nav";
 import { LogoutButton } from "@/components/ui/logout-button";
 import { authOptions } from "@/lib/auth";
 
+export const dynamic = "force-dynamic";
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions);
 
