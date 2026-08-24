@@ -51,6 +51,23 @@ enum ReturnCondition {
   Damaged
 }
 
+enum PhoneGrade {
+  A
+  B
+  C
+}
+
+enum LotPaymentStatus {
+  Unpaid
+  Partial
+  Paid
+}
+
+enum TaxType {
+  Percent
+  Amount
+}
+
 model User {
   id           String    @id @default(cuid())
   name         String?
@@ -71,6 +88,7 @@ model PhoneModel {
   modelName         String
   lowStockThreshold Int            @default(3)
   warrantyMonths    Int            @default(0)
+  deletedAt         DateTime?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
@@ -88,6 +106,13 @@ model PhoneVariant {
   color       String?
   storage     String?
   ram         String?
+  screenSize  String?
+  processor   String?
+  camera      String?
+  os          String?
+  networkType String?
+  battery     String?
+  deletedAt   DateTime?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -103,6 +128,7 @@ model Supplier {
   phone     String?
   email     String?
   address   String?
+  deletedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -110,19 +136,36 @@ model Supplier {
 }
 
 model Lot {
-  id             String   @id @default(cuid())
-  lotNumber      String   @unique
-  supplier       Supplier @relation(fields: [supplierId], references: [id])
-  supplierId     String
-  purchaseDate   DateTime
-  shippingCost   Decimal  @default(0)
-  taxCost        Decimal  @default(0)
-  customsCost    Decimal  @default(0)
-  note           String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id               String            @id @default(cuid())
+  lotNumber        String            @unique
+  supplier         Supplier          @relation(fields: [supplierId], references: [id])
+  supplierId       String
+  purchaseDate     DateTime
+  shippingCost     Decimal           @default(0)
+  taxCost          Decimal           @default(0)
+  customsCost      Decimal           @default(0)
+  paymentMethod    PaymentMethod?
+  paymentReference String?
+  paymentStatus    LotPaymentStatus  @default(Unpaid)
+  amountPaid       Decimal           @default(0)
+  note             String?
+  deletedAt        DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
-  phones         Phone[]
+  phones           Phone[]
+  payments         LotPayment[]
+}
+
+model LotPayment {
+  id        String         @id @default(cuid())
+  lot       Lot            @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  lotId     String
+  amount    Decimal
+  method    PaymentMethod?
+  reference String?
+  paidAt    DateTime       @default(now())
+  createdAt DateTime       @default(now())
 }
 
 model Phone {
@@ -138,9 +181,12 @@ model Phone {
   retailPrice   Decimal?
   repairCost    Decimal      @default(0)
   status        PhoneStatus  @default(InStock)
+  grade         PhoneGrade?
+  batteryHealth Int?
   warrantyStart DateTime?
   warrantyEnd   DateTime?
   notes         String?
+  deletedAt     DateTime?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
@@ -157,7 +203,13 @@ model Accessory {
   soldQuantity      Int      @default(0)
   lowStockThreshold Int      @default(10)
   purchasePrice     Decimal
-  salePrice         Decimal
+  wholesalePrice    Decimal  @default(0)
+  retailPrice       Decimal
+  connectorType     String?
+  fastCharging      Boolean  @default(false)
+  voltage           String?
+  notes             String?
+  deletedAt         DateTime?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -171,6 +223,7 @@ model Customer {
   phone     String?
   email     String?
   address   String?
+  deletedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -185,7 +238,10 @@ model Sale {
   customerId  String?
   saleDate    DateTime    @default(now())
   subtotal    Decimal
+  taxType     TaxType     @default(Amount)
+  taxPercent  Decimal     @default(0)
   taxAmount   Decimal     @default(0)
+  handlingFee Decimal     @default(0)
   discount    Decimal     @default(0)
   totalAmount Decimal
   status      SaleStatus  @default(Completed)
@@ -196,6 +252,7 @@ model Sale {
   items       SaleItem[]
   invoice     Invoice?
   returns     Return[]
+  sourceQuotation Quotation?
 }
 
 model SaleItem {
@@ -290,13 +347,20 @@ model Quotation {
   quoteNumber    String          @unique
   customer       Customer?       @relation(fields: [customerId], references: [id])
   customerId     String?
+  customerEmail  String?
+  customerPhone  String?
   quoteDate      DateTime        @default(now())
   validUntil     DateTime?
+  taxType        TaxType         @default(Percent)
   taxPercent     Decimal         @default(0)
+  taxAmount      Decimal         @default(0)
   handlingFee    Decimal         @default(0)
   subtotal       Decimal         @default(0)
   totalAmount    Decimal         @default(0)
   status         String          @default("Draft")
+  notes          String?
+  convertedSaleId String?        @unique
+  convertedSale  Sale?           @relation(fields: [convertedSaleId], references: [id])
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 

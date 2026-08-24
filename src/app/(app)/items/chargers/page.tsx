@@ -1,15 +1,5 @@
-import { ModulePlaceholder } from "@/components/ui/module-placeholder";
+import { AccessoryCategoryPage } from "@/components/items/accessory-category-page";
 
-export default function ChargersPage() {
-  return (
-    <ModulePlaceholder
-      title="Items - Chargers"
-      subtitle="Quantity-based accessory inventory"
-      todos={[
-        "TODO: CRUD for Accessory category Charger",
-        "TODO: Track quantity, sold quantity, and low-stock threshold",
-        "TODO: Role-safe pricing visibility enforcement",
-      ]}
-    />
-  );
+export default function ChargersPage({ searchParams }: { searchParams: { search?: string; view?: "list" | "grid" } }) {
+  return <AccessoryCategoryPage title="Items - Chargers" category="Charger" route="/items/chargers" searchParams={searchParams} />;
 }

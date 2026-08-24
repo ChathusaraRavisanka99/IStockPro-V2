@@ -59,7 +59,8 @@ async function main() {
       sku: "CHG-20W-APPLE",
       quantity: 20,
       purchasePrice: 12,
-      salePrice: 20,
+      wholesalePrice: 16,
+      retailPrice: 20,
       lowStockThreshold: 5,
     },
   });

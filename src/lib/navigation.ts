@@ -1,9 +1,26 @@
-export const navItems = [
+export type NavLinkItem = {
+  href: string;
+  label: string;
+};
+
+export type NavItem = NavLinkItem & {
+  children?: NavLinkItem[];
+};
+
+export const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/items/phones", label: "Phones" },
-  { href: "/items/chargers", label: "Chargers" },
-  { href: "/items/cables", label: "Cables" },
-  { href: "/items/other", label: "Other" },
+  {
+    href: "/items/phones",
+    label: "Items",
+    children: [
+      { href: "/items/phones", label: "Phones" },
+      { href: "/items/phone-catalog", label: "Phone Catalog" },
+      { href: "/items/chargers", label: "Chargers" },
+      { href: "/items/cables", label: "Cables" },
+      { href: "/items/handsfree", label: "Handsfree" },
+      { href: "/items/other", label: "Other" },
+    ],
+  },
   { href: "/lots", label: "Lots" },
   { href: "/sales", label: "Sales" },
   { href: "/returns", label: "Returns" },

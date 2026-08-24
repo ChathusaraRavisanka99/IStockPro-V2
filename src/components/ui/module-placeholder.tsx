@@ -12,8 +12,8 @@ export function ModulePlaceholder({ title, subtitle, todos }: ModulePlaceholderP
     <div>
       <PageHeader title={title} subtitle={subtitle} />
       <Card>
-        <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">Implementation checklist</p>
-        <ul className="list-disc space-y-2 pl-5 text-sm text-slate-700 dark:text-slate-200">
+        <p className="mb-3 text-sm font-semibold text-slate-800">Implementation checklist</p>
+        <ul className="list-disc space-y-2 pl-5 text-sm text-slate-800">
           {todos.map((todo) => (
             <li key={todo}>{todo}</li>
           ))}

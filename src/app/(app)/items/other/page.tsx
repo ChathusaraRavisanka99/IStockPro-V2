@@ -1,15 +1,5 @@
-import { ModulePlaceholder } from "@/components/ui/module-placeholder";
+import { AccessoryCategoryPage } from "@/components/items/accessory-category-page";
 
-export default function OtherItemsPage() {
-  return (
-    <ModulePlaceholder
-      title="Items - Other"
-      subtitle="Generic accessory inventory"
-      todos={[
-        "TODO: CRUD for non-cable/non-charger accessories",
-        "TODO: SKU-based search integration",
-        "TODO: Sales and returns quantity adjustments",
-      ]}
-    />
-  );
+export default function OtherItemsPage({ searchParams }: { searchParams: { search?: string; view?: "list" | "grid" } }) {
+  return <AccessoryCategoryPage title="Items - Other" category="Other" route="/items/other" specFields={[]} searchParams={searchParams} />;
 }

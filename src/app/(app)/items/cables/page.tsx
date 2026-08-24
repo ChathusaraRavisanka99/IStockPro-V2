@@ -1,15 +1,5 @@
-import { ModulePlaceholder } from "@/components/ui/module-placeholder";
+import { AccessoryCategoryPage } from "@/components/items/accessory-category-page";
 
-export default function CablesPage() {
-  return (
-    <ModulePlaceholder
-      title="Items - Cables"
-      subtitle="Quantity-based accessory inventory"
-      todos={[
-        "TODO: CRUD for Accessory category Cable",
-        "TODO: Reorder alerts using lowStockThreshold",
-        "TODO: Sales integration for decrement/increment flows",
-      ]}
-    />
-  );
+export default function CablesPage({ searchParams }: { searchParams: { search?: string; view?: "list" | "grid" } }) {
+  return <AccessoryCategoryPage title="Items - Cables" category="Cable" route="/items/cables" searchParams={searchParams} />;
 }

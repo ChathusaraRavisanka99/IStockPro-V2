@@ -3,18 +3,18 @@
 @tailwind utilities;
 
 :root {
-  --bg-page: 245 247 250;
+  --bg-page: 245 247 251;
   --bg-card: 255 255 255;
-  --text-primary: 15 23 42;
-  --text-muted: 71 85 105;
-  --line: 226 232 240;
+  --text-primary: 2 6 23;
+  --text-muted: 51 65 85;
+  --line: 220 230 244;
 }
 
 .dark {
   --bg-page: 8 15 32;
   --bg-card: 15 23 42;
-  --text-primary: 241 245 249;
-  --text-muted: 148 163 184;
+  --text-primary: 248 250 252;
+  --text-muted: 203 213 225;
   --line: 51 65 85;
 }
 
@@ -24,11 +24,13 @@ body {
 }
 
 body {
+  font-family: var(--font-manrope), "Segoe UI", sans-serif;
   color: rgb(var(--text-primary));
   background:
-    radial-gradient(circle at 12% 12%, rgba(120, 166, 255, 0.22), transparent 35%),
-    radial-gradient(circle at 92% 4%, rgba(255, 255, 255, 0.55), transparent 42%),
-    linear-gradient(180deg, rgb(var(--bg-page)) 0%, rgb(238, 243, 251) 100%);
+    radial-gradient(circle at 14% 8%, rgba(121, 166, 255, 0.2), transparent 36%),
+    radial-gradient(circle at 92% 2%, rgba(255, 255, 255, 0.78), transparent 42%),
+    radial-gradient(circle at 50% 112%, rgba(148, 190, 255, 0.25), transparent 46%),
+    linear-gradient(180deg, rgb(var(--bg-page)) 0%, rgb(239, 244, 252) 100%);
 }
 
 .dark body {
@@ -41,4 +43,47 @@ body {
 *:focus-visible {
   outline: 2px solid rgb(59 130 246);
   outline-offset: 2px;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-space-grotesk), "Segoe UI", sans-serif;
+}
+
+.glass-panel {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.84));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.92);
+}
+
+.dark .glass-panel {
+  background: linear-gradient(160deg, rgba(30, 41, 59, 0.93), rgba(15, 23, 42, 0.9));
+  border: 1px solid rgba(148, 163, 184, 0.34);
+}
+
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: rgba(148, 163, 184, 0.22);
+}
+
+.skeleton-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  animation: shimmer 1.25s infinite;
+}
+
+.dark .skeleton-shimmer::after {
+  background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.35), transparent);
+}
+
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
 }
