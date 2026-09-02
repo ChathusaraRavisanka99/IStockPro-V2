@@ -9,28 +9,41 @@ import { PrimaryButton } from "@/components/ui/primary-button";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("admin123");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setLoading(true);
-
-    const result = await signIn("credentials", {
-      username,
-      password,
-      redirect: false,
-    });
-
-    setLoading(false);
-    if (result?.error) {
-      toast.error("Invalid credentials");
+    if (!username.trim() || !password) {
+      toast.error("Enter your username and password.");
       return;
     }
 
-    router.push("/dashboard");
-    router.refresh();
+    setLoading(true);
+    try {
+      const result = await signIn("credentials", {
+        username: username.trim(),
+        password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        toast.error("Invalid username or password.");
+        return;
+      }
+      if (!result?.ok) {
+        toast.error("Sign in failed. Please try again.");
+        return;
+      }
+
+      router.push("/dashboard");
+      router.refresh();
+    } catch {
+      toast.error("Couldn't reach the server. Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -51,6 +64,8 @@ export default function LoginPage() {
           <label className="grid gap-1.5 text-sm font-semibold text-slate-800">
             Username
             <input
+              autoComplete="username"
+              placeholder="Your username"
               className="rounded-xl border border-slate-300/90 bg-white/90 px-3.5 py-2.5 text-slate-900 shadow-sm transition placeholder:text-slate-500 focus:border-blue-500"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -60,6 +75,8 @@ export default function LoginPage() {
             Password
             <input
               type="password"
+              autoComplete="current-password"
+              placeholder="Your password"
               className="rounded-xl border border-slate-300/90 bg-white/90 px-3.5 py-2.5 text-slate-900 shadow-sm transition placeholder:text-slate-500 focus:border-blue-500"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
