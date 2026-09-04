@@ -4,6 +4,9 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { ACCESS_TOKEN_TTL_MS, REFRESH_TOKEN_TTL_MS } from "@/lib/auth-constants";
 
+const LOGIN_LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_LOCKOUT_THRESHOLD = 5;
+
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
@@ -27,16 +30,37 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
+        const username = credentials.username.trim();
+
+        // Same lockout applies whether the username exists or not, and every
+        // failure (bad username, inactive account, wrong password) is logged
+        // identically below — a distinguishable response here would let an
+        // attacker use the lockout itself to enumerate valid usernames.
+        const recentFailures = await prisma.auditLog.count({
+          where: { action: "LoginFailure", entityId: username, createdAt: { gte: new Date(Date.now() - LOGIN_LOCKOUT_WINDOW_MS) } },
+        });
+        if (recentFailures >= LOGIN_LOCKOUT_THRESHOLD) {
+          throw new Error("TooManyAttempts");
+        }
+
         const user = await prisma.user.findUnique({
-          where: { username: credentials.username },
+          where: { username },
         });
 
+        async function recordFailure() {
+          await prisma.auditLog.create({
+            data: { action: "LoginFailure", entityType: "User", entityId: username, userId: user?.id, details: {} },
+          }).catch(() => {});
+        }
+
         if (!user || !user.isActive) {
+          await recordFailure();
           return null;
         }
 
         const isValid = await bcrypt.compare(credentials.password, user.passwordHash);
         if (!isValid) {
+          await recordFailure();
           return null;
         }
 

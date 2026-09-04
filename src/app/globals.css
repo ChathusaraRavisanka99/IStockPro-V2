@@ -87,3 +87,60 @@ h3 {
     transform: translateX(100%);
   }
 }
+
+/* Tiles fall from above and settle into place with a light bounce, staggered
+   per-element via the --tile-delay custom property. Used both for the full-screen
+   splash loader and to stagger-in the per-route skeleton blocks. */
+.tile-drop {
+  animation: tile-drop var(--tile-duration, 620ms) cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: var(--tile-delay, 0ms);
+}
+
+@keyframes tile-drop {
+  0% {
+    transform: translateY(-140%) scale(0.92);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(6%) scale(1);
+    opacity: 1;
+  }
+  80% {
+    transform: translateY(-2%);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes tile-loader-label {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Gentle breathing once the tiles have landed, so a longer wait doesn't read as frozen. */
+.tile-idle-pulse {
+  animation: tile-pulse 2.4s ease-in-out infinite;
+  animation-delay: var(--tile-idle-delay, 0ms);
+}
+
+@keyframes tile-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035);
+  }
+}
+
+.tile-glow {
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.35), transparent 70%);
+  filter: blur(20px);
+}

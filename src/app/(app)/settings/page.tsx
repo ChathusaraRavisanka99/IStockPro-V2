@@ -49,8 +49,8 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
     const roleInput = String(formData.get("role") || "staff");
     const role = (["admin", "manager", "staff"] as const).includes(roleInput as UserRole) ? (roleInput as UserRole) : "staff";
 
-    if (!username || password.length < 6) {
-      redirect("/settings?userError=Username is required and password must be at least 6 characters.");
+    if (!username || password.length < 8) {
+      redirect("/settings?userError=Username is required and password must be at least 8 characters.");
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -96,8 +96,8 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
 
     const id = String(formData.get("id") || "");
     const newPassword = String(formData.get("newPassword") || "");
-    if (!id || newPassword.length < 6) {
-      redirect("/settings?resetError=Password must be at least 6 characters.");
+    if (!id || newPassword.length < 8) {
+      redirect("/settings?resetError=Password must be at least 8 characters.");
     }
 
     const target = await prisma.user.findUnique({ where: { id } });
@@ -124,8 +124,8 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
     const newPassword = String(formData.get("newPassword") || "");
     const confirmPassword = String(formData.get("confirmPassword") || "");
 
-    if (newPassword.length < 6) {
-      redirect("/settings?pwError=New password must be at least 6 characters.");
+    if (newPassword.length < 8) {
+      redirect("/settings?pwError=New password must be at least 8 characters.");
     }
     if (newPassword !== confirmPassword) {
       redirect("/settings?pwError=New password and confirmation do not match.");
@@ -236,7 +236,7 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
                         <td className="px-2 py-2">
                           <form action={resetUserPassword} className="flex items-center gap-2">
                             <input type="hidden" name="id" value={user.id} />
-                            <input name="newPassword" type="password" placeholder="New password" minLength={6} required className="w-32 min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs" />
+                            <input name="newPassword" type="password" placeholder="New password" minLength={8} required className="w-32 min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs" />
                             <button type="submit" className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800">Reset</button>
                           </form>
                         </td>
@@ -265,7 +265,7 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
                 <input name="name" placeholder="Full name (optional)" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
                 <input name="username" placeholder="Username" required className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
                 <input name="email" type="email" placeholder="Email (optional)" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
-                <input name="password" type="password" placeholder="Password (min 6 chars)" required minLength={6} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                <input name="password" type="password" placeholder="Password (min 8 chars)" required minLength={8} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
                 <select name="role" defaultValue="staff" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
                   <option value="staff">Staff</option>
                   <option value="manager">Manager</option>
@@ -293,11 +293,11 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
             </label>
             <label className="grid min-w-0 gap-1 text-sm text-slate-700">
               New password
-              <input name="newPassword" type="password" required minLength={6} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+              <input name="newPassword" type="password" required minLength={8} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
             </label>
             <label className="grid min-w-0 gap-1 text-sm text-slate-700">
               Confirm new password
-              <input name="confirmPassword" type="password" required minLength={6} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+              <input name="confirmPassword" type="password" required minLength={8} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
             </label>
             <button type="submit" className="w-fit rounded-lg bg-slate-900 px-4 py-2 text-sm text-white md:col-span-3">Change Password</button>
           </form>

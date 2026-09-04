@@ -83,6 +83,10 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
         }
       }
 
+      // A cart that resolves to nothing (never had items, or every line failed live-stock
+      // validation above) must not produce a sale + invoice — that's a phantom $0 record.
+      if (!resolvedLines.length) return;
+
       const subtotal = resolvedLines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
       // Recompute the tax split from the server-validated subtotal — never trust a
       // client-submitted tax amount, since quantities may have just been clamped above.

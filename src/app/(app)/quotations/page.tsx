@@ -53,6 +53,9 @@ export default async function QuotationsPage({ searchParams }: { searchParams: {
       cartLines = [];
     }
 
+    // An empty cart must not produce a phantom $0 quotation with no line items.
+    if (!cartLines.length) return;
+
     const subtotal = cartLines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
     const taxPercent = taxType === "Percent" ? taxValue : subtotal > 0 ? (taxValue / subtotal) * 100 : 0;
     const taxAmount = taxType === "Percent" ? (subtotal * taxValue) / 100 : taxValue;

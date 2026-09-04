@@ -28,6 +28,10 @@ export default function LoginPage() {
         redirect: false,
       });
 
+      if (result?.error === "TooManyAttempts") {
+        toast.error("Too many failed attempts. Try again in a few minutes.");
+        return;
+      }
       if (result?.error) {
         toast.error("Invalid username or password.");
         return;
