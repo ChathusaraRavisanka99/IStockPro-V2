@@ -34,7 +34,7 @@ const styles = StyleSheet.create({
 
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.user || session.error) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const sale = await prisma.sale.findUnique({
     where: { id: params.id },

@@ -14,7 +14,7 @@ function toDateInputValue(date: Date) {
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !canViewCost(session.user.role as "admin" | "manager" | "staff" | undefined)) {
+  if (!session?.user || session.error || !canViewCost(session.user.role as "admin" | "manager" | "staff" | undefined)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

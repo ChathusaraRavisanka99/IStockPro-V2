@@ -18,6 +18,7 @@ export default async function PhonesPage({ searchParams }: Props) {
   const showCost = canViewCost(session?.user?.role as "admin" | "manager" | "staff" | undefined);
   const search = searchParams.search?.trim() || "";
   const status = searchParams.filter || "";
+  const view = searchParams.view === "grid" ? "grid" : "list";
   const page = parsePage(searchParams.page);
   const pageSize = parsePageSize(searchParams.pageSize);
 
@@ -169,7 +170,7 @@ export default async function PhonesPage({ searchParams }: Props) {
   return (
     <div>
       <PageHeader title="Items - Phones" subtitle="Serialized inventory with IMEI and stock counts" />
-      <ListControls search={search} filter={status} view={searchParams.view === "grid" ? "grid" : "list"} placeholder="Search by IMEI or serial number" filterLabel="All statuses" filterOptions={["InStock", "Reserved", "Sold", "Returned", "Repair", "WrittenOff"].map((value) => ({ label: value, value }))} />
+      <ListControls search={search} filter={status} view={view} placeholder="Search by IMEI or serial number" filterLabel="All statuses" filterOptions={["InStock", "Reserved", "Sold", "Returned", "Repair", "WrittenOff"].map((value) => ({ label: value, value }))} />
 
       <div className="grid gap-4 xl:grid-cols-3">
         <Card>
@@ -290,10 +291,35 @@ export default async function PhonesPage({ searchParams }: Props) {
           {!models.length ? <p className="text-sm text-slate-600">No models created yet.</p> : null}
         </div>
       </Card>
-      <Pagination page={page} pageSize={pageSize} total={phoneTotal} query={{ ...(search ? { search } : {}), ...(status ? { filter: status } : {}), view: searchParams.view === "grid" ? "grid" : "list" }} />
+      <Pagination page={page} pageSize={pageSize} total={phoneTotal} query={{ ...(search ? { search } : {}), ...(status ? { filter: status } : {}), view }} />
 
       <Card className="mt-4">
         <h2 className="mb-3 text-lg font-semibold">Recent Serialized Units</h2>
+        {view === "grid" ? (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {phones.map((phone) => (
+              <div key={phone.id} className="rounded-xl border border-slate-200 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-medium text-slate-900">{phone.phoneVariant.phoneModel.brand} {phone.phoneVariant.phoneModel.modelName}</p>
+                  <span className="rounded-full border border-slate-300 px-2 py-0.5 text-xs text-slate-700">{phone.status}</span>
+                </div>
+                <p className="text-sm text-slate-700">{phone.phoneVariant.variantName}</p>
+                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
+                  <div className="flex justify-between gap-2"><dt>IMEI</dt><dd className="text-right text-slate-800">{phone.imei}</dd></div>
+                  <div className="flex justify-between gap-2"><dt>Lot</dt><dd className="text-right text-slate-800">{phone.lot.lotNumber}</dd></div>
+                  <div className="flex justify-between gap-2"><dt>Grade</dt><dd className="text-right text-slate-800">{phone.grade || "-"}</dd></div>
+                  {showCost ? <div className="flex justify-between gap-2"><dt>Purchase price</dt><dd className="text-right text-slate-800">${Number((phone as { purchasePrice?: number }).purchasePrice ?? 0).toFixed(2)}</dd></div> : null}
+                </dl>
+                {phone.notes ? <p className="mt-2 text-xs italic text-slate-500">{phone.notes}</p> : null}
+                <form action={archivePhone} className="mt-3">
+                  <input type="hidden" name="id" value={phone.id} />
+                  <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Archive</button>
+                </form>
+              </div>
+            ))}
+            {!phones.length ? <p className="text-sm text-slate-600">No serialized units match these filters.</p> : null}
+          </div>
+        ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
@@ -327,6 +353,7 @@ export default async function PhonesPage({ searchParams }: Props) {
             </tbody>
           </table>
         </div>
+        )}
       </Card>
     </div>
   );

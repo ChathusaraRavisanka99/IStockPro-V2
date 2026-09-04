@@ -23,7 +23,7 @@ export default async function PhoneCatalogPage({ searchParams }: { searchParams?
   const colorFilter = searchParams?.color || "";
   const minPrice = searchParams?.minPrice ? Number(searchParams.minPrice) : null;
   const maxPrice = searchParams?.maxPrice ? Number(searchParams.maxPrice) : null;
-  const view = searchParams?.view === "list" ? "list" : "grid";
+  const view = searchParams?.view === "grid" ? "grid" : "list";
 
   const allModels = await prisma.phoneModel.findMany({
     where: { deletedAt: null },

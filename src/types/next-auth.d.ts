@@ -7,6 +7,7 @@ declare module "next-auth" {
       role: "admin" | "manager" | "staff";
       username: string;
     } & DefaultSession["user"];
+    error?: "RefreshTokenExpired";
   }
 }
 
@@ -14,5 +15,8 @@ declare module "next-auth/jwt" {
   interface JWT {
     role?: "admin" | "manager" | "staff";
     username?: string;
+    accessTokenExpires?: number;
+    refreshTokenExpires?: number;
+    error?: "RefreshTokenExpired";
   }
 }

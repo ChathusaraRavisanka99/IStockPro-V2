@@ -6,7 +6,7 @@ import { exportBackup } from "@/lib/backup";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !canManageUsers(session.user.role as "admin" | "manager" | "staff" | undefined)) {
+  if (!session?.user || session.error || !canManageUsers(session.user.role as "admin" | "manager" | "staff" | undefined)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
