@@ -91,9 +91,11 @@ export default async function PhoneCatalogPage({ searchParams }: { searchParams?
   return (
     <div>
       <PageHeader title="Phone Catalog" subtitle="Browse every model and variant with full specifications" />
-      <div className="mb-4 flex justify-end gap-2 text-sm">
-        <a href={`?${new URLSearchParams({ ...searchParams, view: "grid" }).toString()}`} className={`rounded-lg border px-3 py-1 ${view === "grid" ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white text-slate-700"}`}>Grid</a>
-        <a href={`?${new URLSearchParams({ ...searchParams, view: "list" }).toString()}`} className={`rounded-lg border px-3 py-1 ${view === "list" ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white text-slate-700"}`}>List</a>
+      <div className="mb-4 flex sm:justify-end">
+        <div className="flex w-full rounded-lg border border-slate-300 bg-white p-1 text-sm sm:w-auto">
+          <a href={`?${new URLSearchParams({ ...searchParams, view: "list" }).toString()}`} className={`flex-1 rounded-md px-4 py-2 text-center transition sm:flex-none sm:px-3 sm:py-1 ${view === "list" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"}`}>List</a>
+          <a href={`?${new URLSearchParams({ ...searchParams, view: "grid" }).toString()}`} className={`flex-1 rounded-md px-4 py-2 text-center transition sm:flex-none sm:px-3 sm:py-1 ${view === "grid" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"}`}>Grid</a>
+        </div>
       </div>
       <PhoneCatalogFilters
         view={view}
