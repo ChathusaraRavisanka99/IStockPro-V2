@@ -11,7 +11,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { parsePage, parsePageSize } from "@/lib/pagination";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 
-type Props = { searchParams: { search?: string; filter?: string; view?: "list" | "grid"; page?: string; pageSize?: string } };
+type Props = { searchParams: { search?: string; filter?: string; view?: "list" | "grid"; page?: string; pageSize?: string; editModel?: string } };
 
 export default async function PhonesPage({ searchParams }: Props) {
   const session = await getServerSession(authOptions);
@@ -21,6 +21,7 @@ export default async function PhonesPage({ searchParams }: Props) {
   const view = searchParams.view === "grid" ? "grid" : "list";
   const page = parsePage(searchParams.page);
   const pageSize = parsePageSize(searchParams.pageSize);
+  const editModelId = searchParams.editModel || "";
 
   const [models, variants, lots, suppliers] = await Promise.all([
     prisma.phoneModel.findMany({
@@ -78,6 +79,23 @@ export default async function PhonesPage({ searchParams }: Props) {
     });
 
     revalidatePath("/items/phones");
+  }
+
+  async function updateModel(formData: FormData) {
+    "use server";
+
+    const id = String(formData.get("id") || "");
+    const brand = String(formData.get("brand") || "").trim();
+    const modelName = String(formData.get("modelName") || "").trim();
+    const lowStockThreshold = Number(formData.get("lowStockThreshold") || 0);
+    const warrantyMonths = Number(formData.get("warrantyMonths") || 0);
+    if (!id || !brand || !modelName) return;
+
+    await prisma.phoneModel.update({ where: { id }, data: { brand, modelName, lowStockThreshold, warrantyMonths } });
+
+    revalidatePath("/items/phones");
+    revalidatePath("/items/phone-catalog");
+    revalidatePath("/dashboard");
   }
 
   async function createVariant(formData: FormData) {
@@ -272,10 +290,47 @@ export default async function PhonesPage({ searchParams }: Props) {
         <div className="grid gap-3 md:grid-cols-2">
           {models.map((model) => (
             <div key={model.id} className="rounded-xl border border-slate-300 bg-white px-4 py-3">
-              <p className="font-semibold text-slate-900">
-                {model.brand} {model.modelName}
-              </p>
-              <p className="text-xs text-slate-600">Warranty {model.warrantyMonths} months | Threshold {model.lowStockThreshold}</p>
+              {editModelId === model.id ? (
+                <form action={updateModel} className="grid gap-2">
+                  <input type="hidden" name="id" value={model.id} />
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                      Brand
+                      <input name="brand" required defaultValue={model.brand} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                    </label>
+                    <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                      Model name
+                      <input name="modelName" required defaultValue={model.modelName} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                      Low stock threshold
+                      <input name="lowStockThreshold" type="number" min={0} defaultValue={model.lowStockThreshold} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                    </label>
+                    <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                      Warranty (months)
+                      <input name="warrantyMonths" type="number" min={0} defaultValue={model.warrantyMonths} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                    </label>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="submit" className="rounded-md bg-slate-900 px-3 py-1 text-xs text-white">Save</button>
+                    <a href={`?${new URLSearchParams({ ...searchParams, editModel: "" }).toString()}`} className="rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-700">Cancel</a>
+                  </div>
+                </form>
+              ) : (
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-semibold text-slate-900">
+                      {model.brand} {model.modelName}
+                    </p>
+                    <p className="text-xs text-slate-600">Warranty {model.warrantyMonths} months | Threshold {model.lowStockThreshold}</p>
+                  </div>
+                  <a href={`?${new URLSearchParams({ ...searchParams, editModel: model.id }).toString()}`} className="shrink-0 text-xs text-slate-700 underline">
+                    Edit
+                  </a>
+                </div>
+              )}
               <ul className="mt-2 space-y-1 text-sm text-slate-700">
                 {model.variants.map((variant) => (
                   <li key={variant.id}>

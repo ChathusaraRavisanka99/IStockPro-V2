@@ -8,24 +8,27 @@ import { canViewCost } from "@/lib/rbac";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { LotRegisterForm, type BatchLine } from "@/components/items/lot-register-form";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 
 export default async function LotDetailPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) notFound();
   const showCost = canViewCost(session.user?.role as "admin" | "manager" | "staff" | undefined);
 
-  const [lot, variants, models, allPhones] = await Promise.all([
+  const [lot, variants, models, allPhones, accessories] = await Promise.all([
     prisma.lot.findUnique({
       where: { id: params.id },
       include: {
         supplier: true,
         phones: { where: { deletedAt: null }, include: { phoneVariant: { include: { phoneModel: true } } }, orderBy: { createdAt: "desc" } },
         payments: { orderBy: { paidAt: "desc" } },
+        accessoryItems: { include: { accessory: true }, orderBy: { createdAt: "desc" } },
       },
     }),
     prisma.phoneVariant.findMany({ where: { deletedAt: null, phoneModel: { deletedAt: null } }, include: { phoneModel: true }, orderBy: { variantName: "asc" } }),
     prisma.phoneModel.findMany({ where: { deletedAt: null }, orderBy: [{ brand: "asc" }, { modelName: "asc" }] }),
     prisma.phone.findMany({ select: { imei: true } }),
+    prisma.accessory.findMany({ where: { deletedAt: null }, orderBy: [{ category: "asc" }, { name: "asc" }] }),
   ]);
   if (!lot) notFound();
 
@@ -35,6 +38,17 @@ export default async function LotDetailPage({ params }: { params: { id: string }
   const unitsCost = lot.phones.reduce((sum, phone) => sum + Number(phone.purchasePrice), 0);
   const totalCost = landedTotal + unitsCost;
   const remaining = Math.max(0, totalCost - Number(lot.amountPaid));
+
+  async function createModelForLot(formData: FormData) {
+    "use server";
+
+    const brand = String(formData.get("brand") || "").trim();
+    const modelName = String(formData.get("modelName") || "").trim();
+    if (!brand || !modelName) return;
+
+    await prisma.phoneModel.create({ data: { brand, modelName } });
+    revalidatePath(`/lots/${params.id}`);
+  }
 
   async function createVariantForLot(formData: FormData) {
     "use server";
@@ -155,6 +169,86 @@ export default async function LotDetailPage({ params }: { params: { id: string }
     revalidatePath("/items/phones");
   }
 
+  async function createAccessoryForLot(formData: FormData) {
+    "use server";
+
+    const name = String(formData.get("name") || "").trim();
+    const categoryInput = String(formData.get("category") || "");
+    const category = ["Charger", "Cable", "Handsfree", "Other"].includes(categoryInput) ? categoryInput : "Other";
+    const sku = String(formData.get("sku") || "").trim();
+    const purchasePrice = Number(formData.get("purchasePrice") || 0);
+    const retailPrice = Number(formData.get("retailPrice") || 0);
+    if (!name || !sku) return;
+
+    await prisma.accessory.create({ data: { name, category, sku, purchasePrice, retailPrice, quantity: 0 } });
+
+    revalidatePath(`/lots/${params.id}`);
+    revalidatePath("/items/chargers");
+    revalidatePath("/items/cables");
+    revalidatePath("/items/handsfree");
+    revalidatePath("/items/other");
+  }
+
+  async function addAccessoryToLot(formData: FormData) {
+    "use server";
+
+    const accessoryId = String(formData.get("accessoryId") || "");
+    const quantity = Math.max(0, Math.round(Number(formData.get("quantity") || 0)));
+    const unitCost = Math.max(0, Number(formData.get("unitCost") || 0));
+    if (!accessoryId || quantity <= 0) return;
+
+    await prisma.$transaction(async (tx) => {
+      // Same accessory at the same unit cost is the same batch — merge into it rather
+      // than listing it twice. A different cost is a genuinely different purchase batch
+      // (prices change over time), so that gets its own line.
+      const existing = await tx.lotAccessoryItem.findFirst({ where: { lotId: params.id, accessoryId, unitCost } });
+      if (existing) {
+        await tx.lotAccessoryItem.update({ where: { id: existing.id }, data: { quantity: { increment: quantity } } });
+      } else {
+        await tx.lotAccessoryItem.create({ data: { lotId: params.id, accessoryId, quantity, unitCost } });
+      }
+
+      // The batches above already keep each distinct cost as its own line — that's the
+      // real cost record. The accessory's own purchasePrice is a separate, manually-set
+      // reference value and stays untouched here; it's never auto-computed from batches.
+      await tx.accessory.update({ where: { id: accessoryId }, data: { quantity: { increment: quantity } } });
+    });
+
+    revalidatePath(`/lots/${params.id}`);
+    revalidatePath("/items/chargers");
+    revalidatePath("/items/cables");
+    revalidatePath("/items/handsfree");
+    revalidatePath("/items/other");
+    revalidatePath("/dashboard");
+  }
+
+  async function removeAccessoryFromLot(formData: FormData) {
+    "use server";
+
+    const id = String(formData.get("id") || "");
+    if (!id) return;
+
+    const item = await prisma.lotAccessoryItem.findUnique({ where: { id } });
+    if (!item) return;
+
+    await prisma.$transaction(async (tx) => {
+      const accessory = await tx.accessory.findUnique({ where: { id: item.accessoryId } });
+      if (accessory) {
+        // Never go negative — some of this stock may have already sold since it was added.
+        const nextQuantity = Math.max(0, accessory.quantity - item.quantity);
+        await tx.accessory.update({ where: { id: item.accessoryId }, data: { quantity: nextQuantity } });
+      }
+      await tx.lotAccessoryItem.delete({ where: { id } });
+    });
+
+    revalidatePath(`/lots/${params.id}`);
+    revalidatePath("/items/chargers");
+    revalidatePath("/items/cables");
+    revalidatePath("/items/handsfree");
+    revalidatePath("/items/other");
+    revalidatePath("/dashboard");
+  }
+
   return (
     <div>
       <PageHeader title={`Lot ${lot.lotNumber}`} subtitle={`Supplied by ${lot.supplier.name}`} />
@@ -267,7 +361,14 @@ export default async function LotDetailPage({ params }: { params: { id: string }
             label: "Variant",
             action: createVariantForLot,
             fields: [
-              { name: "phoneModelId", label: "Model", type: "select", required: true, options: models.map((model) => ({ value: model.id, label: `${model.brand} ${model.modelName}` })) },
+              {
+                name: "phoneModelId",
+                label: "Model",
+                type: "select",
+                required: true,
+                options: models.map((model) => ({ value: model.id, label: `${model.brand} ${model.modelName}` })),
+                quickAdd: { label: "Model", action: createModelForLot, fields: [{ name: "brand", label: "Brand", required: true }, { name: "modelName", label: "Model name", required: true }] },
+              },
               { name: "variantName", label: "Variant name", required: true },
               { name: "color", label: "Color" },
               { name: "storage", label: "Storage (ROM)" },
@@ -324,6 +425,87 @@ export default async function LotDetailPage({ params }: { params: { id: string }
                 <tr>
                   <td className="px-2 py-4 text-slate-600" colSpan={showCost ? 8 : 7}>
                     No units registered in this lot yet.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <Card className="mt-4">
+        <h2 className="mb-3 text-lg font-semibold">Add Accessories to This Lot</h2>
+        <p className="mb-3 text-sm text-slate-600">
+          Accessories aren&apos;t serialized like phones, so add them by quantity — each add here increases that item&apos;s stock count immediately. Don&apos;t see the item? Create it on the fly with the + option in the picker.
+        </p>
+        <form action={addAccessoryToLot} className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <label className="grid min-w-0 gap-1 text-sm text-slate-700 xl:col-span-2">
+            Accessory
+            <SearchableSelect
+              name="accessoryId"
+              required
+              placeholder="Select accessory"
+              options={accessories.map((item) => ({ value: item.id, label: `${item.name} (${item.sku}) — ${item.category}` }))}
+              quickAdd={{
+                label: "Accessory",
+                action: createAccessoryForLot,
+                fields: [
+                  { name: "name", label: "Name", required: true },
+                  { name: "category", label: "Category", type: "select", required: true, options: [{ value: "Charger", label: "Charger" }, { value: "Cable", label: "Cable" }, { value: "Handsfree", label: "Handsfree" }, { value: "Other", label: "Other" }] },
+                  { name: "sku", label: "SKU", required: true },
+                  { name: "purchasePrice", label: "Purchase price", type: "number", required: true },
+                  { name: "retailPrice", label: "Retail price", type: "number", required: true },
+                ],
+              }}
+            />
+          </label>
+          <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+            Quantity
+            <input name="quantity" type="number" min={1} step="1" required defaultValue={1} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+          </label>
+          {showCost ? (
+            <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+              Unit cost
+              <input name="unitCost" type="number" min={0} step="0.01" defaultValue={0} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+            </label>
+          ) : null}
+          <button className="rounded-lg bg-slate-900 px-3 py-2 text-white md:col-span-2 xl:col-span-4">Add to Lot</button>
+        </form>
+
+        <div className="mt-4 overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-300 text-left text-slate-700">
+                <th className="px-2 py-2">Item</th>
+                <th className="px-2 py-2">SKU</th>
+                <th className="px-2 py-2">Quantity</th>
+                {showCost ? <th className="px-2 py-2">Unit Cost</th> : null}
+                {showCost ? <th className="px-2 py-2">Subtotal</th> : null}
+                <th className="px-2 py-2">Added</th>
+                <th className="px-2 py-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lot.accessoryItems.map((item) => (
+                <tr key={item.id} className="border-b border-slate-200">
+                  <td className="px-2 py-2">{item.accessory.name}</td>
+                  <td className="px-2 py-2">{item.accessory.sku}</td>
+                  <td className="px-2 py-2">{item.quantity}</td>
+                  {showCost ? <td className="px-2 py-2">${Number(item.unitCost).toFixed(2)}</td> : null}
+                  {showCost ? <td className="px-2 py-2">${(Number(item.unitCost) * item.quantity).toFixed(2)}</td> : null}
+                  <td className="px-2 py-2">{item.createdAt.toISOString().slice(0, 10)}</td>
+                  <td className="px-2 py-2">
+                    <form action={removeAccessoryFromLot}>
+                      <input type="hidden" name="id" value={item.id} />
+                      <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Remove</button>
+                    </form>
+                  </td>
+                </tr>
+              ))}
+              {!lot.accessoryItems.length ? (
+                <tr>
+                  <td className="px-2 py-4 text-slate-600" colSpan={showCost ? 7 : 5}>
+                    No accessories added to this lot yet.
                   </td>
                 </tr>
               ) : null}

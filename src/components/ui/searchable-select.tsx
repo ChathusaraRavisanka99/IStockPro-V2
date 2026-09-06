@@ -11,6 +11,9 @@ export type QuickAddField = {
   type?: "text" | "number" | "date" | "select";
   required?: boolean;
   options?: Option[];
+  /** For type "select" fields — lets the nested picker create a brand-new option
+   * on the fly too (e.g. "create a model" from inside "create a variant"). */
+  quickAdd?: QuickAdd;
 };
 
 export type QuickAdd = {
@@ -84,6 +87,13 @@ export function SearchableSelect({ name, value, defaultValue = "", placeholder =
       const target = event.target as Node;
       if (wrapperRef.current?.contains(target)) return;
       if (popoverRef.current?.contains(target)) return;
+      // A quick-add field can itself be a SearchableSelect (e.g. "create a model"
+      // nested inside "create a variant"). Each popover is its own portal appended
+      // straight to document.body, so a nested one is a DOM *sibling* of this one,
+      // not a descendant — popoverRef.contains() alone would miss it and close this
+      // picker out from under the nested one. Any click inside *any* open
+      // SearchableSelect popover (tagged below) counts as "inside" for all of them.
+      if (target instanceof Element && target.closest("[data-searchable-popover]")) return;
       close();
     }
     document.addEventListener("mousedown", handleOutsideClick);
@@ -127,6 +137,7 @@ export function SearchableSelect({ name, value, defaultValue = "", placeholder =
   const popover = open && popoverStyle ? (
     <div
       ref={popoverRef}
+      data-searchable-popover=""
       style={{ position: "fixed", top: popoverStyle.top, left: popoverStyle.left, width: popoverStyle.width, maxHeight: popoverStyle.maxHeight }}
       className="z-50 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl"
     >
@@ -160,6 +171,7 @@ export function SearchableSelect({ name, value, defaultValue = "", placeholder =
                     <SearchableSelect
                       placeholder="Select"
                       options={field.options || []}
+                      quickAdd={field.quickAdd}
                       onChange={(nextValue) => setAddValues((current) => ({ ...current, [field.name]: nextValue }))}
                     />
                   ) : (

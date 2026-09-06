@@ -155,6 +155,21 @@ model Lot {
 
   phones           Phone[]
   payments         LotPayment[]
+  accessoryItems   LotAccessoryItem[]
+}
+
+model LotAccessoryItem {
+  id          String    @id @default(cuid())
+  lot         Lot       @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  lotId       String
+  accessory   Accessory @relation(fields: [accessoryId], references: [id])
+  accessoryId String
+  quantity    Int
+  unitCost    Decimal   @default(0)
+  createdAt   DateTime  @default(now())
+
+  @@index([lotId])
+  @@index([accessoryId])
 }
 
 model LotPayment {
@@ -215,6 +230,7 @@ model Accessory {
 
   saleItems         SaleItem[]
   returnItems       ReturnItem[]
+  lotItems          LotAccessoryItem[]
 }
 
 model Customer {
