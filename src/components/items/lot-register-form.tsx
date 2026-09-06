@@ -3,8 +3,9 @@
 import { useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { SearchableSelect, type QuickAdd } from "@/components/ui/searchable-select";
+import { formatMoney } from "@/lib/currency";
 
-type Option = { value: string; label: string };
+type VariantOption = { value: string; label: string; defaultTagCost?: number; defaultBatteryCost?: number };
 
 const GRADES = ["A", "B", "C"] as const;
 
@@ -15,13 +16,15 @@ export type BatchLine = {
   purchasePrice: number;
   wholesalePrice: number;
   retailPrice: number;
+  tagCost: number;
+  batteryCost: number;
   grade: string;
   batteryHealth: number | null;
   notes: string | null;
 };
 
 type Props = {
-  variants: Option[];
+  variants: VariantOption[];
   existingImeis: string[];
   showCost: boolean;
   action: (formData: FormData) => void | Promise<void>;
@@ -34,6 +37,10 @@ export function LotRegisterForm({ variants, existingImeis, showCost, action, var
   const [purchasePrice, setPurchasePrice] = useState("0");
   const [wholesalePrice, setWholesalePrice] = useState("0");
   const [retailPrice, setRetailPrice] = useState("0");
+  const [addTagCost, setAddTagCost] = useState(false);
+  const [tagCost, setTagCost] = useState("0");
+  const [addBatteryCost, setAddBatteryCost] = useState(false);
+  const [batteryCost, setBatteryCost] = useState("0");
   const [grade, setGrade] = useState("A");
   const [batteryHealth, setBatteryHealth] = useState("");
   const [notes, setNotes] = useState("");
@@ -41,6 +48,30 @@ export function LotRegisterForm({ variants, existingImeis, showCost, action, var
   const imeiInputRef = useRef<HTMLInputElement>(null);
 
   const existingSet = new Set(existingImeis.map((value) => value.trim().toLowerCase()));
+
+  function selectVariant(value: string) {
+    setVariantId(value);
+    const variant = variants.find((option) => option.value === value);
+    // Pre-fill from this variant's defaults so the user only has to override, not retype.
+    if (variant && addTagCost) setTagCost(String(variant.defaultTagCost ?? 0));
+    if (variant && addBatteryCost) setBatteryCost(String(variant.defaultBatteryCost ?? 0));
+  }
+
+  function toggleTagCost(checked: boolean) {
+    setAddTagCost(checked);
+    if (checked) {
+      const variant = variants.find((option) => option.value === variantId);
+      setTagCost(String(variant?.defaultTagCost ?? 0));
+    }
+  }
+
+  function toggleBatteryCost(checked: boolean) {
+    setAddBatteryCost(checked);
+    if (checked) {
+      const variant = variants.find((option) => option.value === variantId);
+      setBatteryCost(String(variant?.defaultBatteryCost ?? 0));
+    }
+  }
 
   function addToBatch() {
     const trimmedImei = imei.trim();
@@ -68,6 +99,8 @@ export function LotRegisterForm({ variants, existingImeis, showCost, action, var
         purchasePrice: Number(purchasePrice) || 0,
         wholesalePrice: Number(wholesalePrice) || 0,
         retailPrice: Number(retailPrice) || 0,
+        tagCost: addTagCost ? Number(tagCost) || 0 : 0,
+        batteryCost: addBatteryCost ? Number(batteryCost) || 0 : 0,
         grade,
         batteryHealth: batteryHealth.trim() ? Math.max(0, Math.min(100, Number(batteryHealth))) : null,
         notes: notes.trim() || null,
@@ -92,7 +125,7 @@ export function LotRegisterForm({ variants, existingImeis, showCost, action, var
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <label className="grid min-w-0 gap-1 text-sm text-slate-700">
           Phone variant
-          <SearchableSelect placeholder="Select variant" options={variants} onChange={setVariantId} quickAdd={variantQuickAdd} />
+          <SearchableSelect placeholder="Select variant" options={variants} onChange={selectVariant} quickAdd={variantQuickAdd} />
         </label>
         <label className="grid min-w-0 gap-1 text-sm text-slate-700">
           IMEI
@@ -142,6 +175,40 @@ export function LotRegisterForm({ variants, existingImeis, showCost, action, var
           Retail price
           <input type="number" step="0.01" min={0} value={retailPrice} onChange={(event) => setRetailPrice(event.target.value)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
         </label>
+        {showCost ? (
+          <>
+            <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+              <span className="flex items-center gap-2">
+                <input type="checkbox" checked={addTagCost} onChange={(event) => toggleTagCost(event.target.checked)} />
+                Tag cost
+              </span>
+              <input
+                type="number"
+                step="0.01"
+                min={0}
+                disabled={!addTagCost}
+                value={tagCost}
+                onChange={(event) => setTagCost(event.target.value)}
+                className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 disabled:bg-slate-100"
+              />
+            </label>
+            <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+              <span className="flex items-center gap-2">
+                <input type="checkbox" checked={addBatteryCost} onChange={(event) => toggleBatteryCost(event.target.checked)} />
+                Battery cost
+              </span>
+              <input
+                type="number"
+                step="0.01"
+                min={0}
+                disabled={!addBatteryCost}
+                value={batteryCost}
+                onChange={(event) => setBatteryCost(event.target.value)}
+                className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 disabled:bg-slate-100"
+              />
+            </label>
+          </>
+        ) : null}
         <label className="grid min-w-0 gap-1 text-sm text-slate-700 md:col-span-2 xl:col-span-2">
           Notes
           <input
@@ -167,6 +234,8 @@ export function LotRegisterForm({ variants, existingImeis, showCost, action, var
                 <th className="px-3 py-2">Battery</th>
                 {showCost ? <th className="px-3 py-2">Purchase</th> : null}
                 <th className="px-3 py-2">Retail</th>
+                {showCost ? <th className="px-3 py-2">Tag</th> : null}
+                {showCost ? <th className="px-3 py-2">Battery Cost</th> : null}
                 <th className="px-3 py-2" />
               </tr>
             </thead>
@@ -180,8 +249,10 @@ export function LotRegisterForm({ variants, existingImeis, showCost, action, var
                   <td className="px-3 py-2">{line.imei}</td>
                   <td className="px-3 py-2">{line.grade}</td>
                   <td className="px-3 py-2">{line.batteryHealth !== null ? `${line.batteryHealth}%` : "-"}</td>
-                  {showCost ? <td className="px-3 py-2">${line.purchasePrice.toFixed(2)}</td> : null}
-                  <td className="px-3 py-2">${line.retailPrice.toFixed(2)}</td>
+                  {showCost ? <td className="px-3 py-2">{formatMoney(line.purchasePrice)}</td> : null}
+                  <td className="px-3 py-2">{formatMoney(line.retailPrice)}</td>
+                  {showCost ? <td className="px-3 py-2">{line.tagCost ? formatMoney(line.tagCost) : "-"}</td> : null}
+                  {showCost ? <td className="px-3 py-2">{line.batteryCost ? formatMoney(line.batteryCost) : "-"}</td> : null}
                   <td className="px-3 py-2 text-right">
                     <button type="button" onClick={() => removeLine(index)} className="text-xs text-red-700 underline">
                       Remove

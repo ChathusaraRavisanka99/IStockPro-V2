@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui/page-header";
 import { DataTableShell } from "@/components/ui/data-table-shell";
 import { DashboardWidgetLayout } from "@/components/dashboard/dashboard-widget-layout";
+import { formatMoney } from "@/lib/currency";
 
 export default async function DashboardPage() {
   const [monthlySalesAgg, pendingInvoices, inStockPhones, phoneModels, accessories, completedSales, returnsCount, inventoryValue] = await Promise.all([
@@ -63,13 +64,13 @@ export default async function DashboardPage() {
     <div>
       <PageHeader title="Dashboard" subtitle="Business overview and stock health" />
       <DashboardWidgetLayout widgets={[
-        { id: "monthly-sales", title: "Monthly Sales", value: `$${monthSales.toFixed(2)}`, helper: "Completed sales in current month" },
+        { id: "monthly-sales", title: "Monthly Sales", value: formatMoney(monthSales), helper: "Completed sales in current month" },
         { id: "pending-invoices", title: "Invoices Pending", value: String(pendingInvoices), helper: "Unpaid and partially paid invoices" },
         { id: "in-stock-phones", title: "In-Stock Phones", value: String(inStockPhones), helper: "Serialized units currently available" },
         { id: "low-stock", title: "Low Stock Alerts", value: String(lowStockTotal), helper: "Models and accessories below thresholds" },
         { id: "sales-count", title: "Completed Sales", value: String(completedSales), helper: "All-time completed transactions" },
         { id: "returns-count", title: "Returns", value: String(returnsCount), helper: "All recorded returns" },
-        { id: "inventory-value", title: "Inventory Value", value: `$${Number(inventoryValue._sum.purchasePrice ?? 0).toFixed(2)}`, helper: "Cost of in-stock phones" },
+        { id: "inventory-value", title: "Inventory Value", value: formatMoney(Number(inventoryValue._sum.purchasePrice ?? 0)), helper: "Cost of in-stock phones" },
         { id: "accessory-stock", title: "Accessory Stock", value: String(accessories.reduce((sum, item) => sum + item.quantity, 0)), helper: "Units across accessory categories" },
       ]} />
 

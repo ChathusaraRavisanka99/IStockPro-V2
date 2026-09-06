@@ -68,94 +68,105 @@ enum TaxType {
   Amount
 }
 
-model User {
-  id           String    @id @default(cuid())
-  name         String?
-  email        String?   @unique
-  username     String    @unique
-  passwordHash String
-  role         UserRole  @default(staff)
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+enum LotStatus {
+  Shipped
+  Cleared
+}
 
-  auditLogs    AuditLog[]
+model User {
+  id           String   @id @default(cuid())
+  name         String?
+  email        String?  @unique
+  username     String   @unique
+  passwordHash String
+  role         UserRole @default(staff)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  auditLogs AuditLog[]
 }
 
 model PhoneModel {
-  id                String         @id @default(cuid())
+  id                String    @id @default(cuid())
   brand             String
   modelName         String
-  lowStockThreshold Int            @default(3)
-  warrantyMonths    Int            @default(0)
+  lowStockThreshold Int       @default(3)
+  warrantyMonths    Int       @default(0)
   deletedAt         DateTime?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  variants          PhoneVariant[]
-  quotationItems    QuotationItem[]
+  variants       PhoneVariant[]
+  quotationItems QuotationItem[]
 
   @@unique([brand, modelName])
 }
 
 model PhoneVariant {
-  id          String      @id @default(cuid())
-  phoneModel  PhoneModel  @relation(fields: [phoneModelId], references: [id], onDelete: Cascade)
-  phoneModelId String
-  variantName String
-  color       String?
-  storage     String?
-  ram         String?
-  screenSize  String?
-  processor   String?
-  camera      String?
-  os          String?
-  networkType String?
-  battery     String?
-  deletedAt   DateTime?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id                 String     @id @default(cuid())
+  phoneModel         PhoneModel @relation(fields: [phoneModelId], references: [id], onDelete: Cascade)
+  phoneModelId       String
+  variantName        String
+  color              String?
+  storage            String?
+  ram                String?
+  screenSize         String?
+  processor          String?
+  camera             String?
+  os                 String?
+  networkType        String?
+  battery            String?
+  defaultTagCost     Decimal    @default(0)
+  defaultBatteryCost Decimal    @default(0)
+  deletedAt          DateTime?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
 
-  phones      Phone[]
+  phones         Phone[]
   quotationItems QuotationItem[]
 
   @@unique([phoneModelId, variantName])
 }
 
 model Supplier {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
   phone     String?
   email     String?
   address   String?
   deletedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  lots      Lot[]
+  lots Lot[]
 }
 
 model Lot {
-  id               String            @id @default(cuid())
-  lotNumber        String            @unique
-  supplier         Supplier          @relation(fields: [supplierId], references: [id])
+  id               String           @id @default(cuid())
+  lotNumber        String           @unique
+  supplier         Supplier         @relation(fields: [supplierId], references: [id])
   supplierId       String
   purchaseDate     DateTime
-  shippingCost     Decimal           @default(0)
-  taxCost          Decimal           @default(0)
-  customsCost      Decimal           @default(0)
+  status           LotStatus        @default(Cleared)
+  goodsCost        Decimal          @default(0)
+  shippingCost     Decimal          @default(0)
+  taxCost          Decimal          @default(0)
+  customsCost      Decimal          @default(0)
+  otherCost        Decimal          @default(0)
+  fxDetails        Json?
   paymentMethod    PaymentMethod?
   paymentReference String?
-  paymentStatus    LotPaymentStatus  @default(Unpaid)
-  amountPaid       Decimal           @default(0)
+  paymentStatus    LotPaymentStatus @default(Unpaid)
+  amountPaid       Decimal          @default(0)
   note             String?
   deletedAt        DateTime?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
-  phones           Phone[]
-  payments         LotPayment[]
-  accessoryItems   LotAccessoryItem[]
+  phones         Phone[]
+  payments       LotPayment[]
+  accessoryItems LotAccessoryItem[]
 }
 
 model LotAccessoryItem {
@@ -173,117 +184,122 @@ model LotAccessoryItem {
 }
 
 model LotPayment {
-  id        String         @id @default(cuid())
-  lot       Lot            @relation(fields: [lotId], references: [id], onDelete: Cascade)
-  lotId     String
-  amount    Decimal
-  method    PaymentMethod?
-  reference String?
-  paidAt    DateTime       @default(now())
-  createdAt DateTime       @default(now())
+  id            String         @id @default(cuid())
+  lot           Lot            @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  lotId         String
+  amount        Decimal
+  method        PaymentMethod?
+  reference     String?
+  proofImageUrl String?
+  paidAt        DateTime       @default(now())
+  createdAt     DateTime       @default(now())
 }
 
 model Phone {
-  id            String      @id @default(cuid())
-  imei          String      @unique
-  serialNumber  String?
-  phoneVariant  PhoneVariant @relation(fields: [phoneVariantId], references: [id])
+  id             String       @id @default(cuid())
+  imei           String       @unique
+  serialNumber   String?
+  phoneVariant   PhoneVariant @relation(fields: [phoneVariantId], references: [id])
   phoneVariantId String
-  lot           Lot         @relation(fields: [lotId], references: [id])
-  lotId         String
-  purchasePrice Decimal
+  lot            Lot          @relation(fields: [lotId], references: [id])
+  lotId          String
+  purchasePrice  Decimal
   wholesalePrice Decimal?
-  retailPrice   Decimal?
-  repairCost    Decimal      @default(0)
-  status        PhoneStatus  @default(InStock)
-  grade         PhoneGrade?
-  batteryHealth Int?
-  warrantyStart DateTime?
-  warrantyEnd   DateTime?
-  notes         String?
-  deletedAt     DateTime?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  retailPrice    Decimal?
+  repairCost     Decimal      @default(0)
+  tagCost        Decimal      @default(0)
+  batteryCost    Decimal      @default(0)
+  status         PhoneStatus  @default(InStock)
+  grade          PhoneGrade?
+  batteryHealth  Int?
+  warrantyStart  DateTime?
+  warrantyEnd    DateTime?
+  notes          String?
+  deletedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
-  saleItems     SaleItem[]
-  returnItems   ReturnItem[]
+  saleItems   SaleItem[]
+  returnItems ReturnItem[]
+  expenses    Expense[]
 }
 
 model Accessory {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   name              String
   category          String
-  sku               String   @unique
-  quantity          Int      @default(0)
-  soldQuantity      Int      @default(0)
-  lowStockThreshold Int      @default(10)
+  sku               String    @unique
+  quantity          Int       @default(0)
+  soldQuantity      Int       @default(0)
+  lowStockThreshold Int       @default(10)
   purchasePrice     Decimal
-  wholesalePrice    Decimal  @default(0)
+  wholesalePrice    Decimal   @default(0)
   retailPrice       Decimal
   connectorType     String?
-  fastCharging      Boolean  @default(false)
+  fastCharging      Boolean   @default(false)
   voltage           String?
   notes             String?
   deletedAt         DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  saleItems         SaleItem[]
-  returnItems       ReturnItem[]
-  lotItems          LotAccessoryItem[]
+  saleItems   SaleItem[]
+  returnItems ReturnItem[]
+  lotItems    LotAccessoryItem[]
+  expenses    Expense[]
 }
 
 model Customer {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
   phone     String?
   email     String?
   address   String?
   deletedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  sales     Sale[]
+  sales      Sale[]
   quotations Quotation[]
 }
 
 model Sale {
-  id          String      @id @default(cuid())
-  saleNumber  String      @unique
-  customer    Customer?   @relation(fields: [customerId], references: [id])
+  id          String     @id @default(cuid())
+  saleNumber  String     @unique
+  customer    Customer?  @relation(fields: [customerId], references: [id])
   customerId  String?
-  saleDate    DateTime    @default(now())
+  saleDate    DateTime   @default(now())
   subtotal    Decimal
-  taxType     TaxType     @default(Amount)
-  taxPercent  Decimal     @default(0)
-  taxAmount   Decimal     @default(0)
-  handlingFee Decimal     @default(0)
-  discount    Decimal     @default(0)
+  taxType     TaxType    @default(Amount)
+  taxPercent  Decimal    @default(0)
+  taxAmount   Decimal    @default(0)
+  handlingFee Decimal    @default(0)
+  discount    Decimal    @default(0)
   totalAmount Decimal
-  status      SaleStatus  @default(Completed)
+  status      SaleStatus @default(Completed)
   createdById String
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
-  items       SaleItem[]
-  invoice     Invoice?
-  returns     Return[]
+  items           SaleItem[]
+  invoice         Invoice?
+  returns         Return[]
   sourceQuotation Quotation?
 }
 
 model SaleItem {
-  id            String    @id @default(cuid())
-  sale           Sale      @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  saleId         String
-  phone          Phone?    @relation(fields: [phoneId], references: [id])
-  phoneId        String?
-  accessory      Accessory? @relation(fields: [accessoryId], references: [id])
-  accessoryId    String?
-  quantity       Int       @default(1)
-  unitPrice      Decimal
-  lineTotal      Decimal
-  createdAt      DateTime  @default(now())
-  returnItems    ReturnItem[]
+  id          String       @id @default(cuid())
+  sale        Sale         @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  saleId      String
+  phone       Phone?       @relation(fields: [phoneId], references: [id])
+  phoneId     String?
+  accessory   Accessory?   @relation(fields: [accessoryId], references: [id])
+  accessoryId String?
+  quantity    Int          @default(1)
+  unitPrice   Decimal
+  lineTotal   Decimal
+  createdAt   DateTime     @default(now())
+  returnItems ReturnItem[]
 
   @@index([phoneId])
   @@index([accessoryId])
@@ -303,7 +319,7 @@ model Invoice {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  payments      Payment[]
+  payments Payment[]
 }
 
 model Payment {
@@ -319,33 +335,33 @@ model Payment {
 }
 
 model Return {
-  id          String      @id @default(cuid())
-  returnNumber String     @unique
-  sale        Sale        @relation(fields: [saleId], references: [id])
-  saleId      String
-  returnDate  DateTime    @default(now())
-  reason      String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id           String   @id @default(cuid())
+  returnNumber String   @unique
+  sale         Sale     @relation(fields: [saleId], references: [id])
+  saleId       String
+  returnDate   DateTime @default(now())
+  reason       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  items       ReturnItem[]
+  items         ReturnItem[]
   returnInvoice ReturnInvoice?
 }
 
 model ReturnItem {
-  id            String          @id @default(cuid())
-  return        Return          @relation(fields: [returnId], references: [id], onDelete: Cascade)
-  returnId      String
-  saleItem      SaleItem        @relation(fields: [saleItemId], references: [id])
-  saleItemId    String
-  phone         Phone?          @relation(fields: [phoneId], references: [id])
-  phoneId       String?
-  accessory     Accessory?      @relation(fields: [accessoryId], references: [id])
-  accessoryId   String?
-  quantity      Int             @default(1)
-  condition     ReturnCondition
-  lineAmount    Decimal
-  notes         String?
+  id          String          @id @default(cuid())
+  return      Return          @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  returnId    String
+  saleItem    SaleItem        @relation(fields: [saleItemId], references: [id])
+  saleItemId  String
+  phone       Phone?          @relation(fields: [phoneId], references: [id])
+  phoneId     String?
+  accessory   Accessory?      @relation(fields: [accessoryId], references: [id])
+  accessoryId String?
+  quantity    Int             @default(1)
+  condition   ReturnCondition
+  lineAmount  Decimal
+  notes       String?
 }
 
 model ReturnInvoice {
@@ -359,84 +375,91 @@ model ReturnInvoice {
 }
 
 model Quotation {
-  id             String          @id @default(cuid())
-  quoteNumber    String          @unique
-  customer       Customer?       @relation(fields: [customerId], references: [id])
-  customerId     String?
-  customerEmail  String?
-  customerPhone  String?
-  quoteDate      DateTime        @default(now())
-  validUntil     DateTime?
-  taxType        TaxType         @default(Percent)
-  taxPercent     Decimal         @default(0)
-  taxAmount      Decimal         @default(0)
-  handlingFee    Decimal         @default(0)
-  subtotal       Decimal         @default(0)
-  totalAmount    Decimal         @default(0)
-  status         String          @default("Draft")
-  notes          String?
-  convertedSaleId String?        @unique
-  convertedSale  Sale?           @relation(fields: [convertedSaleId], references: [id])
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  id              String    @id @default(cuid())
+  quoteNumber     String    @unique
+  customer        Customer? @relation(fields: [customerId], references: [id])
+  customerId      String?
+  customerEmail   String?
+  customerPhone   String?
+  quoteDate       DateTime  @default(now())
+  validUntil      DateTime?
+  taxType         TaxType   @default(Percent)
+  taxPercent      Decimal   @default(0)
+  taxAmount       Decimal   @default(0)
+  handlingFee     Decimal   @default(0)
+  subtotal        Decimal   @default(0)
+  totalAmount     Decimal   @default(0)
+  status          String    @default("Draft")
+  notes           String?
+  convertedSaleId String?   @unique
+  convertedSale   Sale?     @relation(fields: [convertedSaleId], references: [id])
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  items          QuotationItem[]
+  items QuotationItem[]
 }
 
 model QuotationItem {
-  id             String       @id @default(cuid())
-  quotation      Quotation    @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  id             String        @id @default(cuid())
+  quotation      Quotation     @relation(fields: [quotationId], references: [id], onDelete: Cascade)
   quotationId    String
   description    String?
-  phoneModel     PhoneModel?  @relation(fields: [phoneModelId], references: [id])
+  phoneModel     PhoneModel?   @relation(fields: [phoneModelId], references: [id])
   phoneModelId   String?
   phoneVariant   PhoneVariant? @relation(fields: [phoneVariantId], references: [id])
   phoneVariantId String?
-  quantity       Int          @default(1)
+  quantity       Int           @default(1)
   unitPrice      Decimal
   lineTotal      Decimal
 }
 
 model Expense {
-  id          String   @id @default(cuid())
+  id          String     @id @default(cuid())
   category    String
   description String?
   amount      Decimal
   expenseDate DateTime
   receiptUrl  String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  phone       Phone?     @relation(fields: [phoneId], references: [id], onDelete: SetNull)
+  phoneId     String?
+  accessory   Accessory? @relation(fields: [accessoryId], references: [id], onDelete: SetNull)
+  accessoryId String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([phoneId])
+  @@index([accessoryId])
 }
 
 model TaxPayment {
-  id          String              @id @default(cuid())
-  period      String
-  amount      Decimal
-  paidDate    DateTime
-  note        String?
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  id        String   @id @default(cuid())
+  period    String
+  amount    Decimal
+  paidDate  DateTime
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  receipts    TaxPaymentReceipt[]
+  receipts TaxPaymentReceipt[]
 }
 
 model TaxPaymentReceipt {
-  id            String     @id @default(cuid())
-  taxPayment     TaxPayment @relation(fields: [taxPaymentId], references: [id], onDelete: Cascade)
-  taxPaymentId   String
-  fileUrl        String
-  createdAt      DateTime   @default(now())
+  id           String     @id @default(cuid())
+  taxPayment   TaxPayment @relation(fields: [taxPaymentId], references: [id], onDelete: Cascade)
+  taxPaymentId String
+  fileUrl      String
+  createdAt    DateTime   @default(now())
 }
 
 model AuditLog {
-  id          String   @id @default(cuid())
-  action      String
-  entityType  String
-  entityId    String
-  details     Json?
-  user        User?    @relation(fields: [userId], references: [id])
-  userId      String?
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  action     String
+  entityType String
+  entityId   String
+  details    Json?
+  user       User?    @relation(fields: [userId], references: [id])
+  userId     String?
+  createdAt  DateTime @default(now())
 
   @@index([entityType, entityId])
   @@index([action])

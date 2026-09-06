@@ -1,16 +1,19 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { canViewCost } from "@/lib/rbac";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { formatMoney } from "@/lib/currency";
 
-export default async function PhoneVariantDetailPage({ params }: { params: { id: string } }) {
+export default async function PhoneVariantDetailPage({ params, searchParams }: { params: { id: string }; searchParams?: { edit?: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) notFound();
   const showCost = canViewCost(session.user?.role as "admin" | "manager" | "staff" | undefined);
+  const editing = searchParams?.edit === "1";
 
   const variant = await prisma.phoneVariant.findUnique({
     where: { id: params.id },
@@ -20,6 +23,39 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
     },
   });
   if (!variant) notFound();
+
+  async function updateVariant(formData: FormData) {
+    "use server";
+
+    const variantName = String(formData.get("variantName") || "").trim();
+    if (!variantName) return;
+
+    await prisma.phoneVariant.update({
+      where: { id: params.id },
+      data: {
+        variantName,
+        color: String(formData.get("color") || "").trim() || null,
+        storage: String(formData.get("storage") || "").trim() || null,
+        ram: String(formData.get("ram") || "").trim() || null,
+        screenSize: String(formData.get("screenSize") || "").trim() || null,
+        processor: String(formData.get("processor") || "").trim() || null,
+        camera: String(formData.get("camera") || "").trim() || null,
+        os: String(formData.get("os") || "").trim() || null,
+        networkType: String(formData.get("networkType") || "").trim() || null,
+        battery: String(formData.get("battery") || "").trim() || null,
+        defaultTagCost: Number(formData.get("defaultTagCost") || 0),
+        defaultBatteryCost: Number(formData.get("defaultBatteryCost") || 0),
+      },
+    });
+
+    revalidatePath(`/items/phones/variants/${params.id}`);
+    revalidatePath("/items/phone-catalog");
+    revalidatePath("/lots");
+
+    // Leave edit mode on save (Cancel already does this) — otherwise the row stays open
+    // indefinitely with no feedback that the save succeeded.
+    redirect(`/items/phones/variants/${params.id}`);
+  }
 
   const specs: [string, string | null][] = [
     ["Color", variant.color],
@@ -48,8 +84,74 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <h2 className="mb-3 text-lg font-semibold">Specifications</h2>
-          {presentSpecs.length ? (
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Specifications</h2>
+            {!editing ? (
+              <a href="?edit=1" className="text-sm text-slate-700 underline">Edit</a>
+            ) : null}
+          </div>
+          {editing ? (
+            <form action={updateVariant} className="grid gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                  Variant name
+                  <input name="variantName" required defaultValue={variant.variantName} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                </label>
+                <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                  Color
+                  <input name="color" defaultValue={variant.color || ""} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                </label>
+                <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                  Storage (ROM)
+                  <input name="storage" defaultValue={variant.storage || ""} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                </label>
+                <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                  RAM
+                  <input name="ram" defaultValue={variant.ram || ""} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                </label>
+                <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                  Screen size
+                  <input name="screenSize" defaultValue={variant.screenSize || ""} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                </label>
+                <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                  Processor
+                  <input name="processor" defaultValue={variant.processor || ""} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                </label>
+                <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                  Camera
+                  <input name="camera" defaultValue={variant.camera || ""} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                </label>
+                <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                  OS
+                  <input name="os" defaultValue={variant.os || ""} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                </label>
+                <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                  Network
+                  <input name="networkType" defaultValue={variant.networkType || ""} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                </label>
+                <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                  Battery
+                  <input name="battery" defaultValue={variant.battery || ""} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                </label>
+                {showCost ? (
+                  <>
+                    <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                      Default tag cost
+                      <input name="defaultTagCost" type="number" step="0.01" min={0} defaultValue={Number(variant.defaultTagCost)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                    </label>
+                    <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                      Default battery cost
+                      <input name="defaultBatteryCost" type="number" step="0.01" min={0} defaultValue={Number(variant.defaultBatteryCost)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                    </label>
+                  </>
+                ) : null}
+              </div>
+              <div className="flex gap-2">
+                <button type="submit" className="rounded-md bg-slate-900 px-3 py-1 text-xs text-white">Save</button>
+                <a href="?" className="rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-700">Cancel</a>
+              </div>
+            </form>
+          ) : presentSpecs.length ? (
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">
               {presentSpecs.map(([label, value]) => (
                 <div key={label}>
@@ -57,6 +159,18 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
                   <dd className="text-slate-900">{value}</dd>
                 </div>
               ))}
+              {showCost ? (
+                <>
+                  <div>
+                    <dt className="text-xs font-semibold uppercase text-slate-500">Default tag cost</dt>
+                    <dd className="text-slate-900">{formatMoney(variant.defaultTagCost)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold uppercase text-slate-500">Default battery cost</dt>
+                    <dd className="text-slate-900">{formatMoney(variant.defaultBatteryCost)}</dd>
+                  </div>
+                </>
+              ) : null}
             </dl>
           ) : (
             <p className="text-sm text-slate-600">No specifications recorded yet.</p>
@@ -107,8 +221,8 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
                   <td className="px-2 py-2">
                     <Link href={`/lots/${phone.lot.id}`} className="text-slate-800 underline">{phone.lot.lotNumber}</Link>
                   </td>
-                  {showCost ? <td className="px-2 py-2">${Number(phone.purchasePrice).toFixed(2)}</td> : null}
-                  <td className="px-2 py-2">${Number(phone.retailPrice ?? 0).toFixed(2)}</td>
+                  {showCost ? <td className="px-2 py-2">{formatMoney(Number(phone.purchasePrice))}</td> : null}
+                  <td className="px-2 py-2">{formatMoney(Number(phone.retailPrice ?? 0))}</td>
                 </tr>
               ))}
               {!variant.phones.length ? (

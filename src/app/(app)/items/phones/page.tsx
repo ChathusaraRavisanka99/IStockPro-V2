@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
@@ -10,6 +11,7 @@ import { ListControls } from "@/components/ui/list-controls";
 import { Pagination } from "@/components/ui/pagination";
 import { parsePage, parsePageSize } from "@/lib/pagination";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { formatMoney } from "@/lib/currency";
 
 type Props = { searchParams: { search?: string; filter?: string; view?: "list" | "grid"; page?: string; pageSize?: string; editModel?: string } };
 
@@ -96,6 +98,16 @@ export default async function PhonesPage({ searchParams }: Props) {
     revalidatePath("/items/phones");
     revalidatePath("/items/phone-catalog");
     revalidatePath("/dashboard");
+
+    // Leave edit mode on save (Cancel already does this) — otherwise the row stays open
+    // indefinitely with no feedback that the save succeeded.
+    const query = new URLSearchParams();
+    if (searchParams.search) query.set("search", searchParams.search);
+    if (searchParams.filter) query.set("filter", searchParams.filter);
+    if (searchParams.view) query.set("view", searchParams.view);
+    if (searchParams.page) query.set("page", searchParams.page);
+    if (searchParams.pageSize) query.set("pageSize", searchParams.pageSize);
+    redirect(`/items/phones?${query.toString()}`);
   }
 
   async function createVariant(formData: FormData) {
@@ -221,17 +233,17 @@ export default async function PhonesPage({ searchParams }: Props) {
               quickAdd={{ label: "Model", action: createModel, fields: [{ name: "brand", label: "Brand", required: true }, { name: "modelName", label: "Model name", required: true }, { name: "lowStockThreshold", label: "Low stock threshold", type: "number" }, { name: "warrantyMonths", label: "Warranty months", type: "number" }] }}
             />
             <input name="variantName" required placeholder="Variant name" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <input name="color" placeholder="Color" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
               <input name="storage" placeholder="Storage (ROM)" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
               <input name="ram" placeholder="RAM" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
             </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <input name="screenSize" placeholder="Screen size" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
               <input name="processor" placeholder="Processor" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
               <input name="camera" placeholder="Camera" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
             </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <input name="os" placeholder="OS" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
               <input name="networkType" placeholder="Network (4G/5G)" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
               <input name="battery" placeholder="Battery capacity" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
@@ -252,7 +264,7 @@ export default async function PhonesPage({ searchParams }: Props) {
               options={lots.map((lot) => ({ value: lot.id, label: lot.lotNumber }))}
               quickAdd={{ label: "Lot", action: createLotDependency, fields: [{ name: "lotNumber", label: "Lot number", required: true }, { name: "supplierId", label: "Supplier", type: "select", required: true, options: suppliers.map((supplier) => ({ label: supplier.name, value: supplier.id })) }] }}
             />
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2">
               <select name="grade" defaultValue="A" className="rounded-lg border border-slate-300 bg-white px-3 py-2">
                 <option value="A">Grade A</option>
                 <option value="B">Grade B</option>
@@ -363,7 +375,7 @@ export default async function PhonesPage({ searchParams }: Props) {
                   <div className="flex justify-between gap-2"><dt>IMEI</dt><dd className="text-right text-slate-800">{phone.imei}</dd></div>
                   <div className="flex justify-between gap-2"><dt>Lot</dt><dd className="text-right text-slate-800">{phone.lot.lotNumber}</dd></div>
                   <div className="flex justify-between gap-2"><dt>Grade</dt><dd className="text-right text-slate-800">{phone.grade || "-"}</dd></div>
-                  {showCost ? <div className="flex justify-between gap-2"><dt>Purchase price</dt><dd className="text-right text-slate-800">${Number((phone as { purchasePrice?: number }).purchasePrice ?? 0).toFixed(2)}</dd></div> : null}
+                  {showCost ? <div className="flex justify-between gap-2"><dt>Purchase price</dt><dd className="text-right text-slate-800">{formatMoney(Number((phone as { purchasePrice?: number }).purchasePrice ?? 0))}</dd></div> : null}
                 </dl>
                 {phone.notes ? <p className="mt-2 text-xs italic text-slate-500">{phone.notes}</p> : null}
                 <form action={archivePhone} className="mt-3">
@@ -401,7 +413,7 @@ export default async function PhonesPage({ searchParams }: Props) {
                   <td className="px-2 py-2">{phone.lot.lotNumber}</td>
                   <td className="px-2 py-2">{phone.grade || "-"}</td>
                   <td className="px-2 py-2">{phone.status}</td>
-                  {showCost ? <td className="px-2 py-2">${Number((phone as { purchasePrice?: number }).purchasePrice ?? 0).toFixed(2)}</td> : null}
+                  {showCost ? <td className="px-2 py-2">{formatMoney(Number((phone as { purchasePrice?: number }).purchasePrice ?? 0))}</td> : null}
                   <td className="px-2 py-2"><form action={archivePhone}><input type="hidden" name="id" value={phone.id} /><button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Archive</button></form></td>
                 </tr>
               ))}

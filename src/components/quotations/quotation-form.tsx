@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { SearchableSelect, type QuickAdd } from "@/components/ui/searchable-select";
 import { CartBuilder, type CartLine } from "@/components/ui/cart-builder";
+import { formatMoney } from "@/lib/currency";
 
 type Option = { value: string; label: string };
 type ItemOption = { value: string; label: string; price: number; category?: string };
@@ -40,7 +41,7 @@ export function QuotationForm({ customers, customerQuickAdd, items, action }: Pr
         <p className="text-sm font-semibold text-slate-900">Summary</p>
         <p className="flex justify-between text-sm text-slate-700">
           <span>Subtotal</span>
-          <span>${subtotal.toFixed(2)}</span>
+          <span>{formatMoney(subtotal)}</span>
         </p>
 
         <div className="grid min-w-0 gap-1">
@@ -53,7 +54,7 @@ export function QuotationForm({ customers, customerQuickAdd, items, action }: Pr
           </div>
           <input type="hidden" name="taxType" value={taxMode} />
           <input name="taxValue" type="number" step="0.01" min={0} value={taxValue} onChange={(event) => setTaxValue(event.target.value)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
-          <p className="text-xs text-slate-500">= ${taxAmount.toFixed(2)}{taxMode === "Amount" && subtotal > 0 ? ` (${((taxAmount / subtotal) * 100).toFixed(2)}%)` : ""}</p>
+          <p className="text-xs text-slate-500">= {formatMoney(taxAmount)}{taxMode === "Amount" && subtotal > 0 ? ` (${((taxAmount / subtotal) * 100).toFixed(2)}%)` : ""}</p>
         </div>
 
         <label className="grid min-w-0 gap-1 text-sm text-slate-700">
@@ -66,7 +67,7 @@ export function QuotationForm({ customers, customerQuickAdd, items, action }: Pr
         </label>
         <p className="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold text-slate-950">
           <span>Total</span>
-          <span>${total.toFixed(2)}</span>
+          <span>{formatMoney(total)}</span>
         </p>
         <button type="submit" disabled={lines.length === 0} className="rounded-lg bg-slate-900 px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50">
           Create Quotation

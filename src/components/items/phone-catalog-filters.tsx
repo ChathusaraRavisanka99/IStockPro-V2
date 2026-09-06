@@ -1,3 +1,5 @@
+import { formatMoney } from "@/lib/currency";
+
 type Option = { value: string; label: string };
 
 type Props = {
@@ -52,11 +54,11 @@ export function PhoneCatalogFilters({ view, search, make, storage, ram, color, m
       <div className="grid items-end gap-2 sm:grid-cols-[1fr_1fr_auto]">
         <label className="grid min-w-0 gap-1 text-xs text-slate-600">
           Min price
-          <input name="minPrice" type="number" min={0} step="0.01" defaultValue={minPrice} placeholder={`$${priceBounds.min.toFixed(0)}`} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+          <input name="minPrice" type="number" min={0} step="0.01" defaultValue={minPrice} placeholder={formatMoney(priceBounds.min)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
         </label>
         <label className="grid min-w-0 gap-1 text-xs text-slate-600">
           Max price
-          <input name="maxPrice" type="number" min={0} step="0.01" defaultValue={maxPrice} placeholder={`$${priceBounds.max.toFixed(0)}`} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+          <input name="maxPrice" type="number" min={0} step="0.01" defaultValue={maxPrice} placeholder={formatMoney(priceBounds.max)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
         </label>
         <div className="flex gap-2">
           <button type="submit" className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">Apply Filters</button>

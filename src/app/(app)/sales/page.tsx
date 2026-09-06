@@ -9,6 +9,7 @@ import { ListControls } from "@/components/ui/list-controls";
 import { Pagination } from "@/components/ui/pagination";
 import { parsePage, parsePageSize } from "@/lib/pagination";
 import { SaleForm } from "@/components/sales/sale-form";
+import { formatMoney } from "@/lib/currency";
 
 type CartLine = { key: string; unitPrice: number; quantity: number };
 
@@ -19,10 +20,11 @@ function invoiceStatusColor(status?: string) {
   return "bg-red-100 text-red-800";
 }
 
-export default async function SalesPage({ searchParams }: { searchParams: { search?: string; filter?: string; view?: "list" | "grid"; page?: string; pageSize?: string } }) {
+export default async function SalesPage({ searchParams }: { searchParams: { search?: string; filter?: string; filter2?: string; view?: "list" | "grid"; page?: string; pageSize?: string } }) {
   const session = await getServerSession(authOptions);
   const search = searchParams.search?.trim() || "";
   const status = searchParams.filter || "";
+  const paymentStatus = searchParams.filter2 || "";
   const view = searchParams.view === "grid" ? "grid" : "list";
   const page = parsePage(searchParams.page);
   const pageSize = parsePageSize(searchParams.pageSize);
@@ -31,7 +33,11 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
     prisma.phone.findMany({ where: { deletedAt: null, status: "InStock" }, include: { phoneVariant: { include: { phoneModel: true } } }, orderBy: { createdAt: "desc" } }),
     prisma.accessory.findMany({ where: { deletedAt: null }, orderBy: { name: "asc" } }),
   ]);
-  const saleWhere = { ...(status ? { status: status as "Draft" | "Completed" | "Voided" } : {}), ...(search ? { OR: [{ saleNumber: { contains: search, mode: "insensitive" as const } }, { customer: { name: { contains: search, mode: "insensitive" as const } } }] } : {}) };
+  const saleWhere = {
+    ...(status ? { status: status as "Draft" | "Completed" | "Voided" } : {}),
+    ...(paymentStatus ? { invoice: { status: paymentStatus as "Unpaid" | "PartiallyPaid" | "Paid" | "Voided" } } : {}),
+    ...(search ? { OR: [{ saleNumber: { contains: search, mode: "insensitive" as const } }, { customer: { name: { contains: search, mode: "insensitive" as const } } }] } : {}),
+  };
   const [sales, total] = await prisma.$transaction([prisma.sale.findMany({
     where: saleWhere,
     skip: (page - 1) * pageSize,
@@ -155,7 +161,17 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
   return (
     <div>
       <PageHeader title="Sales" subtitle="Create sales and auto-generate invoices" />
-      <ListControls search={search} filter={status} view={view} filterLabel="All statuses" filterOptions={["Draft", "Completed", "Voided"].map((value) => ({ label: value, value }))} placeholder="Search sale number or customer" />
+      <ListControls
+        search={search}
+        filter={status}
+        filterLabel="All statuses"
+        filterOptions={["Draft", "Completed", "Voided"].map((value) => ({ label: value, value }))}
+        filter2={paymentStatus}
+        filter2Label="All payment statuses"
+        filterOptions2={["Unpaid", "PartiallyPaid", "Paid", "Voided"].map((value) => ({ label: value, value }))}
+        view={view}
+        placeholder="Search sale number or customer"
+      />
       <Card className="mb-4">
         <SaleForm
           customers={customers.map((customer) => ({ value: customer.id, label: customer.name }))}
@@ -172,9 +188,11 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
           {sales.map((sale) => (
             <Card key={sale.id}>
               <p className="font-semibold text-slate-900">{sale.saleNumber}</p>
-              <p className="mt-1 text-sm text-slate-700">{sale.customer?.name || "Walk-in"}</p>
+              <p className="mt-1 text-sm text-slate-700">
+                {sale.customer ? <Link href={`/customers/${sale.customer.id}`} className="underline">{sale.customer.name}</Link> : "Walk-in"}
+              </p>
               <p className="text-sm text-slate-700">{sale.saleDate.toISOString().slice(0, 10)}</p>
-              <p className="mt-3 text-lg font-semibold text-slate-900">${Number(sale.totalAmount).toFixed(2)}</p>
+              <p className="mt-3 text-lg font-semibold text-slate-900">{formatMoney(Number(sale.totalAmount))}</p>
               <p className="text-sm text-slate-700">{sale.invoice?.invoiceNumber || "No invoice"}</p>
               <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${invoiceStatusColor(sale.invoice?.status)}`}>{sale.invoice?.status || "-"}</span>
               <div className="mt-3 flex gap-2">
@@ -204,8 +222,10 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
                 <tr key={sale.id} className="border-b border-slate-200">
                   <td className="px-2 py-2">{sale.saleNumber}</td>
                   <td className="px-2 py-2">{sale.saleDate.toISOString().slice(0, 10)}</td>
-                  <td className="px-2 py-2">{sale.customer?.name || "Walk-in"}</td>
-                  <td className="px-2 py-2">${Number(sale.totalAmount).toFixed(2)}</td>
+                  <td className="px-2 py-2">
+                    {sale.customer ? <Link href={`/customers/${sale.customer.id}`} className="text-slate-800 underline">{sale.customer.name}</Link> : "Walk-in"}
+                  </td>
+                  <td className="px-2 py-2">{formatMoney(Number(sale.totalAmount))}</td>
                   <td className="px-2 py-2">{sale.invoice?.invoiceNumber || "-"}</td>
                   <td className="px-2 py-2">
                     <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${invoiceStatusColor(sale.invoice?.status)}`}>{sale.invoice?.status || "-"}</span>
@@ -222,7 +242,7 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
         </div>
       </Card>
       )}
-      <Pagination page={page} pageSize={pageSize} total={total} query={{ ...(search ? { search } : {}), ...(status ? { filter: status } : {}), view }} />
+      <Pagination page={page} pageSize={pageSize} total={total} query={{ ...(search ? { search } : {}), ...(status ? { filter: status } : {}), ...(paymentStatus ? { filter2: paymentStatus } : {}), view }} />
     </div>
   );
 }

@@ -7,7 +7,7 @@ export default function HandsfreePage({ searchParams }: { searchParams: { search
       category="Handsfree"
       route="/items/handsfree"
       specFields={["connectorType"]}
-      connectorPlaceholder="Connector type (e.g. 3.5mm Jack, Type-C, Bluetooth)"
+      connectorPlaceholder="Connector (3.5mm/Type-C/Bluetooth)"
       searchParams={searchParams}
     />
   );

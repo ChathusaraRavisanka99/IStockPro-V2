@@ -35,7 +35,7 @@ export async function computeReportData(from: Date, to: Date) {
       select: {
         quantity: true,
         lineTotal: true,
-        phone: { select: { phoneVariantId: true, purchasePrice: true, repairCost: true, phoneVariant: { select: { variantName: true, phoneModel: { select: { brand: true, modelName: true } } } } } },
+        phone: { select: { phoneVariantId: true, purchasePrice: true, repairCost: true, tagCost: true, batteryCost: true, phoneVariant: { select: { variantName: true, phoneModel: { select: { brand: true, modelName: true } } } } } },
         accessory: { select: { id: true, name: true, sku: true, purchasePrice: true } },
       },
     }),
@@ -57,7 +57,7 @@ export async function computeReportData(from: Date, to: Date) {
   const quotationTotals = Number(quotationsAgg._sum.totalAmount ?? 0);
   const quotationCount = quotationsAgg._count;
 
-  const phoneCogs = periodSaleItems.reduce((sum, item) => (item.phone ? sum + Number(item.phone.purchasePrice) + Number(item.phone.repairCost) : sum), 0);
+  const phoneCogs = periodSaleItems.reduce((sum, item) => (item.phone ? sum + Number(item.phone.purchasePrice) + Number(item.phone.repairCost) + Number(item.phone.tagCost) + Number(item.phone.batteryCost) : sum), 0);
   const accessoryCogs = periodSaleItems.reduce((sum, item) => (item.accessory ? sum + Number(item.accessory.purchasePrice) * item.quantity : sum), 0);
   const cogs = phoneCogs + accessoryCogs;
   const grossProfit = revenue - cogs;
@@ -81,7 +81,11 @@ export async function computeReportData(from: Date, to: Date) {
   const accountsReceivable = unpaidInvoices.reduce((sum, invoice) => sum + (Number(invoice.totalAmount) - Number(invoice.paidAmount)), 0);
   const lotsWithCost = lots.map((lot) => {
     const unitsCost = lot.phones.reduce((sum, phone) => sum + Number(phone.purchasePrice), 0);
-    const totalCost = Number(lot.shippingCost) + Number(lot.taxCost) + Number(lot.customsCost) + unitsCost;
+    // Same goodsCost-or-unitsCost fallback used on the Lot detail page: a lot with a
+    // recorded lump-sum goods cost is tracked against that immediately; older lots
+    // (goodsCost = 0) fall back to summing whatever units have been itemized so far.
+    const goodsCostBasis = Number(lot.goodsCost) > 0 ? Number(lot.goodsCost) : unitsCost;
+    const totalCost = Number(lot.shippingCost) + Number(lot.taxCost) + Number(lot.customsCost) + Number(lot.otherCost) + goodsCostBasis;
     return { ...lot, totalCost, remaining: Math.max(0, totalCost - Number(lot.amountPaid)) };
   });
   const accountsPayable = lotsWithCost.reduce((sum, lot) => sum + lot.remaining, 0);
@@ -128,6 +132,38 @@ export async function computeReportData(from: Date, to: Date) {
   }
   const salesByItem = Array.from(sellerMap.values()).sort((a, b) => b.qty - a.qty);
 
+  // ---- Daily revenue/profit trend (scoped to the selected period) ----
+  const dailyRevenueRows = await prisma.$queryRaw<{ day: Date; revenue: number }[]>`
+    SELECT date_trunc('day', "saleDate") AS day, SUM("totalAmount")::float AS revenue
+    FROM "Sale"
+    WHERE status = 'Completed' AND "saleDate" BETWEEN ${from} AND ${to}
+    GROUP BY day
+    ORDER BY day ASC
+  `;
+  const dailyCogsRows = await prisma.$queryRaw<{ day: Date; cogs: number }[]>`
+    SELECT date_trunc('day', s."saleDate") AS day,
+      SUM(
+        CASE
+          WHEN si."phoneId" IS NOT NULL THEN COALESCE(p."purchasePrice", 0) + COALESCE(p."repairCost", 0) + COALESCE(p."tagCost", 0) + COALESCE(p."batteryCost", 0)
+          WHEN si."accessoryId" IS NOT NULL THEN COALESCE(a."purchasePrice", 0) * si."quantity"
+          ELSE 0
+        END
+      )::float AS cogs
+    FROM "SaleItem" si
+    JOIN "Sale" s ON s.id = si."saleId"
+    LEFT JOIN "Phone" p ON p.id = si."phoneId"
+    LEFT JOIN "Accessory" a ON a.id = si."accessoryId"
+    WHERE s.status = 'Completed' AND s."saleDate" BETWEEN ${from} AND ${to}
+    GROUP BY day
+    ORDER BY day ASC
+  `;
+  const cogsByDay = new Map(dailyCogsRows.map((row) => [row.day.toISOString().slice(0, 10), Number(row.cogs)]));
+  const dailyRevenue = dailyRevenueRows.map((row) => {
+    const date = row.day.toISOString().slice(0, 10);
+    const dayRevenue = Number(row.revenue);
+    return { date, revenue: dayRevenue, profit: dayRevenue - (cogsByDay.get(date) ?? 0) };
+  });
+
   return {
     period: { from, to },
     financial: {
@@ -170,6 +206,7 @@ export async function computeReportData(from: Date, to: Date) {
       })),
     },
     salesByItem,
+    dailyRevenue,
   };
 }
 

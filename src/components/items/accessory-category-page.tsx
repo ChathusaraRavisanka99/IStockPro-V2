@@ -1,10 +1,12 @@
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { prisma } from "@/lib/prisma";
 import { ListControls } from "@/components/ui/list-controls";
 import { Pagination } from "@/components/ui/pagination";
 import { parsePage, parsePageSize } from "@/lib/pagination";
+import { formatMoney } from "@/lib/currency";
 
 type SpecField = "connectorType" | "voltage" | "fastCharging";
 
@@ -14,7 +16,7 @@ type Props = {
   route: string;
   specFields?: SpecField[];
   connectorPlaceholder?: string;
-  searchParams?: { search?: string; view?: "list" | "grid"; page?: string; pageSize?: string };
+  searchParams?: { search?: string; view?: "list" | "grid"; page?: string; pageSize?: string; edit?: string };
 };
 
 const DEFAULT_SPEC_FIELDS: SpecField[] = ["connectorType", "voltage", "fastCharging"];
@@ -24,7 +26,7 @@ export async function AccessoryCategoryPage({
   category,
   route,
   specFields = DEFAULT_SPEC_FIELDS,
-  connectorPlaceholder = "Connector type (e.g. USB-C, Micro-USB)",
+  connectorPlaceholder = "Connector type",
   searchParams = {},
 }: Props) {
   const showConnectorType = specFields.includes("connectorType");
@@ -34,6 +36,7 @@ export async function AccessoryCategoryPage({
   const view = searchParams.view === "grid" ? "grid" : "list";
   const page = parsePage(searchParams.page);
   const pageSize = parsePageSize(searchParams.pageSize);
+  const editId = searchParams.edit || "";
   const where = { category, deletedAt: null, ...(search ? { OR: [{ name: { contains: search, mode: "insensitive" as const } }, { sku: { contains: search, mode: "insensitive" as const } }] } : {}) };
   const [accessories, total] = await prisma.$transaction([
     prisma.accessory.findMany({
@@ -88,6 +91,37 @@ export async function AccessoryCategoryPage({
     if (!id) return;
     await prisma.accessory.update({ where: { id }, data: { deletedAt: new Date() } });
     revalidatePath(route);
+  }
+
+  async function updateAccessory(formData: FormData) {
+    "use server";
+    const id = String(formData.get("id") || "");
+    const name = String(formData.get("name") || "").trim();
+    const sku = String(formData.get("sku") || "").trim();
+    if (!id || !name || !sku) return;
+
+    await prisma.accessory.update({
+      where: { id },
+      data: {
+        name,
+        sku,
+        lowStockThreshold: Number(formData.get("lowStockThreshold") || 0),
+        purchasePrice: Number(formData.get("purchasePrice") || 0),
+        wholesalePrice: Number(formData.get("wholesalePrice") || 0),
+        retailPrice: Number(formData.get("retailPrice") || 0),
+      },
+    });
+
+    revalidatePath(route);
+
+    // Leave edit mode on save (Cancel already does this) — otherwise the row stays open
+    // indefinitely with no feedback that the save succeeded.
+    const query = new URLSearchParams();
+    if (searchParams.search) query.set("search", searchParams.search);
+    if (searchParams.view) query.set("view", searchParams.view);
+    if (searchParams.page) query.set("page", searchParams.page);
+    if (searchParams.pageSize) query.set("pageSize", searchParams.pageSize);
+    redirect(`${route}?${query.toString()}`);
   }
 
   return (
@@ -147,12 +181,15 @@ export async function AccessoryCategoryPage({
                   {[item.connectorType, item.voltage, item.fastCharging ? "Fast charging" : null].filter(Boolean).join(" · ")}
                 </p>
               ) : null}
-              <p className="mt-3 text-sm text-slate-700">{item.quantity} in stock | ${Number(item.retailPrice).toFixed(2)}</p>
+              <p className="mt-3 text-sm text-slate-700">{item.quantity} in stock | {formatMoney(Number(item.retailPrice))}</p>
               {item.notes ? <p className="mt-1 text-xs italic text-slate-500">{item.notes}</p> : null}
-              <form action={archiveAccessory} className="mt-3">
-                <input type="hidden" name="id" value={item.id} />
-                <button className="rounded-lg border border-red-200 px-3 py-1 text-sm text-red-700">Archive</button>
-              </form>
+              <div className="mt-3 flex gap-2">
+                <a href={`?${new URLSearchParams({ view: "list", edit: item.id }).toString()}`} className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-700">Edit</a>
+                <form action={archiveAccessory}>
+                  <input type="hidden" name="id" value={item.id} />
+                  <button className="rounded-lg border border-red-200 px-3 py-1 text-sm text-red-700">Archive</button>
+                </form>
+              </div>
             </Card>
           ))}
         </div>
@@ -175,22 +212,65 @@ export async function AccessoryCategoryPage({
               </tr>
             </thead>
             <tbody>
-              {accessories.map((item) => (
-                <tr key={item.id} className="border-b border-slate-200">
-                  <td className="px-2 py-2">{item.name}</td>
-                  <td className="px-2 py-2">{item.sku}</td>
-                  <td className="px-2 py-2 text-xs text-slate-600">
-                    {[item.connectorType, item.voltage, item.fastCharging ? "Fast charging" : null].filter(Boolean).join(" · ") || "-"}
-                  </td>
-                  <td className="px-2 py-2">{item.quantity}</td>
-                  <td className="px-2 py-2">{item.soldQuantity}</td>
-                  <td className="px-2 py-2">{item.lowStockThreshold}</td>
-                  <td className="px-2 py-2">${Number(item.purchasePrice).toFixed(2)}</td>
-                  <td className="px-2 py-2">${Number(item.wholesalePrice).toFixed(2)}</td>
-                  <td className="px-2 py-2">${Number(item.retailPrice).toFixed(2)}</td>
-                  <td className="px-2 py-2"><form action={archiveAccessory}><input type="hidden" name="id" value={item.id} /><button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Archive</button></form></td>
-                </tr>
-              ))}
+              {accessories.map((item) =>
+                editId === item.id ? (
+                  <tr key={item.id} className="border-b border-slate-200 bg-slate-50">
+                    <td className="px-2 py-2" colSpan={10}>
+                      <form action={updateAccessory} className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                        <input type="hidden" name="id" value={item.id} />
+                        <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                          Name
+                          <input name="name" required defaultValue={item.name} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                        </label>
+                        <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                          SKU
+                          <input name="sku" required defaultValue={item.sku} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                        </label>
+                        <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                          Low stock threshold
+                          <input name="lowStockThreshold" type="number" min={0} defaultValue={item.lowStockThreshold} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                        </label>
+                        <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                          Purchase price
+                          <input name="purchasePrice" type="number" step="0.01" min={0} defaultValue={Number(item.purchasePrice)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                        </label>
+                        <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                          Wholesale price
+                          <input name="wholesalePrice" type="number" step="0.01" min={0} defaultValue={Number(item.wholesalePrice)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                        </label>
+                        <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+                          Retail price
+                          <input name="retailPrice" type="number" step="0.01" min={0} defaultValue={Number(item.retailPrice)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+                        </label>
+                        <div className="flex items-end gap-2">
+                          <button type="submit" className="rounded-md bg-slate-900 px-3 py-1 text-xs text-white">Save</button>
+                          <a href="?" className="rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-700">Cancel</a>
+                        </div>
+                      </form>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={item.id} className="border-b border-slate-200">
+                    <td className="px-2 py-2">{item.name}</td>
+                    <td className="px-2 py-2">{item.sku}</td>
+                    <td className="px-2 py-2 text-xs text-slate-600">
+                      {[item.connectorType, item.voltage, item.fastCharging ? "Fast charging" : null].filter(Boolean).join(" · ") || "-"}
+                    </td>
+                    <td className="px-2 py-2">{item.quantity}</td>
+                    <td className="px-2 py-2">{item.soldQuantity}</td>
+                    <td className="px-2 py-2">{item.lowStockThreshold}</td>
+                    <td className="px-2 py-2">{formatMoney(Number(item.purchasePrice))}</td>
+                    <td className="px-2 py-2">{formatMoney(Number(item.wholesalePrice))}</td>
+                    <td className="px-2 py-2">{formatMoney(Number(item.retailPrice))}</td>
+                    <td className="px-2 py-2">
+                      <div className="flex gap-2">
+                        <a href={`?${new URLSearchParams({ edit: item.id }).toString()}`} className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700">Edit</a>
+                        <form action={archiveAccessory}><input type="hidden" name="id" value={item.id} /><button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Archive</button></form>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              )}
               {!accessories.length ? (
                 <tr>
                     <td className="px-2 py-5 text-slate-600" colSpan={10}>
