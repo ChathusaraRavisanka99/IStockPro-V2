@@ -56,7 +56,10 @@ export default async function TaxPaymentsPage({ searchParams }: { searchParams: 
         <form action={createTaxPayment} className="grid gap-3 md:grid-cols-5">
           <input name="period" required placeholder="Period (e.g. 2026-Q3)" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
           <input name="amount" type="number" step="0.01" min={0} required placeholder="Amount" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
-          <input name="paidDate" type="date" required className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
+          <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+            Paid date
+            <input name="paidDate" type="date" required className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+          </label>
           <input name="receiptUrl" placeholder="Receipt URL" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
           <input name="note" placeholder="Note" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
           <button className="rounded-lg bg-slate-900 px-3 py-2 text-white md:col-span-5">Add Tax Payment</button>

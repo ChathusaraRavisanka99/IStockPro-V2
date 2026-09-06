@@ -124,7 +124,10 @@ export default async function LotsPage({ searchParams }: Props) {
             options={suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))}
             quickAdd={{ label: "Supplier", action: createSupplierDependency, fields: [{ name: "name", label: "Name", required: true }, { name: "phone", label: "Phone" }, { name: "email", label: "Email" }] }}
           />
-          <input name="purchaseDate" type="date" required className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+          <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+            Purchase date
+            <input name="purchaseDate" type="date" required className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+          </label>
           <input name="shippingCost" type="number" step="0.01" defaultValue={0} placeholder="Shipping cost" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
           <input name="taxCost" type="number" step="0.01" defaultValue={0} placeholder="Tax cost (customs clearance)" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
           <input name="customsCost" type="number" step="0.01" defaultValue={0} placeholder="Customs clearance charges" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
