@@ -116,38 +116,65 @@ export default async function LotsPage({ searchParams }: Props) {
 
       <Card className="mb-4">
         <form action={createLot} className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <input name="lotNumber" required placeholder="Lot Number" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
-          <SearchableSelect
-            name="supplierId"
-            required
-            placeholder="Supplier"
-            options={suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))}
-            quickAdd={{ label: "Supplier", action: createSupplierDependency, fields: [{ name: "name", label: "Name", required: true }, { name: "phone", label: "Phone" }, { name: "email", label: "Email" }] }}
-          />
+          <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+            Lot number
+            <input name="lotNumber" required placeholder="e.g. LOT-0003" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+          </label>
+          <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+            Supplier
+            <SearchableSelect
+              name="supplierId"
+              required
+              placeholder="Select supplier"
+              options={suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))}
+              quickAdd={{ label: "Supplier", action: createSupplierDependency, fields: [{ name: "name", label: "Name", required: true }, { name: "phone", label: "Phone" }, { name: "email", label: "Email" }] }}
+            />
+          </label>
           <label className="grid min-w-0 gap-1 text-sm text-slate-700">
             Purchase date
             <input name="purchaseDate" type="date" required className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
           </label>
-          <input name="shippingCost" type="number" step="0.01" defaultValue={0} placeholder="Shipping cost" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
-          <input name="taxCost" type="number" step="0.01" defaultValue={0} placeholder="Tax cost (customs clearance)" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
-          <input name="customsCost" type="number" step="0.01" defaultValue={0} placeholder="Customs clearance charges" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
-          <select name="paymentMethod" defaultValue="" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2">
-            <option value="">Payment method</option>
-            <option value="Cash">Cash</option>
-            <option value="Card">Card</option>
-            <option value="BankTransfer">Bank Transfer</option>
-            <option value="Cheque">Cheque</option>
-            <option value="UPI">UPI</option>
-            <option value="Other">Other</option>
-          </select>
-          <input name="paymentReference" placeholder="Payment reference / receipt #" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
-          <select name="paymentStatus" defaultValue="Unpaid" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2">
-            <option value="Unpaid">Unpaid</option>
-            <option value="Partial">Partially Paid</option>
-            <option value="Paid">Paid</option>
-          </select>
-          <div className="flex min-w-0 gap-2">
-            <input name="amountPaid" type="number" step="0.01" defaultValue={0} placeholder="Amount paid" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+          <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+            Shipping cost
+            <input name="shippingCost" type="number" step="0.01" defaultValue={0} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+          </label>
+          <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+            Tax cost
+            <input name="taxCost" type="number" step="0.01" defaultValue={0} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+          </label>
+          <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+            Customs clearance charges
+            <input name="customsCost" type="number" step="0.01" defaultValue={0} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+          </label>
+          <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+            Payment method
+            <select name="paymentMethod" defaultValue="" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2">
+              <option value="">Select method</option>
+              <option value="Cash">Cash</option>
+              <option value="Card">Card</option>
+              <option value="BankTransfer">Bank Transfer</option>
+              <option value="Cheque">Cheque</option>
+              <option value="UPI">UPI</option>
+              <option value="Other">Other</option>
+            </select>
+          </label>
+          <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+            Payment reference
+            <input name="paymentReference" placeholder="Receipt / transaction #" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+          </label>
+          <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+            Payment status
+            <select name="paymentStatus" defaultValue="Unpaid" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2">
+              <option value="Unpaid">Unpaid</option>
+              <option value="Partial">Partially Paid</option>
+              <option value="Paid">Paid</option>
+            </select>
+          </label>
+          <div className="flex min-w-0 items-end gap-2">
+            <label className="grid min-w-0 flex-1 gap-1 text-sm text-slate-700">
+              Amount paid
+              <input name="amountPaid" type="number" step="0.01" defaultValue={0} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+            </label>
             <button className="rounded-lg bg-slate-900 px-3 py-2 text-white">Create</button>
           </div>
         </form>

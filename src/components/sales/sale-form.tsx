@@ -27,7 +27,7 @@ export function SaleForm({ customers, customerQuickAdd, items, action }: Props) 
 
   return (
     <form action={action} className="grid gap-4 lg:grid-cols-[1fr_280px]">
-      <div className="grid gap-3">
+      <div className="grid content-start gap-3">
         <SearchableSelect name="customerId" placeholder="Walk-in customer" options={customers} quickAdd={customerQuickAdd} />
         <CartBuilder items={items} lines={lines} onChange={setLines} showNotes />
       </div>

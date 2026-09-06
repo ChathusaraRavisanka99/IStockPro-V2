@@ -90,43 +90,67 @@ export function LotRegisterForm({ variants, existingImeis, showCost, action, var
     <form action={action} className="grid gap-3">
       <input type="hidden" name="batchItems" value={JSON.stringify(batch)} />
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <SearchableSelect placeholder="Select variant" options={variants} onChange={setVariantId} quickAdd={variantQuickAdd} />
-        <input
-          ref={imeiInputRef}
-          value={imei}
-          onChange={(event) => setImei(event.target.value)}
-          placeholder="IMEI"
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2"
-        />
-        <select value={grade} onChange={(event) => setGrade(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2">
-          {GRADES.map((value) => (
-            <option key={value} value={value}>
-              Grade {value}
-            </option>
-          ))}
-        </select>
-        <input
-          type="number"
-          min={0}
-          max={100}
-          value={batteryHealth}
-          onChange={(event) => setBatteryHealth(event.target.value)}
-          placeholder="Battery health %"
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2"
-        />
+        <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+          Phone variant
+          <SearchableSelect placeholder="Select variant" options={variants} onChange={setVariantId} quickAdd={variantQuickAdd} />
+        </label>
+        <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+          IMEI
+          <input
+            ref={imeiInputRef}
+            value={imei}
+            onChange={(event) => setImei(event.target.value)}
+            placeholder="Scan or type IMEI"
+            className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2"
+          />
+        </label>
+        <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+          Grade
+          <select value={grade} onChange={(event) => setGrade(event.target.value)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2">
+            {GRADES.map((value) => (
+              <option key={value} value={value}>
+                Grade {value}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+          Battery health %
+          <input
+            type="number"
+            min={0}
+            max={100}
+            value={batteryHealth}
+            onChange={(event) => setBatteryHealth(event.target.value)}
+            placeholder="e.g. 95"
+            className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2"
+          />
+        </label>
         {showCost ? (
           <>
-            <input type="number" step="0.01" min={0} value={purchasePrice} onChange={(event) => setPurchasePrice(event.target.value)} placeholder="Purchase price" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
-            <input type="number" step="0.01" min={0} value={wholesalePrice} onChange={(event) => setWholesalePrice(event.target.value)} placeholder="Wholesale price" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
+            <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+              Purchase price
+              <input type="number" step="0.01" min={0} value={purchasePrice} onChange={(event) => setPurchasePrice(event.target.value)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+            </label>
+            <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+              Wholesale price
+              <input type="number" step="0.01" min={0} value={wholesalePrice} onChange={(event) => setWholesalePrice(event.target.value)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+            </label>
           </>
         ) : null}
-        <input type="number" step="0.01" min={0} value={retailPrice} onChange={(event) => setRetailPrice(event.target.value)} placeholder="Retail price" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
-        <input
-          value={notes}
-          onChange={(event) => setNotes(event.target.value)}
-          placeholder="Notes (shown to staff when selecting this unit in a sale)"
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 md:col-span-2 xl:col-span-2"
-        />
+        <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+          Retail price
+          <input type="number" step="0.01" min={0} value={retailPrice} onChange={(event) => setRetailPrice(event.target.value)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+        </label>
+        <label className="grid min-w-0 gap-1 text-sm text-slate-700 md:col-span-2 xl:col-span-2">
+          Notes
+          <input
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            placeholder="Shown to staff when selecting this unit in a sale"
+            className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2"
+          />
+        </label>
       </div>
       <button type="button" onClick={addToBatch} className="justify-self-start rounded-lg border border-dashed border-slate-300 px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50">
         + Add to Batch

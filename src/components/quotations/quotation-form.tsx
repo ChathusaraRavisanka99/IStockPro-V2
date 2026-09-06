@@ -27,7 +27,7 @@ export function QuotationForm({ customers, customerQuickAdd, items, action }: Pr
 
   return (
     <form action={action} className="grid gap-4 lg:grid-cols-[1fr_280px]">
-      <div className="grid gap-3">
+      <div className="grid content-start gap-3">
         <div className="grid gap-3 sm:grid-cols-2">
           <SearchableSelect name="customerId" placeholder="Walk-in customer" options={customers} quickAdd={customerQuickAdd} />
           <input name="customerPhone" placeholder="Customer phone (optional)" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
