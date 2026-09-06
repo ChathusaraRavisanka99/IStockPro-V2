@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { SearchableSelect, type QuickAdd } from "@/components/ui/searchable-select";
+import { formatMoney } from "@/lib/currency";
 
 type SaleItemOption = {
   id: string;
@@ -87,7 +88,7 @@ export function ReturnForm({ sales, action, quickAdd }: Props) {
                     {item.label}
                   </span>
                   <span className="text-slate-600">
-                    {item.quantity} returnable · ${item.unitPrice.toFixed(2)} each
+                    {item.quantity} returnable · {formatMoney(item.unitPrice)} each
                   </span>
                 </label>
               ))}

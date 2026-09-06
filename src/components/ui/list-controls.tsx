@@ -11,6 +11,9 @@ type Props = {
   filter?: string;
   filterLabel?: string;
   filterOptions?: FilterOption[];
+  filter2?: string;
+  filter2Label?: string;
+  filterOptions2?: FilterOption[];
   placeholder?: string;
   view?: "list" | "grid";
 };
@@ -20,12 +23,16 @@ export function ListControls({
   filter = "",
   filterLabel,
   filterOptions = [],
+  filter2 = "",
+  filter2Label,
+  filterOptions2 = [],
   placeholder = "Search",
   view = "list",
 }: Props) {
   const query = new URLSearchParams();
   if (search) query.set("search", search);
   if (filter) query.set("filter", filter);
+  if (filter2) query.set("filter2", filter2);
 
   const listQuery = new URLSearchParams(query);
   listQuery.set("view", "list");
@@ -42,6 +49,9 @@ export function ListControls({
       />
       {filterOptions.length ? (
         <SearchableSelect name="filter" defaultValue={filter} aria-label={filterLabel || "Filter"} placeholder={filterLabel || "All"} options={filterOptions} />
+      ) : null}
+      {filterOptions2.length ? (
+        <SearchableSelect name="filter2" defaultValue={filter2} aria-label={filter2Label || "Filter"} placeholder={filter2Label || "All"} options={filterOptions2} />
       ) : null}
       <button className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">Apply</button>
       <div className="flex shrink-0 rounded-lg border border-slate-300 bg-white p-1 text-sm">

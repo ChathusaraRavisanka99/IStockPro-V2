@@ -3,6 +3,7 @@ import { Document, Page, StyleSheet, Text, View, renderToBuffer } from "@react-p
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { formatMoney } from "@/lib/currency";
 
 const styles = StyleSheet.create({
   page: { padding: 42, fontFamily: "Helvetica", fontSize: 10, color: "#172033" },
@@ -53,12 +54,12 @@ export async function GET(_request: Request, { params }: { params: { id: string 
         <View style={styles.infoGrid}>
           <View style={styles.infoBlock}><Text style={styles.label}>Bill To</Text><Text style={styles.value}>{sale.customer?.name || "Walk-in customer"}</Text><Text style={styles.muted}>{sale.customer?.email || sale.customer?.phone || "Customer details not provided"}</Text></View>
           <View style={styles.infoBlock}><Text style={styles.label}>Invoice Date</Text><Text style={styles.value}>{sale.invoice?.issueDate.toISOString().slice(0, 10) || sale.saleDate.toISOString().slice(0, 10)}</Text><Text style={styles.muted}>Sale reference: {sale.saleNumber}</Text></View>
-          <View style={styles.infoBlock}><Text style={styles.label}>Payment Status</Text><Text style={styles.value}>{sale.invoice?.status || "Unpaid"}</Text><Text style={styles.muted}>Paid: ${Number(sale.invoice?.paidAmount || 0).toFixed(2)}</Text></View>
+          <View style={styles.infoBlock}><Text style={styles.label}>Payment Status</Text><Text style={styles.value}>{sale.invoice?.status || "Unpaid"}</Text><Text style={styles.muted}>Paid: {formatMoney(Number(sale.invoice?.paidAmount || 0))}</Text></View>
         </View>
         <View style={styles.tableHeader}><Text style={styles.item}>Description</Text><Text style={styles.qty}>Qty</Text><Text style={styles.rate}>Unit Price</Text><Text style={styles.amount}>Amount</Text></View>
-        {sale.items.map((item) => <View key={item.id} style={styles.row}><Text style={styles.item}>{item.phone?.imei || item.accessory?.name || "Sale item"}</Text><Text style={styles.qty}>{item.quantity}</Text><Text style={styles.rate}>${Number(item.unitPrice).toFixed(2)}</Text><Text style={styles.amount}>${Number(item.lineTotal).toFixed(2)}</Text></View>)}
+        {sale.items.map((item) => <View key={item.id} style={styles.row}><Text style={styles.item}>{item.phone?.imei || item.accessory?.name || "Sale item"}</Text><Text style={styles.qty}>{item.quantity}</Text><Text style={styles.rate}>{formatMoney(Number(item.unitPrice))}</Text><Text style={styles.amount}>{formatMoney(Number(item.lineTotal))}</Text></View>)}
         {!sale.items.length ? <View style={styles.row}><Text style={styles.item}>Summary sale without item lines</Text><Text style={styles.qty}>-</Text><Text style={styles.rate}>-</Text><Text style={styles.amount}>-</Text></View> : null}
-        <View style={styles.totalsArea}><View style={styles.paymentNote}><Text style={styles.label}>Notes</Text><Text>Thank you for choosing IStockPro. Please retain this invoice for your records.</Text></View><View style={styles.totals}><View style={styles.totalLine}><Text>Subtotal</Text><Text>${Number(sale.subtotal).toFixed(2)}</Text></View><View style={styles.totalLine}><Text>Tax</Text><Text>${Number(sale.taxAmount).toFixed(2)}</Text></View><View style={styles.totalLine}><Text>Discount</Text><Text>-${Number(sale.discount).toFixed(2)}</Text></View><View style={styles.total}><Text>Total Due</Text><Text>${Number(sale.totalAmount).toFixed(2)}</Text></View><Text style={styles.status}>{sale.invoice?.status || "Unpaid"}</Text></View></View>
+        <View style={styles.totalsArea}><View style={styles.paymentNote}><Text style={styles.label}>Notes</Text><Text>Thank you for choosing IStockPro. Please retain this invoice for your records.</Text></View><View style={styles.totals}><View style={styles.totalLine}><Text>Subtotal</Text><Text>{formatMoney(Number(sale.subtotal))}</Text></View><View style={styles.totalLine}><Text>Tax</Text><Text>{formatMoney(Number(sale.taxAmount))}</Text></View><View style={styles.totalLine}><Text>Discount</Text><Text>-{formatMoney(Number(sale.discount))}</Text></View><View style={styles.total}><Text>Total Due</Text><Text>{formatMoney(Number(sale.totalAmount))}</Text></View><Text style={styles.status}>{sale.invoice?.status || "Unpaid"}</Text></View></View>
         <Text style={styles.footer}>IStockPro | Thank you for your business.{"\n"}This is a computer-generated invoice and does not require a signature.</Text>
       </Page>
     </Document>,

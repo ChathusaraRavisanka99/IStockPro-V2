@@ -11,6 +11,8 @@ import { ListControls } from "@/components/ui/list-controls";
 import { Pagination } from "@/components/ui/pagination";
 import { parsePage, parsePageSize } from "@/lib/pagination";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { FxAmountInput } from "@/components/ui/fx-amount-input";
+import { formatMoney } from "@/lib/currency";
 
 type Props = {
   searchParams?: {
@@ -69,9 +71,13 @@ export default async function LotsPage({ searchParams }: Props) {
     const lotNumber = String(formData.get("lotNumber") || "").trim();
     const supplierId = String(formData.get("supplierId") || "");
     const purchaseDate = String(formData.get("purchaseDate") || "").trim();
+    const statusInput = String(formData.get("status") || "Shipped");
+    const status = (["Shipped", "Cleared"].includes(statusInput) ? statusInput : "Shipped") as "Shipped" | "Cleared";
+    const goodsCost = Number(formData.get("goodsCost") || 0);
     const shippingCost = Number(formData.get("shippingCost") || 0);
     const taxCost = Number(formData.get("taxCost") || 0);
     const customsCost = Number(formData.get("customsCost") || 0);
+    const otherCost = Number(formData.get("otherCost") || 0);
     const paymentMethodInput = String(formData.get("paymentMethod") || "");
     const paymentMethod = (["Cash", "Card", "BankTransfer", "Cheque", "UPI", "Other"].includes(paymentMethodInput) ? paymentMethodInput : null) as "Cash" | "Card" | "BankTransfer" | "Cheque" | "UPI" | "Other" | null;
     const paymentReference = String(formData.get("paymentReference") || "").trim() || null;
@@ -81,14 +87,31 @@ export default async function LotsPage({ searchParams }: Props) {
 
     if (!lotNumber || !supplierId || !purchaseDate) return;
 
+    // Foreign-currency breakdowns (audit only — the amount fields above are always LKR).
+    const fxDetails: Record<string, { currency: string; foreignAmount: number; rate: number }> = {};
+    for (const field of ["goodsCost", "shippingCost", "taxCost", "customsCost", "otherCost"]) {
+      const raw = String(formData.get(`__fx_${field}`) || "");
+      if (raw) {
+        try {
+          fxDetails[field] = JSON.parse(raw);
+        } catch {
+          // ignore malformed payload, amount field itself is still authoritative
+        }
+      }
+    }
+
     const lot = await prisma.lot.create({
       data: {
         lotNumber,
         supplierId,
         purchaseDate: new Date(purchaseDate),
+        status,
+        goodsCost,
         shippingCost,
         taxCost,
         customsCost,
+        otherCost,
+        fxDetails: Object.keys(fxDetails).length ? fxDetails : undefined,
         paymentMethod,
         paymentReference,
         paymentStatus,
@@ -135,17 +158,17 @@ export default async function LotsPage({ searchParams }: Props) {
             <input name="purchaseDate" type="date" required className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
           </label>
           <label className="grid min-w-0 gap-1 text-sm text-slate-700">
-            Shipping cost
-            <input name="shippingCost" type="number" step="0.01" defaultValue={0} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+            Status
+            <select name="status" defaultValue="Shipped" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2">
+              <option value="Shipped">Shipped (tax/customs not known yet)</option>
+              <option value="Cleared">Cleared (all charges known)</option>
+            </select>
           </label>
-          <label className="grid min-w-0 gap-1 text-sm text-slate-700">
-            Tax cost
-            <input name="taxCost" type="number" step="0.01" defaultValue={0} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
-          </label>
-          <label className="grid min-w-0 gap-1 text-sm text-slate-700">
-            Customs clearance charges
-            <input name="customsCost" type="number" step="0.01" defaultValue={0} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
-          </label>
+          <FxAmountInput name="goodsCost" label="Goods cost" />
+          <FxAmountInput name="shippingCost" label="Shipping cost" />
+          <FxAmountInput name="taxCost" label="Tax cost" />
+          <FxAmountInput name="customsCost" label="Customs clearance charges" />
+          <FxAmountInput name="otherCost" label="Other charges" />
           <label className="grid min-w-0 gap-1 text-sm text-slate-700">
             Payment method
             <select name="paymentMethod" defaultValue="" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2">
@@ -208,7 +231,7 @@ export default async function LotsPage({ searchParams }: Props) {
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {lots.map((lot) => {
             const units = lot.phones.length;
-            const landedTotal = Number(lot.shippingCost) + Number(lot.taxCost) + Number(lot.customsCost);
+            const landedTotal = Number(lot.shippingCost) + Number(lot.taxCost) + Number(lot.customsCost) + Number(lot.otherCost);
             const landedPerUnit = units > 0 ? landedTotal / units : 0;
             return (
               <Card key={lot.id}>
@@ -216,8 +239,11 @@ export default async function LotsPage({ searchParams }: Props) {
                 <p className="mt-1 text-sm text-slate-700">{lot.supplier.name}</p>
                 <p className="text-sm text-slate-700">{lot.purchaseDate.toISOString().slice(0, 10)}</p>
                 <p className="mt-3 text-sm text-slate-700">{units} unit{units === 1 ? "" : "s"}</p>
-                {showCost ? <p className="text-sm text-slate-700">Landed cost/unit: ${landedPerUnit.toFixed(2)}</p> : null}
-                <span className={`mt-2 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${lot.paymentStatus === "Paid" ? "bg-green-100 text-green-800" : lot.paymentStatus === "Partial" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"}`}>{lot.paymentStatus}</span>
+                {showCost ? <p className="text-sm text-slate-700">Landed cost/unit: {formatMoney(landedPerUnit)}</p> : null}
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${lot.status === "Cleared" ? "bg-sky-100 text-sky-800" : "bg-slate-200 text-slate-700"}`}>{lot.status}</span>
+                  <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${lot.paymentStatus === "Paid" ? "bg-green-100 text-green-800" : lot.paymentStatus === "Partial" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"}`}>{lot.paymentStatus}</span>
+                </div>
                 <div>
                   <Link href={`/lots/${lot.id}`} className="mt-3 inline-block rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">View</Link>
                 </div>
@@ -236,6 +262,7 @@ export default async function LotsPage({ searchParams }: Props) {
                 <th className="px-2 py-2">Supplier</th>
                 <th className="px-2 py-2">Purchase Date</th>
                 <th className="px-2 py-2">Units</th>
+                <th className="px-2 py-2">Status</th>
                 <th className="px-2 py-2">Payment</th>
                 {showCost ? <th className="px-2 py-2">Landed Cost/Unit</th> : null}
                 <th className="px-2 py-2">View</th>
@@ -244,7 +271,7 @@ export default async function LotsPage({ searchParams }: Props) {
             <tbody>
               {lots.map((lot) => {
                 const units = lot.phones.length;
-                const landedTotal = Number(lot.shippingCost) + Number(lot.taxCost) + Number(lot.customsCost);
+                const landedTotal = Number(lot.shippingCost) + Number(lot.taxCost) + Number(lot.customsCost) + Number(lot.otherCost);
                 const landedPerUnit = units > 0 ? landedTotal / units : 0;
                 return (
                   <tr key={lot.id} className="border-b border-slate-200">
@@ -253,16 +280,19 @@ export default async function LotsPage({ searchParams }: Props) {
                     <td className="px-2 py-2">{lot.purchaseDate.toISOString().slice(0, 10)}</td>
                     <td className="px-2 py-2">{units}</td>
                     <td className="px-2 py-2">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${lot.status === "Cleared" ? "bg-sky-100 text-sky-800" : "bg-slate-200 text-slate-700"}`}>{lot.status}</span>
+                    </td>
+                    <td className="px-2 py-2">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${lot.paymentStatus === "Paid" ? "bg-green-100 text-green-800" : lot.paymentStatus === "Partial" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"}`}>{lot.paymentStatus}</span>
                     </td>
-                    {showCost ? <td className="px-2 py-2">${landedPerUnit.toFixed(2)}</td> : null}
+                    {showCost ? <td className="px-2 py-2">{formatMoney(landedPerUnit)}</td> : null}
                     <td className="px-2 py-2"><Link href={`/lots/${lot.id}`} className="text-slate-800 underline">View</Link></td>
                   </tr>
                 );
               })}
               {!lots.length ? (
                 <tr>
-                  <td className="px-2 py-5 text-slate-600" colSpan={showCost ? 7 : 6}>
+                  <td className="px-2 py-5 text-slate-600" colSpan={showCost ? 8 : 7}>
                     No lots created yet.
                   </td>
                 </tr>

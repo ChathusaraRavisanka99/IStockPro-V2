@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { formatMoney } from "@/lib/currency";
 
 export type CartLine = { key: string; label: string; unitPrice: number; quantity: number; maxQuantity?: number; notes?: string | null };
 type ItemOption = { value: string; label: string; price: number; maxQuantity?: number; notes?: string | null; category?: string };
@@ -94,7 +95,7 @@ export function CartBuilder({ items, lines, onChange, fieldName = "cartItems", s
             const remaining = option.maxQuantity !== undefined ? Math.max(0, option.maxQuantity - inCart) : undefined;
             return {
               value: option.value,
-              label: `${option.label} - $${option.price.toFixed(2)}${remaining !== undefined ? ` (${remaining} available)` : ""}`,
+              label: `${option.label} - ${formatMoney(option.price)}${remaining !== undefined ? ` (${remaining} available)` : ""}`,
             };
           })}
           onChange={setPickerKey}
@@ -163,7 +164,7 @@ export function CartBuilder({ items, lines, onChange, fieldName = "cartItems", s
                       className="w-24 rounded-lg border border-slate-300 bg-white px-2 py-1"
                     />
                   </td>
-                  <td className="px-3 py-2 font-medium text-slate-900">${(line.unitPrice * line.quantity).toFixed(2)}</td>
+                  <td className="px-3 py-2 font-medium text-slate-900">{formatMoney(line.unitPrice * line.quantity)}</td>
                   <td className="px-3 py-2 text-right">
                     <button type="button" onClick={() => removeLine(line.key)} className="text-xs text-red-700 underline">
                       Remove

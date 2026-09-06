@@ -1,10 +1,12 @@
 import { revalidatePath } from "next/cache";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { ListControls } from "@/components/ui/list-controls";
 import { Pagination } from "@/components/ui/pagination";
 import { parsePage, parsePageSize } from "@/lib/pagination";
+import { formatMoney } from "@/lib/currency";
 
 type Props = { searchParams: { search?: string; view?: "list" | "grid"; page?: string; pageSize?: string } };
 
@@ -93,10 +95,10 @@ export default async function CustomersPage({ searchParams }: Props) {
             const lifetimeValue = customer.sales.reduce((acc, sale) => acc + Number(sale.totalAmount), 0);
             return (
               <Card key={customer.id}>
-                <p className="font-semibold text-slate-900">{customer.name}</p>
+                <Link href={`/customers/${customer.id}`} className="font-semibold text-slate-900 underline">{customer.name}</Link>
                 <p className="mt-1 text-sm text-slate-700">{customer.phone || "No phone"}</p>
                 <p className="text-sm text-slate-700">{customer.email || "No email"}</p>
-                <p className="mt-3 text-sm text-slate-700">{customer.sales.length} sales | ${lifetimeValue.toFixed(2)}</p>
+                <p className="mt-3 text-sm text-slate-700">{customer.sales.length} sales | {formatMoney(lifetimeValue)}</p>
                 <div className="mt-3 flex gap-2">
                   <form action={deleteCustomer}><input type="hidden" name="id" value={customer.id} /><button className="rounded-lg border border-red-200 px-3 py-1 text-sm text-red-700">Archive</button></form>
                   <form action={replaceCustomer}><input type="hidden" name="id" value={customer.id} /><input type="hidden" name="name" value={customer.name} /><input type="hidden" name="phone" value={customer.phone || ""} /><input type="hidden" name="email" value={customer.email || ""} /><input type="hidden" name="address" value={customer.address || ""} /><button className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-700">Save Copy</button></form>
@@ -123,10 +125,10 @@ export default async function CustomersPage({ searchParams }: Props) {
                 const lifetimeValue = customer.sales.reduce((acc, sale) => acc + Number(sale.totalAmount), 0);
                 return (
                   <tr key={customer.id} className="border-b border-slate-200">
-                    <td className="px-2 py-2 font-medium">{customer.name}</td>
+                    <td className="px-2 py-2 font-medium"><Link href={`/customers/${customer.id}`} className="underline">{customer.name}</Link></td>
                     <td className="px-2 py-2">{customer.phone || "-"}</td>
                     <td className="px-2 py-2">{customer.sales.length}</td>
-                    <td className="px-2 py-2">${lifetimeValue.toFixed(2)}</td>
+                    <td className="px-2 py-2">{formatMoney(lifetimeValue)}</td>
                     <td className="px-2 py-2"><form action={deleteCustomer}><input type="hidden" name="id" value={customer.id} /><button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Archive</button></form></td>
                   </tr>
                 );

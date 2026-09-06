@@ -6,6 +6,7 @@ import { ListControls } from "@/components/ui/list-controls";
 import { Pagination } from "@/components/ui/pagination";
 import { parsePage, parsePageSize } from "@/lib/pagination";
 import { ReturnForm } from "@/components/sales/return-form";
+import { formatMoney } from "@/lib/currency";
 
 export default async function ReturnsPage({ searchParams }: { searchParams: { search?: string; view?: "list" | "grid"; page?: string; pageSize?: string } }) {
   const search = searchParams.search?.trim() || "";
@@ -154,7 +155,7 @@ export default async function ReturnsPage({ searchParams }: { searchParams: { se
               <p className="text-sm text-slate-700">{ret.returnDate.toISOString().slice(0, 10)}</p>
               <p className="mt-2 text-sm text-slate-700">{ret.reason || "No reason given"}</p>
               {ret.items.length ? <p className="mt-1 text-xs text-slate-600">{ret.items.length} item{ret.items.length === 1 ? "" : "s"} returned</p> : null}
-              <p className="mt-3 text-lg font-semibold text-slate-900">${Number(ret.returnInvoice?.totalCredit ?? 0).toFixed(2)}</p>
+              <p className="mt-3 text-lg font-semibold text-slate-900">{formatMoney(Number(ret.returnInvoice?.totalCredit ?? 0))}</p>
               <p className="text-xs text-slate-600">{ret.returnInvoice?.creditNoteNumber || "No credit note"}</p>
             </Card>
           ))}
@@ -182,7 +183,7 @@ export default async function ReturnsPage({ searchParams }: { searchParams: { se
                   <td className="px-2 py-2">{ret.returnDate.toISOString().slice(0, 10)}</td>
                   <td className="px-2 py-2">{ret.reason || "-"}</td>
                   <td className="px-2 py-2">{ret.returnInvoice?.creditNoteNumber || "-"}</td>
-                  <td className="px-2 py-2">${Number(ret.returnInvoice?.totalCredit ?? 0).toFixed(2)}</td>
+                  <td className="px-2 py-2">{formatMoney(Number(ret.returnInvoice?.totalCredit ?? 0))}</td>
                 </tr>
               ))}
               {!returns.length ? (

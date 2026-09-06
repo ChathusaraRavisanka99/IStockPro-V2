@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ReceiptActions } from "@/components/sales/receipt-actions";
+import { formatMoney } from "@/lib/currency";
 
 export default async function ReceiptPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -33,16 +34,16 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
         <table className="mt-5 min-w-full text-sm">
           <thead><tr className="border-b border-slate-300 text-left text-slate-700"><th className="py-2">Item</th><th className="py-2">Qty</th><th className="py-2 text-right">Amount</th></tr></thead>
           <tbody>
-            {sale.items.map((item) => <tr key={item.id} className="border-b border-slate-200"><td className="py-3">{item.phone?.imei || item.accessory?.name || "Sale item"}</td><td className="py-3">{item.quantity}</td><td className="py-3 text-right">${Number(item.lineTotal).toFixed(2)}</td></tr>)}
+            {sale.items.map((item) => <tr key={item.id} className="border-b border-slate-200"><td className="py-3">{item.phone?.imei || item.accessory?.name || "Sale item"}</td><td className="py-3">{item.quantity}</td><td className="py-3 text-right">{formatMoney(Number(item.lineTotal))}</td></tr>)}
             {!sale.items.length ? <tr><td className="py-3 text-slate-600" colSpan={3}>Summary sale without item lines</td></tr> : null}
           </tbody>
         </table>
         <div className="ml-auto mt-6 max-w-xs space-y-2 text-sm text-slate-700">
-          <p className="flex justify-between"><span>Subtotal</span><span>${Number(sale.subtotal).toFixed(2)}</span></p>
-          <p className="flex justify-between"><span>Tax{sale.taxType === "Percent" ? ` (${Number(sale.taxPercent).toFixed(2)}%)` : ""}</span><span>${Number(sale.taxAmount).toFixed(2)}</span></p>
-          {Number(sale.handlingFee) > 0 ? <p className="flex justify-between"><span>Handling fee</span><span>${Number(sale.handlingFee).toFixed(2)}</span></p> : null}
-          <p className="flex justify-between"><span>Discount</span><span>-${Number(sale.discount).toFixed(2)}</span></p>
-          <p className="flex justify-between border-t border-slate-300 pt-2 text-base font-semibold text-slate-950"><span>Total</span><span>${Number(sale.totalAmount).toFixed(2)}</span></p>
+          <p className="flex justify-between"><span>Subtotal</span><span>{formatMoney(Number(sale.subtotal))}</span></p>
+          <p className="flex justify-between"><span>Tax{sale.taxType === "Percent" ? ` (${Number(sale.taxPercent).toFixed(2)}%)` : ""}</span><span>{formatMoney(Number(sale.taxAmount))}</span></p>
+          {Number(sale.handlingFee) > 0 ? <p className="flex justify-between"><span>Handling fee</span><span>{formatMoney(Number(sale.handlingFee))}</span></p> : null}
+          <p className="flex justify-between"><span>Discount</span><span>-{formatMoney(Number(sale.discount))}</span></p>
+          <p className="flex justify-between border-t border-slate-300 pt-2 text-base font-semibold text-slate-950"><span>Total</span><span>{formatMoney(Number(sale.totalAmount))}</span></p>
         </div>
         <p className="mt-8 text-center text-xs text-slate-500">Thank you for your business.</p>
       </section>

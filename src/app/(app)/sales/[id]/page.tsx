@@ -7,6 +7,8 @@ import { authOptions } from "@/lib/auth";
 import { canViewCost } from "@/lib/rbac";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { formatMoney } from "@/lib/currency";
+import { uploadFile, getSignedDownloadUrl, isStorageKey, buildKey } from "@/lib/storage";
 
 export default async function SaleDetailPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -28,6 +30,12 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
   const paidAmount = Number(invoice?.paidAmount ?? 0);
   const remaining = Math.max(0, totalAmount - paidAmount);
 
+  const paymentProofLinks = invoice
+    ? await Promise.all(
+        invoice.payments.map((payment) => (payment.proofImageUrl ? (isStorageKey(payment.proofImageUrl) ? getSignedDownloadUrl(payment.proofImageUrl) : payment.proofImageUrl) : null))
+      )
+    : [];
+
   async function recordPayment(formData: FormData) {
     "use server";
 
@@ -41,8 +49,16 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
 
     if (!amount || amount <= 0) return;
 
+    let proofImageUrl: string | null = null;
+    const proofFile = formData.get("proofFile");
+    if (proofFile instanceof File && proofFile.size > 0) {
+      const key = buildKey(`payments/${invoice.id}`, proofFile.name);
+      await uploadFile(Buffer.from(await proofFile.arrayBuffer()), key, proofFile.type || "application/octet-stream");
+      proofImageUrl = key;
+    }
+
     await prisma.$transaction(async (tx) => {
-      await tx.payment.create({ data: { invoiceId: invoice.id, amount, method, reference, paidAt } });
+      await tx.payment.create({ data: { invoiceId: invoice.id, amount, method, reference, paidAt, proofImageUrl } });
 
       const currentInvoice = await tx.invoice.findUnique({ where: { id: invoice.id } });
       if (!currentInvoice) return;
@@ -93,9 +109,9 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
           <p className="mt-2">
             <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusColor}`}>{invoice?.status || "No invoice"}</span>
           </p>
-          <p className="mt-2 text-sm text-slate-700">Total: ${totalAmount.toFixed(2)}</p>
-          <p className="text-sm text-slate-700">Paid: ${paidAmount.toFixed(2)}</p>
-          <p className="text-sm font-medium text-slate-900">Remaining: ${remaining.toFixed(2)}</p>
+          <p className="mt-2 text-sm text-slate-700">Total: {formatMoney(totalAmount)}</p>
+          <p className="text-sm text-slate-700">Paid: {formatMoney(paidAmount)}</p>
+          <p className="text-sm font-medium text-slate-900">Remaining: {formatMoney(remaining)}</p>
         </Card>
       </div>
 
@@ -103,10 +119,10 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
         <Card className="mt-4">
           <h2 className="mb-3 text-lg font-semibold">Record a Payment</h2>
           {remaining > 0 ? (
-            <form action={recordPayment} className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <form action={recordPayment} encType="multipart/form-data" className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <label className="grid min-w-0 gap-1 text-sm text-slate-700">
                 Amount
-                <input name="amount" type="number" step="0.01" min={0.01} max={remaining} required placeholder={`Remaining: $${remaining.toFixed(2)}`} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+                <input name="amount" type="number" step="0.01" min={0.01} max={remaining} required placeholder={`Remaining: ${formatMoney(remaining)}`} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
               </label>
               <label className="grid min-w-0 gap-1 text-sm text-slate-700">
                 Method
@@ -127,6 +143,10 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
                 Date
                 <input name="paidAt" type="date" defaultValue={new Date().toISOString().slice(0, 10)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
               </label>
+              <label className="grid min-w-0 gap-1 text-sm text-slate-700 md:col-span-2 xl:col-span-4">
+                Payment slip (optional)
+                <input name="proofFile" type="file" accept="image/*,application/pdf" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+              </label>
               <button className="rounded-lg bg-slate-900 px-3 py-2 text-white md:col-span-2 xl:col-span-4">Record Payment</button>
             </form>
           ) : (
@@ -142,15 +162,23 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
                     <th className="px-2 py-2">Amount</th>
                     <th className="px-2 py-2">Method</th>
                     <th className="px-2 py-2">Reference</th>
+                    <th className="px-2 py-2">Slip</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {invoice.payments.map((payment) => (
+                  {invoice.payments.map((payment, i) => (
                     <tr key={payment.id} className="border-b border-slate-200">
                       <td className="px-2 py-2">{payment.paidAt.toISOString().slice(0, 10)}</td>
-                      <td className="px-2 py-2">${Number(payment.amount).toFixed(2)}</td>
+                      <td className="px-2 py-2">{formatMoney(Number(payment.amount))}</td>
                       <td className="px-2 py-2">{payment.method}</td>
                       <td className="px-2 py-2">{payment.reference || "-"}</td>
+                      <td className="px-2 py-2">
+                        {paymentProofLinks[i] ? (
+                          <a href={paymentProofLinks[i] as string} target="_blank" rel="noreferrer" className="text-slate-800 underline">View</a>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -185,8 +213,8 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
                         : "Line item"}
                   </td>
                   <td className="px-2 py-2">{item.quantity}</td>
-                  <td className="px-2 py-2">${Number(item.unitPrice).toFixed(2)}</td>
-                  <td className="px-2 py-2">${Number(item.lineTotal).toFixed(2)}</td>
+                  <td className="px-2 py-2">{formatMoney(Number(item.unitPrice))}</td>
+                  <td className="px-2 py-2">{formatMoney(Number(item.lineTotal))}</td>
                 </tr>
               ))}
               {!sale.items.length ? (

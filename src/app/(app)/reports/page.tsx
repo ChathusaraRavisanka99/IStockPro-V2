@@ -4,6 +4,10 @@ import { canViewCost } from "@/lib/rbac";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { computeReportData } from "@/lib/reports";
+import { formatMoney } from "@/lib/currency";
+import { RevenueTrendChart } from "@/components/reports/revenue-trend-chart";
+import { SalesByItemChart } from "@/components/reports/sales-by-item-chart";
+import { InventoryValuationChart } from "@/components/reports/inventory-valuation-chart";
 
 const AGING_DAYS = 60;
 
@@ -39,7 +43,7 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
 
   const { from, to } = parseRange(searchParams);
   const data = await computeReportData(from, to);
-  const { financial: f, inventory: inv, salesByItem } = data;
+  const { financial: f, inventory: inv, salesByItem, dailyRevenue } = data;
   const exportQuery = new URLSearchParams({ from: toDateInputValue(from), to: toDateInputValue(to) }).toString();
 
   return (
@@ -65,65 +69,71 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <p className="text-sm font-medium text-slate-700">Revenue</p>
-          <p className="mt-2 text-3xl font-semibold">${f.revenue.toFixed(2)}</p>
-          <p className="mt-1 text-xs text-slate-600">{f.completedSaleCount} completed sales · avg ${f.avgSaleValue.toFixed(2)}</p>
+          <p className="mt-2 text-3xl font-semibold">{formatMoney(f.revenue)}</p>
+          <p className="mt-1 text-xs text-slate-600">{f.completedSaleCount} completed sales · avg {formatMoney(f.avgSaleValue)}</p>
         </Card>
         <Card>
           <p className="text-sm font-medium text-slate-700">Quotation Totals</p>
-          <p className="mt-2 text-3xl font-semibold">${f.quotationTotals.toFixed(2)}</p>
+          <p className="mt-2 text-3xl font-semibold">{formatMoney(f.quotationTotals)}</p>
           <p className="mt-1 text-xs text-slate-600">{f.quotationCount} quotations issued</p>
         </Card>
         <Card>
           <p className="text-sm font-medium text-slate-700">Cost of Goods Sold</p>
-          <p className="mt-2 text-3xl font-semibold">${f.cogs.toFixed(2)}</p>
-          <p className="mt-1 text-xs text-slate-600">Phones ${f.phoneCogs.toFixed(2)} · Accessories ${f.accessoryCogs.toFixed(2)}</p>
+          <p className="mt-2 text-3xl font-semibold">{formatMoney(f.cogs)}</p>
+          <p className="mt-1 text-xs text-slate-600">Phones {formatMoney(f.phoneCogs)} · Accessories {formatMoney(f.accessoryCogs)}</p>
         </Card>
         <Card>
           <p className="text-sm font-medium text-slate-700">Gross Profit</p>
-          <p className="mt-2 text-3xl font-semibold">${f.grossProfit.toFixed(2)}</p>
+          <p className="mt-2 text-3xl font-semibold">{formatMoney(f.grossProfit)}</p>
           <p className="mt-1 text-xs text-slate-600">{f.grossMargin.toFixed(1)}% margin</p>
         </Card>
         <Card>
           <p className="text-sm font-medium text-slate-700">Net Profit</p>
-          <p className="mt-2 text-3xl font-semibold">${f.netProfit.toFixed(2)}</p>
+          <p className="mt-2 text-3xl font-semibold">{formatMoney(f.netProfit)}</p>
           <p className="mt-1 text-xs text-slate-600">{f.netMargin.toFixed(1)}% margin, after expenses/tax/refunds</p>
         </Card>
         <Card>
           <p className="text-sm font-medium text-slate-700">Operating Expenses</p>
-          <p className="mt-2 text-2xl font-semibold">${f.expenses.toFixed(2)}</p>
+          <p className="mt-2 text-2xl font-semibold">{formatMoney(f.expenses)}</p>
         </Card>
         <Card>
           <p className="text-sm font-medium text-slate-700">Taxes Paid</p>
-          <p className="mt-2 text-2xl font-semibold">${f.taxes.toFixed(2)}</p>
+          <p className="mt-2 text-2xl font-semibold">{formatMoney(f.taxes)}</p>
         </Card>
         <Card>
           <p className="text-sm font-medium text-slate-700">Refunds Issued</p>
-          <p className="mt-2 text-2xl font-semibold">${f.refunds.toFixed(2)}</p>
+          <p className="mt-2 text-2xl font-semibold">{formatMoney(f.refunds)}</p>
           <p className="mt-1 text-xs text-slate-600">{f.returnCountInPeriod} returns · {f.returnRate.toFixed(1)}% return rate</p>
         </Card>
         <Card>
           <p className="text-sm font-medium text-slate-700">This Month vs Last</p>
-          <p className="mt-2 text-2xl font-semibold">${f.monthRevenue.toFixed(2)}</p>
-          <p className={`mt-1 text-xs font-medium ${f.monthOverMonth >= 0 ? "text-green-700" : "text-red-700"}`}>{f.monthOverMonth >= 0 ? "+" : ""}{f.monthOverMonth.toFixed(1)}% vs ${f.lastMonthRevenue.toFixed(2)}</p>
+          <p className="mt-2 text-2xl font-semibold">{formatMoney(f.monthRevenue)}</p>
+          <p className={`mt-1 text-xs font-medium ${f.monthOverMonth >= 0 ? "text-green-700" : "text-red-700"}`}>{f.monthOverMonth >= 0 ? "+" : ""}{f.monthOverMonth.toFixed(1)}% vs {formatMoney(f.lastMonthRevenue)}</p>
         </Card>
       </div>
+
+      <Card className="mt-4">
+        <h3 className="mb-3 text-base font-semibold">Revenue &amp; Gross Profit Trend</h3>
+        <RevenueTrendChart data={dailyRevenue} />
+      </Card>
 
       <div className="mt-6 grid gap-4 xl:grid-cols-2">
         <Card>
           <h3 className="mb-3 text-base font-semibold">Income Statement</h3>
           <div className="grid gap-2 text-sm text-slate-800">
-            <p className="flex justify-between"><span>Total Revenue</span><span>${f.revenue.toFixed(2)}</span></p>
-            <p className="flex justify-between text-slate-600"><span>Cost of Goods Sold</span><span>-${f.cogs.toFixed(2)}</span></p>
-            <p className="flex justify-between border-t border-slate-300 pt-2 font-semibold"><span>Gross Profit</span><span>${f.grossProfit.toFixed(2)}</span></p>
-            <p className="flex justify-between text-slate-600"><span>Returns ({f.returnCountInPeriod})</span><span>-${f.refunds.toFixed(2)}</span></p>
-            <p className="flex justify-between text-slate-600"><span>Other Expenses (opex + tax)</span><span>-${f.otherExpenses.toFixed(2)}</span></p>
-            <p className="flex justify-between border-t border-slate-300 pt-2 text-base font-semibold text-slate-950"><span>Net Income</span><span>${f.netProfit.toFixed(2)}</span></p>
+            <p className="flex justify-between"><span>Total Revenue</span><span>{formatMoney(f.revenue)}</span></p>
+            <p className="flex justify-between text-slate-600"><span>Cost of Goods Sold</span><span>-{formatMoney(f.cogs)}</span></p>
+            <p className="flex justify-between border-t border-slate-300 pt-2 font-semibold"><span>Gross Profit</span><span>{formatMoney(f.grossProfit)}</span></p>
+            <p className="flex justify-between text-slate-600"><span>Returns ({f.returnCountInPeriod})</span><span>-{formatMoney(f.refunds)}</span></p>
+            <p className="flex justify-between text-slate-600"><span>Other Expenses (opex + tax)</span><span>-{formatMoney(f.otherExpenses)}</span></p>
+            <p className="flex justify-between border-t border-slate-300 pt-2 text-base font-semibold text-slate-950"><span>Net Income</span><span>{formatMoney(f.netProfit)}</span></p>
           </div>
         </Card>
 
         <Card>
           <h3 className="mb-3 text-base font-semibold">Sales by Item</h3>
-          <div className="overflow-x-auto">
+          <SalesByItemChart data={salesByItem} />
+          <div className="mt-4 overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-300 text-left text-slate-700">
@@ -137,7 +147,7 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
                   <tr key={seller.label} className="border-b border-slate-200">
                     <td className="px-2 py-2">{seller.label}</td>
                     <td className="px-2 py-2">{seller.qty}</td>
-                    <td className="px-2 py-2">${seller.revenue.toFixed(2)}</td>
+                    <td className="px-2 py-2">{formatMoney(seller.revenue)}</td>
                   </tr>
                 ))}
                 {!salesByItem.length ? (
@@ -156,12 +166,12 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <p className="text-sm font-medium text-slate-700">Accounts Receivable</p>
-          <p className="mt-2 text-3xl font-semibold">${f.accountsReceivable.toFixed(2)}</p>
+          <p className="mt-2 text-3xl font-semibold">{formatMoney(f.accountsReceivable)}</p>
           <p className="mt-1 text-xs text-slate-600">Outstanding on {f.unpaidInvoiceCount} unpaid/partial invoices</p>
         </Card>
         <Card>
           <p className="text-sm font-medium text-slate-700">Accounts Payable</p>
-          <p className="mt-2 text-3xl font-semibold">${f.accountsPayable.toFixed(2)}</p>
+          <p className="mt-2 text-3xl font-semibold">{formatMoney(f.accountsPayable)}</p>
           <p className="mt-1 text-xs text-slate-600">Owed to suppliers across {f.lotsOwedCount} lots</p>
         </Card>
       </div>
@@ -170,15 +180,15 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <p className="text-sm font-medium text-slate-700">Inventory at Cost</p>
-          <p className="mt-2 text-3xl font-semibold">${inv.totalInventoryCost.toFixed(2)}</p>
+          <p className="mt-2 text-3xl font-semibold">{formatMoney(inv.totalInventoryCost)}</p>
         </Card>
         <Card>
           <p className="text-sm font-medium text-slate-700">Inventory at Retail</p>
-          <p className="mt-2 text-3xl font-semibold">${inv.totalInventoryRetail.toFixed(2)}</p>
+          <p className="mt-2 text-3xl font-semibold">{formatMoney(inv.totalInventoryRetail)}</p>
         </Card>
         <Card>
           <p className="text-sm font-medium text-slate-700">Potential Margin</p>
-          <p className="mt-2 text-3xl font-semibold">${(inv.totalInventoryRetail - inv.totalInventoryCost).toFixed(2)}</p>
+          <p className="mt-2 text-3xl font-semibold">{formatMoney(inv.totalInventoryRetail - inv.totalInventoryCost)}</p>
           <p className="mt-1 text-xs text-slate-600">If all current stock sells at retail</p>
         </Card>
         <Card>
@@ -191,7 +201,8 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
         <Card>
           <h3 className="mb-3 text-base font-semibold">Inventory by Category</h3>
-          <div className="overflow-x-auto">
+          <InventoryValuationChart data={inv.inventoryByCategory} />
+          <div className="mt-4 overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-300 text-left text-slate-700">
@@ -206,8 +217,8 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
                   <tr key={row.category} className="border-b border-slate-200">
                     <td className="px-2 py-2">{row.category}</td>
                     <td className="px-2 py-2">{row.units}</td>
-                    <td className="px-2 py-2">${row.cost.toFixed(2)}</td>
-                    <td className="px-2 py-2">${row.retail.toFixed(2)}</td>
+                    <td className="px-2 py-2">{formatMoney(row.cost)}</td>
+                    <td className="px-2 py-2">{formatMoney(row.retail)}</td>
                   </tr>
                 ))}
               </tbody>

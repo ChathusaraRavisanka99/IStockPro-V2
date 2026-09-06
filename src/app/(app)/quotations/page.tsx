@@ -9,6 +9,7 @@ import { ListControls } from "@/components/ui/list-controls";
 import { Pagination } from "@/components/ui/pagination";
 import { parsePage, parsePageSize } from "@/lib/pagination";
 import { QuotationForm } from "@/components/quotations/quotation-form";
+import { formatMoney } from "@/lib/currency";
 
 type CartLine = { key: string; unitPrice: number; quantity: number };
 
@@ -161,7 +162,7 @@ export default async function QuotationsPage({ searchParams }: { searchParams: {
       </Card>
       {view === "grid" ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {quotations.map((q) => <Card key={q.id}><p className="font-semibold text-slate-900">{q.quoteNumber}</p><p className="mt-1 text-sm text-slate-700">{q.customer?.name || "Walk-in"}</p><p className="text-sm text-slate-700">Valid until {q.validUntil ? q.validUntil.toISOString().slice(0, 10) : "-"}</p><p className="mt-3 text-lg font-semibold text-slate-900">${Number(q.totalAmount).toFixed(2)}</p><p className="text-sm text-slate-700">{q.status}</p><div className="mt-3 flex flex-wrap gap-2"><Link href={`/quotations/${q.id}`} className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">View</Link>{q.status !== "Converted" ? <form action={convertQuotationToSale}><input type="hidden" name="quotationId" value={q.id} /><button className="rounded-lg bg-slate-900 px-3 py-1 text-sm text-white">Convert</button></form> : q.convertedSale ? <Link href={`/sales/${q.convertedSale.id}`} className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">View Sale {q.convertedSale.saleNumber}</Link> : null}</div></Card>)}
+          {quotations.map((q) => <Card key={q.id}><p className="font-semibold text-slate-900">{q.quoteNumber}</p><p className="mt-1 text-sm text-slate-700">{q.customer?.name || "Walk-in"}</p><p className="text-sm text-slate-700">Valid until {q.validUntil ? q.validUntil.toISOString().slice(0, 10) : "-"}</p><p className="mt-3 text-lg font-semibold text-slate-900">{formatMoney(Number(q.totalAmount))}</p><p className="text-sm text-slate-700">{q.status}</p><div className="mt-3 flex flex-wrap gap-2"><Link href={`/quotations/${q.id}`} className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">View</Link>{q.status !== "Converted" ? <form action={convertQuotationToSale}><input type="hidden" name="quotationId" value={q.id} /><button className="rounded-lg bg-slate-900 px-3 py-1 text-sm text-white">Convert</button></form> : q.convertedSale ? <Link href={`/sales/${q.convertedSale.id}`} className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">View Sale {q.convertedSale.saleNumber}</Link> : null}</div></Card>)}
         </div>
       ) : (
       <Card>
@@ -184,7 +185,7 @@ export default async function QuotationsPage({ searchParams }: { searchParams: {
                   <td className="px-2 py-2">{q.quoteNumber}</td>
                   <td className="px-2 py-2">{q.customer?.name || "Walk-in"}</td>
                   <td className="px-2 py-2">{q.validUntil ? q.validUntil.toISOString().slice(0, 10) : "-"}</td>
-                  <td className="px-2 py-2">${Number(q.totalAmount).toFixed(2)}</td>
+                  <td className="px-2 py-2">{formatMoney(Number(q.totalAmount))}</td>
                   <td className="px-2 py-2">{q.status}</td>
                   <td className="px-2 py-2">
                     {q.status !== "Converted" ? (
