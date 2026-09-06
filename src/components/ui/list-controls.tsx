@@ -16,6 +16,9 @@ type Props = {
   filterOptions2?: FilterOption[];
   placeholder?: string;
   view?: "list" | "grid";
+  /** Set false for pages that only ever render a table (no Grid view implemented) — an
+   * always-visible List/Grid toggle with no working Grid mode behind it is a dead control. */
+  showViewToggle?: boolean;
 };
 
 export function ListControls({
@@ -28,6 +31,7 @@ export function ListControls({
   filterOptions2 = [],
   placeholder = "Search",
   view = "list",
+  showViewToggle = true,
 }: Props) {
   const query = new URLSearchParams();
   if (search) query.set("search", search);
@@ -54,14 +58,16 @@ export function ListControls({
         <SearchableSelect name="filter2" defaultValue={filter2} aria-label={filter2Label || "Filter"} placeholder={filter2Label || "All"} options={filterOptions2} />
       ) : null}
       <button className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">Apply</button>
-      <div className="flex shrink-0 rounded-lg border border-slate-300 bg-white p-1 text-sm">
-        <Link href={`?${listQuery.toString()}`} className={`flex-1 rounded-md px-4 py-2 text-center transition sm:flex-none sm:px-3 sm:py-1 ${view === "list" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
-          List
-        </Link>
-        <Link href={`?${gridQuery.toString()}`} className={`flex-1 rounded-md px-4 py-2 text-center transition sm:flex-none sm:px-3 sm:py-1 ${view === "grid" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
-          Grid
-        </Link>
-      </div>
+      {showViewToggle ? (
+        <div className="flex shrink-0 rounded-lg border border-slate-300 bg-white p-1 text-sm">
+          <Link href={`?${listQuery.toString()}`} className={`flex-1 rounded-md px-4 py-2 text-center transition sm:flex-none sm:px-3 sm:py-1 ${view === "list" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
+            List
+          </Link>
+          <Link href={`?${gridQuery.toString()}`} className={`flex-1 rounded-md px-4 py-2 text-center transition sm:flex-none sm:px-3 sm:py-1 ${view === "grid" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
+            Grid
+          </Link>
+        </div>
+      ) : null}
     </form>
   );
 }

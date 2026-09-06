@@ -77,10 +77,10 @@ export default async function ExpensesPage({ searchParams }: { searchParams: { s
   return (
     <div>
       <PageHeader title="Expenses" subtitle="Operating costs with date and category tracking" />
-      <ListControls search={search} placeholder="Search expense category or description" />
+      <ListControls search={search} placeholder="Search expense category or description" showViewToggle={false} />
 
       <Card className="mb-4">
-        <form action={createExpense} encType="multipart/form-data" className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
+        <form action={createExpense} className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
           <input name="category" required placeholder="Category" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
           <input name="description" placeholder="Description" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
           <label className="grid min-w-0 gap-1 text-sm text-slate-700">

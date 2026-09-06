@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 
 type Option = { label: string; value: string };
 
@@ -35,6 +36,7 @@ type Props = {
 };
 
 export function SearchableSelect({ name, value, defaultValue = "", placeholder = "Select", options, required, "aria-label": ariaLabel, quickAdd, onChange }: Props) {
+  const router = useRouter();
   const [selected, setSelected] = useState(value ?? defaultValue);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -129,6 +131,11 @@ export function SearchableSelect({ name, value, defaultValue = "", placeholder =
     const formData = new FormData();
     quickAdd.fields.forEach((field) => formData.append(field.name, addValues[field.name] ?? ""));
     await quickAdd.action(formData);
+    // The action is invoked directly here rather than via a real form submission, so
+    // Next.js has no reason to refetch this route's data on its own even though the
+    // server action's revalidatePath() marked it stale — without this, the newly
+    // created option silently doesn't exist in `options` until a manual page reload.
+    router.refresh();
     setSubmitting(false);
     setAddValues({});
     setAdding(false);

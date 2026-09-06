@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
@@ -256,6 +256,10 @@ export default async function LotDetailPage({ params, searchParams }: { params: 
 
     revalidatePath(`/lots/${params.id}`);
     revalidatePath("/items/phones");
+
+    // Leave edit mode on save (Cancel already does this) — otherwise the row stays open
+    // indefinitely with no feedback that the save succeeded.
+    redirect(`/lots/${params.id}`);
   }
 
   async function archivePhone(formData: FormData) {
@@ -405,7 +409,7 @@ export default async function LotDetailPage({ params, searchParams }: { params: 
       {showCost ? (
         <Card className="mt-4">
           <h2 className="mb-3 text-lg font-semibold">Record a Payment</h2>
-          <form action={recordLotPayment} encType="multipart/form-data" className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <form action={recordLotPayment} className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <label className="grid min-w-0 gap-1 text-sm text-slate-700">
               Amount
               <input name="amount" type="number" step="0.01" min={0.01} required placeholder={`Remaining: ${formatMoney(remaining)}`} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />

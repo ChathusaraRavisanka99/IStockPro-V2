@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
@@ -51,6 +51,10 @@ export default async function PhoneVariantDetailPage({ params, searchParams }: {
     revalidatePath(`/items/phones/variants/${params.id}`);
     revalidatePath("/items/phone-catalog");
     revalidatePath("/lots");
+
+    // Leave edit mode on save (Cancel already does this) — otherwise the row stays open
+    // indefinitely with no feedback that the save succeeded.
+    redirect(`/items/phones/variants/${params.id}`);
   }
 
   const specs: [string, string | null][] = [

@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { prisma } from "@/lib/prisma";
@@ -25,7 +26,7 @@ export async function AccessoryCategoryPage({
   category,
   route,
   specFields = DEFAULT_SPEC_FIELDS,
-  connectorPlaceholder = "Connector type (e.g. USB-C, Micro-USB)",
+  connectorPlaceholder = "Connector type",
   searchParams = {},
 }: Props) {
   const showConnectorType = specFields.includes("connectorType");
@@ -112,6 +113,15 @@ export async function AccessoryCategoryPage({
     });
 
     revalidatePath(route);
+
+    // Leave edit mode on save (Cancel already does this) — otherwise the row stays open
+    // indefinitely with no feedback that the save succeeded.
+    const query = new URLSearchParams();
+    if (searchParams.search) query.set("search", searchParams.search);
+    if (searchParams.view) query.set("view", searchParams.view);
+    if (searchParams.page) query.set("page", searchParams.page);
+    if (searchParams.pageSize) query.set("pageSize", searchParams.pageSize);
+    redirect(`${route}?${query.toString()}`);
   }
 
   return (

@@ -178,7 +178,7 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
       <PageHeader title="Settings" subtitle="Users, audit logs, and backup operations" />
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <Card className="xl:col-span-2">
+        <Card className="min-w-0 xl:col-span-2">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-lg font-semibold">Users &amp; Roles</h2>
             <span className="text-xs text-slate-600">{isAdmin ? "Admin access" : "Read-only"}</span>
@@ -277,7 +277,7 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
           ) : null}
         </Card>
 
-        <Card className="xl:col-span-2">
+        <Card className="min-w-0 xl:col-span-2">
           <h2 className="mb-3 text-lg font-semibold">My Account</h2>
           <p className="mb-3 text-sm text-slate-600">Signed in as <span className="font-medium text-slate-800">{session?.user?.username}</span>. Change your own password below.</p>
           {searchParams?.pwError ? (
@@ -303,7 +303,7 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
           </form>
         </Card>
 
-        <Card className="xl:col-span-2">
+        <Card className="min-w-0 xl:col-span-2">
           <h2 className="mb-3 text-lg font-semibold">Database Backup</h2>
           <p className="mb-3 text-sm text-slate-600">
             Export downloads every business record (inventory, sales, quotations, lots, customers, suppliers, financials) as a single JSON file.

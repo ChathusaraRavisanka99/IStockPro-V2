@@ -119,7 +119,7 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
         <Card className="mt-4">
           <h2 className="mb-3 text-lg font-semibold">Record a Payment</h2>
           {remaining > 0 ? (
-            <form action={recordPayment} encType="multipart/form-data" className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <form action={recordPayment} className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <label className="grid min-w-0 gap-1 text-sm text-slate-700">
                 Amount
                 <input name="amount" type="number" step="0.01" min={0.01} max={remaining} required placeholder={`Remaining: ${formatMoney(remaining)}`} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
