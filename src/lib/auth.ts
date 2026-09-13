@@ -7,6 +7,20 @@ import { ACCESS_TOKEN_TTL_MS, REFRESH_TOKEN_TTL_MS } from "@/lib/auth-constants"
 const LOGIN_LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_LOCKOUT_THRESHOLD = 5;
 
+/**
+ * Verifies a username+password pair against the User table (active accounts only),
+ * independent of the full NextAuth sign-in flow (no lockout bookkeeping here — that
+ * stays in `authorize()` below). Used both by `authorize()` and by re-auth-gated
+ * server actions elsewhere (e.g. confirming a retroactive cost edit).
+ */
+export async function verifyCredentials(username: string, password: string) {
+  const user = await prisma.user.findUnique({ where: { username: username.trim() } });
+  if (!user || !user.isActive) return null;
+  const isValid = await bcrypt.compare(password, user.passwordHash);
+  if (!isValid) return null;
+  return { id: user.id, name: user.name, email: user.email, role: user.role, username: user.username };
+}
+
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
@@ -43,33 +57,24 @@ export const authOptions: NextAuthOptions = {
           throw new Error("TooManyAttempts");
         }
 
-        const user = await prisma.user.findUnique({
-          where: { username },
-        });
-
-        async function recordFailure() {
+        const verified = await verifyCredentials(username, credentials.password);
+        if (!verified) {
+          // Look the user up again just for the audit log's userId (may be undefined
+          // if the username itself doesn't exist) — verifyCredentials() intentionally
+          // doesn't expose *why* it failed, so this is a separate, lightweight lookup.
+          const user = await prisma.user.findUnique({ where: { username } });
           await prisma.auditLog.create({
             data: { action: "LoginFailure", entityType: "User", entityId: username, userId: user?.id, details: {} },
           }).catch(() => {});
-        }
-
-        if (!user || !user.isActive) {
-          await recordFailure();
-          return null;
-        }
-
-        const isValid = await bcrypt.compare(credentials.password, user.passwordHash);
-        if (!isValid) {
-          await recordFailure();
           return null;
         }
 
         return {
-          id: user.id,
-          name: user.name ?? user.username,
-          email: user.email,
-          role: user.role,
-          username: user.username,
+          id: verified.id,
+          name: verified.name ?? verified.username,
+          email: verified.email,
+          role: verified.role,
+          username: verified.username,
         };
       },
     }),

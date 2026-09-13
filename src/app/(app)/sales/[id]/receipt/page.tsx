@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ReceiptActions } from "@/components/sales/receipt-actions";
 import { formatMoney } from "@/lib/currency";
+import { formatSaleItemName } from "@/lib/format-item-name";
 
 export default async function ReceiptPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -12,7 +13,7 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
 
   const sale = await prisma.sale.findUnique({
     where: { id: params.id },
-    include: { customer: true, invoice: true, items: { include: { phone: true, accessory: true } } },
+    include: { customer: true, invoice: true, items: { include: { phone: { include: { phoneVariant: { include: { phoneModel: true } } } }, accessory: true } } },
   });
   if (!sale) notFound();
 
@@ -34,7 +35,7 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
         <table className="mt-5 min-w-full text-sm">
           <thead><tr className="border-b border-slate-300 text-left text-slate-700"><th className="py-2">Item</th><th className="py-2">Qty</th><th className="py-2 text-right">Amount</th></tr></thead>
           <tbody>
-            {sale.items.map((item) => <tr key={item.id} className="border-b border-slate-200"><td className="py-3">{item.phone?.imei || item.accessory?.name || "Sale item"}</td><td className="py-3">{item.quantity}</td><td className="py-3 text-right">{formatMoney(Number(item.lineTotal))}</td></tr>)}
+            {sale.items.map((item) => <tr key={item.id} className="border-b border-slate-200"><td className="py-3">{formatSaleItemName(item)}</td><td className="py-3">{item.quantity}</td><td className="py-3 text-right">{formatMoney(Number(item.lineTotal))}</td></tr>)}
             {!sale.items.length ? <tr><td className="py-3 text-slate-600" colSpan={3}>Summary sale without item lines</td></tr> : null}
           </tbody>
         </table>

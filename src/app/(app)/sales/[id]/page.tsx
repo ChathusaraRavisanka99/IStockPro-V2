@@ -8,6 +8,7 @@ import { canViewCost } from "@/lib/rbac";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { formatMoney } from "@/lib/currency";
+import { formatSaleItemName } from "@/lib/format-item-name";
 import { uploadFile, getSignedDownloadUrl, isStorageKey, buildKey } from "@/lib/storage";
 
 export default async function SaleDetailPage({ params }: { params: { id: string } }) {
@@ -206,11 +207,7 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
               {sale.items.map((item) => (
                 <tr key={item.id} className="border-b border-slate-200">
                   <td className="px-2 py-2">
-                    {item.phone
-                      ? `${item.phone.phoneVariant.phoneModel.brand} ${item.phone.phoneVariant.phoneModel.modelName} - IMEI ${item.phone.imei}`
-                      : item.accessory
-                        ? `${item.accessory.name} (${item.accessory.sku})`
-                        : "Line item"}
+                    {formatSaleItemName(item)}
                   </td>
                   <td className="px-2 py-2">{item.quantity}</td>
                   <td className="px-2 py-2">{formatMoney(Number(item.unitPrice))}</td>

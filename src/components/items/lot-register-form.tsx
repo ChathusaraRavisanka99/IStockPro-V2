@@ -27,11 +27,15 @@ type Props = {
   variants: VariantOption[];
   existingImeis: string[];
   showCost: boolean;
+  /** Grading is a physical-inspection step that only makes sense once a lot has
+   * cleared customs — while false, the Grade selector is hidden and units register
+   * as "Not Graded" until someone grades them later. */
+  allowGrading: boolean;
   action: (formData: FormData) => void | Promise<void>;
   variantQuickAdd: QuickAdd;
 };
 
-export function LotRegisterForm({ variants, existingImeis, showCost, action, variantQuickAdd }: Props) {
+export function LotRegisterForm({ variants, existingImeis, showCost, allowGrading, action, variantQuickAdd }: Props) {
   const [variantId, setVariantId] = useState("");
   const [imei, setImei] = useState("");
   const [purchasePrice, setPurchasePrice] = useState("0");
@@ -101,7 +105,7 @@ export function LotRegisterForm({ variants, existingImeis, showCost, action, var
         retailPrice: Number(retailPrice) || 0,
         tagCost: addTagCost ? Number(tagCost) || 0 : 0,
         batteryCost: addBatteryCost ? Number(batteryCost) || 0 : 0,
-        grade,
+        grade: allowGrading ? grade : "",
         batteryHealth: batteryHealth.trim() ? Math.max(0, Math.min(100, Number(batteryHealth))) : null,
         notes: notes.trim() || null,
       },
@@ -137,16 +141,20 @@ export function LotRegisterForm({ variants, existingImeis, showCost, action, var
             className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2"
           />
         </label>
-        <label className="grid min-w-0 gap-1 text-sm text-slate-700">
-          Grade
-          <select value={grade} onChange={(event) => setGrade(event.target.value)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2">
-            {GRADES.map((value) => (
-              <option key={value} value={value}>
-                Grade {value}
-              </option>
-            ))}
-          </select>
-        </label>
+        {allowGrading ? (
+          <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+            Grade
+            <select value={grade} onChange={(event) => setGrade(event.target.value)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2">
+              {GRADES.map((value) => (
+                <option key={value} value={value}>
+                  Grade {value}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <p className="grid min-w-0 content-end text-sm text-slate-500">Not Graded (grade once Cleared)</p>
+        )}
         <label className="grid min-w-0 gap-1 text-sm text-slate-700">
           Battery health %
           <input
@@ -247,7 +255,7 @@ export function LotRegisterForm({ variants, existingImeis, showCost, action, var
                     {line.notes ? <p className="mt-0.5 text-xs italic text-slate-500">{line.notes}</p> : null}
                   </td>
                   <td className="px-3 py-2">{line.imei}</td>
-                  <td className="px-3 py-2">{line.grade}</td>
+                  <td className="px-3 py-2">{line.grade || "Not Graded"}</td>
                   <td className="px-3 py-2">{line.batteryHealth !== null ? `${line.batteryHealth}%` : "-"}</td>
                   {showCost ? <td className="px-3 py-2">{formatMoney(line.purchasePrice)}</td> : null}
                   <td className="px-3 py-2">{formatMoney(line.retailPrice)}</td>

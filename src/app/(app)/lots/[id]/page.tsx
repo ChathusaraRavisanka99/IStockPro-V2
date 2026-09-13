@@ -1,11 +1,12 @@
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { canViewCost } from "@/lib/rbac";
+import { checkReauth } from "@/lib/reauth";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { LotRegisterForm, type BatchLine } from "@/components/items/lot-register-form";
@@ -13,12 +14,21 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { FxAmountInput } from "@/components/ui/fx-amount-input";
 import { formatMoney } from "@/lib/currency";
 import { uploadFile, getSignedDownloadUrl, isStorageKey, buildKey } from "@/lib/storage";
+import { PhoneCostEditor } from "@/components/items/phone-cost-editor";
+import { CostRow } from "@/components/ui/cost-breakdown-modal";
+import { NoModalCell } from "@/components/ui/no-modal-cell";
+import { LotChargeEditor } from "@/components/items/lot-charge-editor";
+import type { ActionResult } from "@/components/ui/editable-row";
 
-export default async function LotDetailPage({ params, searchParams }: { params: { id: string }; searchParams?: { editPhone?: string } }) {
+function computeGoodsCost(phones: { purchasePrice: unknown }[], accessoryItems: { unitCost: unknown; quantity: number }[]) {
+  return phones.reduce((sum, phone) => sum + Number(phone.purchasePrice), 0) + accessoryItems.reduce((sum, item) => sum + Number(item.unitCost) * item.quantity, 0);
+}
+
+export default async function LotDetailPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) notFound();
   const showCost = canViewCost(session.user?.role as "admin" | "manager" | "staff" | undefined);
-  const editPhoneId = searchParams?.editPhone || "";
+  const username = session.user?.username;
 
   const [lot, variants, models, allPhones, accessories] = await Promise.all([
     prisma.lot.findUnique({
@@ -42,17 +52,21 @@ export default async function LotDetailPage({ params, searchParams }: { params: 
     prisma.returnItem.findMany({ where: { phone: { lotId: lot.id } }, select: { phoneId: true, condition: true } }),
   ]);
 
+  const canGrade = lot.status === "Cleared";
+  const requirePhoneCostReauth = lot.status !== "Collection";
+  const requireShippingReauth = lot.status === "Cleared";
+
   const units = lot.phones.length;
   const landedTotal = Number(lot.shippingCost) + Number(lot.taxCost) + Number(lot.customsCost) + Number(lot.otherCost);
   const landedPerUnit = units > 0 ? landedTotal / units : 0;
-  // Unit cost basis (for profit/COGS) is independent of the lump-sum goods cost below —
+  // Unit cost basis (for profit/COGS) is independent of the goods-cost-owed total below —
   // it's always the sum of each unit's own recorded costs.
   const unitsCost = lot.phones.reduce((sum, phone) => sum + Number(phone.purchasePrice) + Number(phone.tagCost) + Number(phone.batteryCost) + Number(phone.repairCost), 0);
-  // Payable total (what's owed, tracked from the moment the lot is created): the lump-sum
-  // goods cost drives this immediately, before any units are itemized. Lots created before
-  // this feature existed have goodsCost = 0, so they fall back to the old sum-of-units math.
-  const goodsCostBasis = Number(lot.goodsCost) > 0 ? Number(lot.goodsCost) : lot.phones.reduce((sum, phone) => sum + Number(phone.purchasePrice), 0);
-  const totalCost = landedTotal + goodsCostBasis;
+  // Goods cost is never manually entered — it's always the running sum of what's been
+  // added to the lot so far (phones' purchase price + accessory batch costs), which is
+  // exactly what "the goods cost builds up as you add items" means during Collection.
+  const goodsCost = computeGoodsCost(lot.phones, lot.accessoryItems);
+  const totalCost = landedTotal + goodsCost;
   const remaining = Math.max(0, totalCost - Number(lot.amountPaid));
 
   // Per-lot performance stats.
@@ -192,18 +206,45 @@ export default async function LotDetailPage({ params, searchParams }: { params: 
 
       const currentLot = await tx.lot.findUnique({
         where: { id: params.id },
-        include: { phones: { where: { deletedAt: null }, select: { purchasePrice: true } } },
+        include: {
+          phones: { where: { deletedAt: null }, select: { purchasePrice: true } },
+          accessoryItems: { select: { unitCost: true, quantity: true } },
+        },
       });
       if (!currentLot) return;
 
       const newAmountPaid = Number(currentLot.amountPaid) + amount;
-      const currentGoodsCostBasis =
-        Number(currentLot.goodsCost) > 0 ? Number(currentLot.goodsCost) : currentLot.phones.reduce((sum, phone) => sum + Number(phone.purchasePrice), 0);
+      const currentGoodsCost = computeGoodsCost(currentLot.phones, currentLot.accessoryItems);
       const currentTotalCost =
-        Number(currentLot.shippingCost) + Number(currentLot.taxCost) + Number(currentLot.customsCost) + Number(currentLot.otherCost) + currentGoodsCostBasis;
+        Number(currentLot.shippingCost) + Number(currentLot.taxCost) + Number(currentLot.customsCost) + Number(currentLot.otherCost) + currentGoodsCost;
       const newStatus = newAmountPaid <= 0 ? "Unpaid" : newAmountPaid >= currentTotalCost && currentTotalCost > 0 ? "Paid" : "Partial";
 
       await tx.lot.update({ where: { id: params.id }, data: { amountPaid: newAmountPaid, paymentStatus: newStatus } });
+    });
+
+    revalidatePath(`/lots/${params.id}`);
+    revalidatePath("/lots");
+  }
+
+  async function moveToShipped(formData: FormData) {
+    "use server";
+
+    if (lot!.status !== "Collection") return;
+    const shippingCost = Number(formData.get("shippingCost") || 0);
+
+    const fxDetails: Record<string, { currency: string; foreignAmount: number; rate: number }> = {};
+    const raw = String(formData.get("__fx_shippingCost") || "");
+    if (raw) {
+      try {
+        fxDetails.shippingCost = JSON.parse(raw);
+      } catch {
+        // ignore malformed payload
+      }
+    }
+
+    await prisma.lot.update({
+      where: { id: params.id },
+      data: { shippingCost, status: "Shipped", fxDetails: Object.keys(fxDetails).length ? (fxDetails as Prisma.InputJsonValue) : undefined },
     });
 
     revalidatePath(`/lots/${params.id}`);
@@ -241,25 +282,106 @@ export default async function LotDetailPage({ params, searchParams }: { params: 
     revalidatePath("/lots");
   }
 
-  async function updatePhoneCosts(formData: FormData) {
+  async function editShippingCost(formData: FormData): Promise<ActionResult> {
+    "use server";
+
+    const currentLot = await prisma.lot.findUnique({ where: { id: params.id }, select: { status: true, fxDetails: true } });
+    if (!currentLot) return { ok: false, error: "Lot not found." };
+
+    if (currentLot.status === "Cleared") {
+      const check = await checkReauth(formData);
+      if (!check.ok) return check;
+    }
+
+    const shippingCost = Number(formData.get("shippingCost") || 0);
+    const raw = String(formData.get("__fx_shippingCost") || "");
+    let fxUpdate: { currency: string; foreignAmount: number; rate: number } | null = null;
+    if (raw) {
+      try {
+        fxUpdate = JSON.parse(raw);
+      } catch {
+        // ignore malformed payload
+      }
+    }
+    const mergedFx = { ...(currentLot.fxDetails as Record<string, unknown> | null), ...(fxUpdate ? { shippingCost: fxUpdate } : {}) };
+
+    await prisma.lot.update({
+      where: { id: params.id },
+      data: { shippingCost, fxDetails: Object.keys(mergedFx).length ? (mergedFx as Prisma.InputJsonValue) : undefined },
+    });
+
+    revalidatePath(`/lots/${params.id}`);
+    revalidatePath("/lots");
+    return { ok: true };
+  }
+
+  async function editClearanceCharges(formData: FormData): Promise<ActionResult> {
+    "use server";
+    // Cleared is terminal — there's no later stage these could belong to, so this is
+    // always a same-stage correction and never re-auth gated.
+
+    const taxCost = Number(formData.get("taxCost") || 0);
+    const customsCost = Number(formData.get("customsCost") || 0);
+    const otherCost = Number(formData.get("otherCost") || 0);
+
+    const fxUpdates: Record<string, { currency: string; foreignAmount: number; rate: number }> = {};
+    for (const field of ["taxCost", "customsCost", "otherCost"]) {
+      const raw = String(formData.get(`__fx_${field}`) || "");
+      if (raw) {
+        try {
+          fxUpdates[field] = JSON.parse(raw);
+        } catch {
+          // ignore malformed payload
+        }
+      }
+    }
+
+    const currentLot = await prisma.lot.findUnique({ where: { id: params.id }, select: { fxDetails: true } });
+    const mergedFx = { ...(currentLot?.fxDetails as Record<string, unknown> | null), ...fxUpdates };
+
+    await prisma.lot.update({
+      where: { id: params.id },
+      data: { taxCost, customsCost, otherCost, fxDetails: Object.keys(mergedFx).length ? (mergedFx as Prisma.InputJsonValue) : undefined },
+    });
+
+    revalidatePath(`/lots/${params.id}`);
+    revalidatePath("/lots");
+    return { ok: true };
+  }
+
+  async function updatePhoneCosts(formData: FormData): Promise<ActionResult> {
     "use server";
 
     const id = String(formData.get("id") || "");
-    if (!id) return;
+    if (!id) return { ok: false, error: "Missing phone id." };
+
+    const currentLot = await prisma.lot.findUnique({ where: { id: params.id }, select: { status: true } });
+    if (currentLot && currentLot.status !== "Collection") {
+      const check = await checkReauth(formData);
+      if (!check.ok) return check;
+    }
+
     const purchasePrice = Number(formData.get("purchasePrice") || 0);
     const wholesalePrice = Number(formData.get("wholesalePrice") || 0);
     const retailPrice = Number(formData.get("retailPrice") || 0);
     const tagCost = Number(formData.get("tagCost") || 0);
     const batteryCost = Number(formData.get("batteryCost") || 0);
+    const gradeInput = String(formData.get("grade") || "");
+    const grade = (["A", "B", "C"].includes(gradeInput) ? gradeInput : null) as "A" | "B" | "C" | null;
+    const batteryHealthInput = String(formData.get("batteryHealth") || "");
+    const batteryHealth = batteryHealthInput.trim() ? Math.max(0, Math.min(100, Number(batteryHealthInput))) : null;
 
-    await prisma.phone.update({ where: { id }, data: { purchasePrice, wholesalePrice, retailPrice, tagCost, batteryCost } });
+    const data: Prisma.PhoneUpdateInput = { purchasePrice, wholesalePrice, retailPrice, tagCost, batteryCost };
+    if (currentLot?.status === "Cleared") {
+      data.grade = grade;
+      data.batteryHealth = batteryHealth;
+    }
+
+    await prisma.phone.update({ where: { id }, data });
 
     revalidatePath(`/lots/${params.id}`);
     revalidatePath("/items/phones");
-
-    // Leave edit mode on save (Cancel already does this) — otherwise the row stays open
-    // indefinitely with no feedback that the save succeeded.
-    redirect(`/lots/${params.id}`);
+    return { ok: true };
   }
 
   async function archivePhone(formData: FormData) {
@@ -365,8 +487,8 @@ export default async function LotDetailPage({ params, searchParams }: { params: 
           <p className="mt-1 text-sm text-slate-700">{lot.supplier.phone || lot.supplier.email || "No contact details"}</p>
         </Card>
         <Card>
-          <p className="text-xs font-semibold uppercase text-slate-500">Purchase</p>
-          <p className="mt-2 text-sm text-slate-700">Date: {lot.purchaseDate.toISOString().slice(0, 10)}</p>
+          <p className="text-xs font-semibold uppercase text-slate-500">Collection</p>
+          <p className="mt-2 text-sm text-slate-700">Start date: {lot.purchaseDate.toISOString().slice(0, 10)}</p>
           <p className="text-sm text-slate-700">Units: {units}</p>
         </Card>
         {showCost ? (
@@ -379,12 +501,12 @@ export default async function LotDetailPage({ params, searchParams }: { params: 
         <Card>
           <p className="text-xs font-semibold uppercase text-slate-500">Payment</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${lot.status === "Cleared" ? "bg-sky-100 text-sky-800" : "bg-slate-200 text-slate-700"}`}>{lot.status}</span>
+            <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${lot.status === "Cleared" ? "bg-sky-100 text-sky-800" : lot.status === "Shipped" ? "bg-indigo-100 text-indigo-800" : "bg-slate-200 text-slate-700"}`}>{lot.status}</span>
             <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${lot.paymentStatus === "Paid" ? "bg-green-100 text-green-800" : lot.paymentStatus === "Partial" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"}`}>{lot.paymentStatus}</span>
           </div>
           {showCost ? (
             <>
-              <p className="mt-2 text-sm text-slate-700">Goods cost: {formatMoney(goodsCostBasis)}</p>
+              <p className="mt-2 text-sm text-slate-700">Goods cost: {formatMoney(goodsCost)}</p>
               <p className="text-sm text-slate-700">Total cost: {formatMoney(totalCost)}</p>
               <p className="text-sm text-slate-700">Paid: {formatMoney(lot.amountPaid)}</p>
               <p className="text-sm font-medium text-slate-900">Remaining: {formatMoney(remaining)}</p>
@@ -392,6 +514,22 @@ export default async function LotDetailPage({ params, searchParams }: { params: 
           ) : null}
         </Card>
       </div>
+
+      {lot.status === "Collection" ? (
+        <Card className="mt-4 border-indigo-300">
+          <h2 className="mb-1 text-lg font-semibold">Move to Shipped</h2>
+          <p className="mb-3 text-sm text-slate-600">
+            Once everything for this shipment has been collected, add the shipping cost to move the lot to Shipped. Goods
+            cost above is the running total of every phone/accessory added below — nothing to type here for that.
+          </p>
+          <form action={moveToShipped} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <FxAmountInput name="shippingCost" label="Shipping cost" />
+            <div className="flex items-end">
+              <button className="rounded-lg bg-slate-900 px-3 py-2 text-white">Mark as Shipped</button>
+            </div>
+          </form>
+        </Card>
+      ) : null}
 
       {lot.status === "Shipped" ? (
         <Card className="mt-4 border-amber-300">
@@ -403,6 +541,34 @@ export default async function LotDetailPage({ params, searchParams }: { params: 
             <FxAmountInput name="otherCost" label="Other charges" />
             <button className="rounded-lg bg-slate-900 px-3 py-2 text-white md:col-span-2 xl:col-span-3">Mark as Cleared</button>
           </form>
+        </Card>
+      ) : null}
+
+      {showCost && lot.status !== "Collection" ? (
+        <Card className="mt-4">
+          <h2 className="mb-3 text-lg font-semibold">Correct a Charge</h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <LotChargeEditor
+              title="Shipping Cost"
+              fields={[{ name: "shippingCost", label: "Shipping cost", defaultValue: Number(lot.shippingCost) }]}
+              requireReauth={requireShippingReauth}
+              username={username}
+              action={editShippingCost}
+            />
+            {lot.status === "Cleared" ? (
+              <LotChargeEditor
+                title="Clearance Charges"
+                fields={[
+                  { name: "taxCost", label: "Tax cost", defaultValue: Number(lot.taxCost) },
+                  { name: "customsCost", label: "Customs clearance charges", defaultValue: Number(lot.customsCost) },
+                  { name: "otherCost", label: "Other charges", defaultValue: Number(lot.otherCost) },
+                ]}
+                requireReauth={false}
+                username={username}
+                action={editClearanceCharges}
+              />
+            ) : null}
+          </div>
         </Card>
       ) : null}
 
@@ -509,11 +675,16 @@ export default async function LotDetailPage({ params, searchParams }: { params: 
 
       <Card className="mt-4">
         <h2 className="mb-3 text-lg font-semibold">Register Phones in This Lot</h2>
-        <p className="mb-3 text-sm text-slate-600">Pick a product, scan or type each IMEI, and click Add to Batch — the product stays selected so you can keep adding more units of it. Create a brand-new variant on the fly with the + option in the picker.</p>
+        <p className="mb-3 text-sm text-slate-600">
+          Pick a product, scan or type each IMEI, and click Add to Batch — the product stays selected so you can keep
+          adding more units of it. Create a brand-new variant on the fly with the + option in the picker.
+          {!canGrade ? " Phones aren't graded yet — grading opens up once this lot is Cleared." : ""}
+        </p>
         <LotRegisterForm
           variants={variants.map((variant) => ({ value: variant.id, label: `${variant.phoneModel.brand} ${variant.phoneModel.modelName} - ${variant.variantName}`, defaultTagCost: Number(variant.defaultTagCost), defaultBatteryCost: Number(variant.defaultBatteryCost) }))}
           existingImeis={allPhones.map((phone) => phone.imei)}
           showCost={showCost}
+          allowGrading={canGrade}
           action={registerPhonesBatch}
           variantQuickAdd={{
             label: "Variant",
@@ -544,6 +715,7 @@ export default async function LotDetailPage({ params, searchParams }: { params: 
 
       <Card className="mt-4">
         <h2 className="mb-3 text-lg font-semibold">Units in This Lot</h2>
+        <p className="mb-3 text-sm text-slate-600">Click a row to see its cost and profit breakdown.</p>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
@@ -561,68 +733,31 @@ export default async function LotDetailPage({ params, searchParams }: { params: 
               </tr>
             </thead>
             <tbody>
-              {lot.phones.map((phone) =>
-                editPhoneId === phone.id ? (
-                  <tr key={phone.id} className="border-b border-slate-200 bg-slate-50">
-                    <td className="px-2 py-2" colSpan={showCost ? 9 : 7}>
-                      <form action={updatePhoneCosts} className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
-                        <input type="hidden" name="id" value={phone.id} />
-                        <p className="text-sm text-slate-700 sm:col-span-3 lg:col-span-6">{phone.imei} — {phone.phoneVariant.phoneModel.brand} {phone.phoneVariant.phoneModel.modelName} ({phone.phoneVariant.variantName})</p>
-                        <label className="grid min-w-0 gap-1 text-xs text-slate-600">
-                          Purchase price
-                          <input name="purchasePrice" type="number" step="0.01" min={0} defaultValue={Number(phone.purchasePrice)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
-                        </label>
-                        <label className="grid min-w-0 gap-1 text-xs text-slate-600">
-                          Wholesale price
-                          <input name="wholesalePrice" type="number" step="0.01" min={0} defaultValue={Number(phone.wholesalePrice ?? 0)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
-                        </label>
-                        <label className="grid min-w-0 gap-1 text-xs text-slate-600">
-                          Retail price
-                          <input name="retailPrice" type="number" step="0.01" min={0} defaultValue={Number(phone.retailPrice ?? 0)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
-                        </label>
-                        <label className="grid min-w-0 gap-1 text-xs text-slate-600">
-                          Tag cost
-                          <input name="tagCost" type="number" step="0.01" min={0} defaultValue={Number(phone.tagCost)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
-                        </label>
-                        <label className="grid min-w-0 gap-1 text-xs text-slate-600">
-                          Battery cost
-                          <input name="batteryCost" type="number" step="0.01" min={0} defaultValue={Number(phone.batteryCost)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
-                        </label>
-                        <div className="flex items-end gap-2">
-                          <button type="submit" className="rounded-md bg-slate-900 px-3 py-1 text-xs text-white">Save</button>
-                          <a href={`?${new URLSearchParams({ editPhone: "" }).toString()}`} className="rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-700">Cancel</a>
-                        </div>
-                      </form>
-                    </td>
-                  </tr>
-                ) : (
-                  <tr key={phone.id} className="border-b border-slate-200">
-                    <td className="px-2 py-2">
-                      {phone.imei}
-                      {phone.notes ? <p className="mt-0.5 text-xs italic text-slate-500">{phone.notes}</p> : null}
-                    </td>
-                    <td className="px-2 py-2">{phone.phoneVariant.phoneModel.brand} {phone.phoneVariant.phoneModel.modelName}</td>
-                    <td className="px-2 py-2">{phone.phoneVariant.variantName}</td>
-                    <td className="px-2 py-2">{phone.grade || "-"}</td>
-                    <td className="px-2 py-2">{phone.batteryHealth !== null ? `${phone.batteryHealth}%` : "-"}</td>
-                    <td className="px-2 py-2">{phone.status}</td>
-                    {showCost ? <td className="px-2 py-2">{formatMoney(phone.purchasePrice)}</td> : null}
-                    {showCost ? <td className="px-2 py-2">{formatMoney(phone.tagCost)}</td> : null}
-                    {showCost ? <td className="px-2 py-2">{formatMoney(phone.batteryCost)}</td> : null}
-                    <td className="px-2 py-2">
-                      <div className="flex flex-wrap gap-2">
-                        {showCost ? (
-                          <a href={`?${new URLSearchParams({ editPhone: phone.id }).toString()}`} className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700">Edit</a>
-                        ) : null}
-                        <form action={archivePhone}>
-                          <input type="hidden" name="id" value={phone.id} />
-                          <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Archive</button>
-                        </form>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              )}
+              {lot.phones.map((phone) => (
+                <PhoneCostEditor
+                  key={phone.id}
+                  phone={{
+                    id: phone.id,
+                    imei: phone.imei,
+                    notes: phone.notes,
+                    grade: phone.grade,
+                    batteryHealth: phone.batteryHealth,
+                    status: phone.status,
+                    purchasePrice: Number(phone.purchasePrice),
+                    wholesalePrice: phone.wholesalePrice !== null ? Number(phone.wholesalePrice) : null,
+                    retailPrice: phone.retailPrice !== null ? Number(phone.retailPrice) : null,
+                    tagCost: Number(phone.tagCost),
+                    batteryCost: Number(phone.batteryCost),
+                    phoneVariant: { variantName: phone.phoneVariant.variantName, phoneModel: { brand: phone.phoneVariant.phoneModel.brand, modelName: phone.phoneVariant.phoneModel.modelName } },
+                  }}
+                  showCost={showCost}
+                  canGrade={canGrade}
+                  requireReauth={requirePhoneCostReauth}
+                  username={username}
+                  updateAction={updatePhoneCosts}
+                  archiveAction={archivePhone}
+                />
+              ))}
               {!lot.phones.length ? (
                 <tr>
                   <td className="px-2 py-4 text-slate-600" colSpan={showCost ? 10 : 7}>
@@ -689,20 +824,30 @@ export default async function LotDetailPage({ params, searchParams }: { params: 
             </thead>
             <tbody>
               {lot.accessoryItems.map((item) => (
-                <tr key={item.id} className="border-b border-slate-200">
+                <CostRow
+                  key={item.id}
+                  className="border-b border-slate-200"
+                  data={{
+                    name: `${item.accessory.name} (${item.accessory.sku})`,
+                    unitCost: Number(item.unitCost),
+                    totalCost: Number(item.unitCost),
+                    wholesalePrice: Number(item.accessory.wholesalePrice),
+                    retailPrice: Number(item.accessory.retailPrice),
+                  }}
+                >
                   <td className="px-2 py-2">{item.accessory.name}</td>
                   <td className="px-2 py-2">{item.accessory.sku}</td>
                   <td className="px-2 py-2">{item.quantity}</td>
                   {showCost ? <td className="px-2 py-2">{formatMoney(item.unitCost)}</td> : null}
                   {showCost ? <td className="px-2 py-2">{formatMoney(Number(item.unitCost) * item.quantity)}</td> : null}
                   <td className="px-2 py-2">{item.createdAt.toISOString().slice(0, 10)}</td>
-                  <td className="px-2 py-2">
+                  <NoModalCell className="px-2 py-2">
                     <form action={removeAccessoryFromLot}>
                       <input type="hidden" name="id" value={item.id} />
                       <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Remove</button>
                     </form>
-                  </td>
-                </tr>
+                  </NoModalCell>
+                </CostRow>
               ))}
               {!lot.accessoryItems.length ? (
                 <tr>
