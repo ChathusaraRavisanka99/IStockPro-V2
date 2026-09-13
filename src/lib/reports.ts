@@ -47,7 +47,7 @@ export async function computeReportData(from: Date, to: Date) {
     prisma.phone.findMany({ where: { status: "InStock", deletedAt: null }, select: { purchasePrice: true, retailPrice: true } }),
     prisma.accessory.findMany({ where: { deletedAt: null } }),
     prisma.phoneModel.findMany({ where: { deletedAt: null }, include: { variants: { where: { deletedAt: null }, include: { _count: { select: { phones: { where: { status: "InStock", deletedAt: null } } } } } } } }),
-    prisma.lot.findMany({ where: { deletedAt: null }, include: { phones: { where: { deletedAt: null }, select: { purchasePrice: true } } } }),
+    prisma.lot.findMany({ where: { deletedAt: null }, include: { phones: { where: { deletedAt: null }, select: { purchasePrice: true } }, accessoryItems: { select: { unitCost: true, quantity: true } } } }),
     prisma.phone.findMany({ where: { status: "InStock", deletedAt: null, createdAt: { lt: agingCutoff } }, include: { phoneVariant: { include: { phoneModel: true } } }, orderBy: { createdAt: "asc" } }),
   ]);
 
@@ -80,12 +80,11 @@ export async function computeReportData(from: Date, to: Date) {
   // ---- Snapshot metrics (not date-scoped — current state, not period activity) ----
   const accountsReceivable = unpaidInvoices.reduce((sum, invoice) => sum + (Number(invoice.totalAmount) - Number(invoice.paidAmount)), 0);
   const lotsWithCost = lots.map((lot) => {
-    const unitsCost = lot.phones.reduce((sum, phone) => sum + Number(phone.purchasePrice), 0);
-    // Same goodsCost-or-unitsCost fallback used on the Lot detail page: a lot with a
-    // recorded lump-sum goods cost is tracked against that immediately; older lots
-    // (goodsCost = 0) fall back to summing whatever units have been itemized so far.
-    const goodsCostBasis = Number(lot.goodsCost) > 0 ? Number(lot.goodsCost) : unitsCost;
-    const totalCost = Number(lot.shippingCost) + Number(lot.taxCost) + Number(lot.customsCost) + Number(lot.otherCost) + goodsCostBasis;
+    // Goods cost is never a manually-entered lump sum — it's always the running sum of
+    // what's been added to the lot (phones' purchase price + accessory batch costs),
+    // matching the same computation on the Lot detail page.
+    const goodsCost = lot.phones.reduce((sum, phone) => sum + Number(phone.purchasePrice), 0) + lot.accessoryItems.reduce((sum, item) => sum + Number(item.unitCost) * item.quantity, 0);
+    const totalCost = Number(lot.shippingCost) + Number(lot.taxCost) + Number(lot.customsCost) + Number(lot.otherCost) + goodsCost;
     return { ...lot, totalCost, remaining: Math.max(0, totalCost - Number(lot.amountPaid)) };
   });
   const accountsPayable = lotsWithCost.reduce((sum, lot) => sum + lot.remaining, 0);

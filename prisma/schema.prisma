@@ -69,6 +69,7 @@ enum TaxType {
 }
 
 enum LotStatus {
+  Collection
   Shipped
   Cleared
 }
