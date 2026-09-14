@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { SearchableSelect, type QuickAdd } from "@/components/ui/searchable-select";
+import { FxAmountField } from "@/components/ui/fx-amount-field";
 import { formatMoney } from "@/lib/currency";
 
 type VariantOption = { value: string; label: string; defaultTagCost?: number; defaultBatteryCost?: number };
@@ -169,10 +170,7 @@ export function LotRegisterForm({ variants, existingImeis, showCost, allowGradin
         </label>
         {showCost ? (
           <>
-            <label className="grid min-w-0 gap-1 text-sm text-slate-700">
-              Purchase price
-              <input type="number" step="0.01" min={0} value={purchasePrice} onChange={(event) => setPurchasePrice(event.target.value)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
-            </label>
+            <FxAmountField label="Purchase price" value={purchasePrice} onChange={setPurchasePrice} />
             <label className="grid min-w-0 gap-1 text-sm text-slate-700">
               Wholesale price
               <input type="number" step="0.01" min={0} value={wholesalePrice} onChange={(event) => setWholesalePrice(event.target.value)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
@@ -185,36 +183,20 @@ export function LotRegisterForm({ variants, existingImeis, showCost, allowGradin
         </label>
         {showCost ? (
           <>
-            <label className="grid min-w-0 gap-1 text-sm text-slate-700">
-              <span className="flex items-center gap-2">
+            <div className="grid min-w-0 gap-1">
+              <label className="flex items-center gap-2 text-sm text-slate-700">
                 <input type="checkbox" checked={addTagCost} onChange={(event) => toggleTagCost(event.target.checked)} />
-                Tag cost
-              </span>
-              <input
-                type="number"
-                step="0.01"
-                min={0}
-                disabled={!addTagCost}
-                value={tagCost}
-                onChange={(event) => setTagCost(event.target.value)}
-                className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 disabled:bg-slate-100"
-              />
-            </label>
-            <label className="grid min-w-0 gap-1 text-sm text-slate-700">
-              <span className="flex items-center gap-2">
+                Add tag cost
+              </label>
+              <FxAmountField label="Tag cost" value={tagCost} onChange={setTagCost} disabled={!addTagCost} />
+            </div>
+            <div className="grid min-w-0 gap-1">
+              <label className="flex items-center gap-2 text-sm text-slate-700">
                 <input type="checkbox" checked={addBatteryCost} onChange={(event) => toggleBatteryCost(event.target.checked)} />
-                Battery cost
-              </span>
-              <input
-                type="number"
-                step="0.01"
-                min={0}
-                disabled={!addBatteryCost}
-                value={batteryCost}
-                onChange={(event) => setBatteryCost(event.target.value)}
-                className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 disabled:bg-slate-100"
-              />
-            </label>
+                Add battery cost
+              </label>
+              <FxAmountField label="Battery cost" value={batteryCost} onChange={setBatteryCost} disabled={!addBatteryCost} />
+            </div>
           </>
         ) : null}
         <label className="grid min-w-0 gap-1 text-sm text-slate-700 md:col-span-2 xl:col-span-2">
