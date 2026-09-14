@@ -232,7 +232,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
     if (lot!.status !== "Collection") return;
     const shippingCost = Number(formData.get("shippingCost") || 0);
 
-    const fxDetails: Record<string, { currency: string; foreignAmount: number; rate: number }> = {};
+    const fxDetails: Record<string, { foreignAmount: number; rate: number }> = {};
     const raw = String(formData.get("__fx_shippingCost") || "");
     if (raw) {
       try {
@@ -258,7 +258,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
     const customsCost = Number(formData.get("customsCost") || 0);
     const otherCost = Number(formData.get("otherCost") || 0);
 
-    const fxUpdates: Record<string, { currency: string; foreignAmount: number; rate: number }> = {};
+    const fxUpdates: Record<string, { foreignAmount: number; rate: number }> = {};
     for (const field of ["taxCost", "customsCost", "otherCost"]) {
       const raw = String(formData.get(`__fx_${field}`) || "");
       if (raw) {
@@ -295,7 +295,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
 
     const shippingCost = Number(formData.get("shippingCost") || 0);
     const raw = String(formData.get("__fx_shippingCost") || "");
-    let fxUpdate: { currency: string; foreignAmount: number; rate: number } | null = null;
+    let fxUpdate: { foreignAmount: number; rate: number } | null = null;
     if (raw) {
       try {
         fxUpdate = JSON.parse(raw);
@@ -324,7 +324,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
     const customsCost = Number(formData.get("customsCost") || 0);
     const otherCost = Number(formData.get("otherCost") || 0);
 
-    const fxUpdates: Record<string, { currency: string; foreignAmount: number; rate: number }> = {};
+    const fxUpdates: Record<string, { foreignAmount: number; rate: number }> = {};
     for (const field of ["taxCost", "customsCost", "otherCost"]) {
       const raw = String(formData.get(`__fx_${field}`) || "");
       if (raw) {
@@ -800,12 +800,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
             Quantity
             <input name="quantity" type="number" min={1} step="1" required defaultValue={1} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
           </label>
-          {showCost ? (
-            <label className="grid min-w-0 gap-1 text-sm text-slate-700">
-              Unit cost
-              <input name="unitCost" type="number" min={0} step="0.01" defaultValue={0} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
-            </label>
-          ) : null}
+          {showCost ? <FxAmountInput name="unitCost" label="Unit cost" /> : null}
           <button className="rounded-lg bg-slate-900 px-3 py-2 text-white md:col-span-2 xl:col-span-4">Add to Lot</button>
         </form>
 

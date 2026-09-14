@@ -19,6 +19,9 @@ type Props = {
   /** Set false for pages that only ever render a table (no Grid view implemented) — an
    * always-visible List/Grid toggle with no working Grid mode behind it is a dead control. */
   showViewToggle?: boolean;
+  /** Adds a "From"/"To" date pair to the same search form (e.g. filtering a list by a
+   * date field) — submitted and preserved across the List/Grid toggle alongside search. */
+  dateRange?: { from?: string; to?: string };
 };
 
 export function ListControls({
@@ -32,11 +35,14 @@ export function ListControls({
   placeholder = "Search",
   view = "list",
   showViewToggle = true,
+  dateRange,
 }: Props) {
   const query = new URLSearchParams();
   if (search) query.set("search", search);
   if (filter) query.set("filter", filter);
   if (filter2) query.set("filter2", filter2);
+  if (dateRange?.from) query.set("from", dateRange.from);
+  if (dateRange?.to) query.set("to", dateRange.to);
 
   const listQuery = new URLSearchParams(query);
   listQuery.set("view", "list");
@@ -56,6 +62,18 @@ export function ListControls({
       ) : null}
       {filterOptions2.length ? (
         <SearchableSelect name="filter2" defaultValue={filter2} aria-label={filter2Label || "Filter"} placeholder={filter2Label || "All"} options={filterOptions2} />
+      ) : null}
+      {dateRange ? (
+        <div className="flex shrink-0 items-center gap-1.5 text-sm text-slate-700">
+          <label className="flex items-center gap-1">
+            From
+            <input type="date" name="from" defaultValue={dateRange.from} className="min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm" />
+          </label>
+          <label className="flex items-center gap-1">
+            To
+            <input type="date" name="to" defaultValue={dateRange.to} className="min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm" />
+          </label>
+        </div>
       ) : null}
       <button className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">Apply</button>
       {showViewToggle ? (

@@ -20,6 +20,8 @@ type Props = {
     view?: "list" | "grid";
     page?: string;
     pageSize?: string;
+    from?: string;
+    to?: string;
   };
 };
 
@@ -31,7 +33,20 @@ export default async function LotsPage({ searchParams }: Props) {
   const view = searchParams?.view === "grid" ? "grid" : "list";
   const page = parsePage(searchParams?.page);
   const pageSize = parsePageSize(searchParams?.pageSize);
-  const lotWhere = { deletedAt: null, ...(search ? { OR: [{ lotNumber: { contains: search, mode: "insensitive" as const } }, { supplier: { name: { contains: search, mode: "insensitive" as const } } }] } : {}) };
+  const fromDate = searchParams?.from?.trim() || "";
+  const toDate = searchParams?.to?.trim() || "";
+  const lotWhere = {
+    deletedAt: null,
+    ...(search ? { OR: [{ lotNumber: { contains: search, mode: "insensitive" as const } }, { supplier: { name: { contains: search, mode: "insensitive" as const } } }] } : {}),
+    ...(fromDate || toDate
+      ? {
+          purchaseDate: {
+            ...(fromDate ? { gte: new Date(`${fromDate}T00:00:00`) } : {}),
+            ...(toDate ? { lte: new Date(`${toDate}T23:59:59.999`) } : {}),
+          },
+        }
+      : {}),
+  };
 
   const [suppliers, lots, total] = await Promise.all([
     prisma.supplier.findMany({ where: { deletedAt: null }, orderBy: { name: "asc" } }),
@@ -100,7 +115,7 @@ export default async function LotsPage({ searchParams }: Props) {
   return (
     <div>
       <PageHeader title="Lots" subtitle="Track batches, landed cost allocation, and IMEI source lookup" />
-      <ListControls search={search} view={view} placeholder="Search lot number or supplier" />
+      <ListControls search={search} view={view} placeholder="Search lot number or supplier" dateRange={{ from: fromDate, to: toDate }} />
 
       <Card className="mb-4">
         <form action={createLot} className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -231,7 +246,7 @@ export default async function LotsPage({ searchParams }: Props) {
         </div>
       </Card>
       )}
-      <Pagination page={page} pageSize={pageSize} total={total} query={{ ...(search ? { search } : {}), ...(imeiQuery ? { imei: imeiQuery } : {}), view }} />
+      <Pagination page={page} pageSize={pageSize} total={total} query={{ ...(search ? { search } : {}), ...(imeiQuery ? { imei: imeiQuery } : {}), ...(fromDate ? { from: fromDate } : {}), ...(toDate ? { to: toDate } : {}), view }} />
     </div>
   );
 }
