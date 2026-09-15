@@ -137,7 +137,6 @@ export default async function ReturnsPage({ searchParams }: { searchParams: { se
   return (
     <div>
       <PageHeader title="Returns" subtitle="Create sale-linked returns and credit notes" />
-      <ListControls search={search} view={view} placeholder="Search return, sale number, or reason" />
       <Card className="mb-4">
         <ReturnForm
           sales={saleOptions}
@@ -145,7 +144,9 @@ export default async function ReturnsPage({ searchParams }: { searchParams: { se
           quickAdd={{ label: "Sale", action: createSaleDependency, fields: [{ name: "subtotal", label: "Sale total", type: "number", required: true }] }}
         />
       </Card>
-      <Pagination page={page} pageSize={pageSize} total={total} query={{ ...(search ? { search } : {}), view }} />
+
+      <ListControls search={search} view={view} placeholder="Search return, sale number, or reason" />
+
       {view === "grid" ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {returns.map((ret) => (
@@ -198,6 +199,7 @@ export default async function ReturnsPage({ searchParams }: { searchParams: { se
         </div>
       </Card>
       )}
+      <Pagination page={page} pageSize={pageSize} total={total} query={{ ...(search ? { search } : {}), view }} />
     </div>
   );
 }

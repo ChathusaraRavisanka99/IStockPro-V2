@@ -65,7 +65,6 @@ export default async function TaxPaymentsPage({ searchParams }: { searchParams: 
   return (
     <div>
       <PageHeader title="Tax Payments" subtitle="Record tax settlements and receipt references" />
-      <ListControls search={search} placeholder="Search tax period or note" showViewToggle={false} />
 
       <Card className="mb-4">
         <form action={createTaxPayment} className="grid gap-3 md:grid-cols-5">
@@ -83,7 +82,8 @@ export default async function TaxPaymentsPage({ searchParams }: { searchParams: 
           <button className="rounded-lg bg-slate-900 px-3 py-2 text-white md:col-span-5">Add Tax Payment</button>
         </form>
       </Card>
-      <Pagination page={page} pageSize={pageSize} total={total} query={search ? { search } : {}} />
+
+      <ListControls search={search} placeholder="Search tax period or note" showViewToggle={false} />
 
       <Card>
         <div className="overflow-x-auto">
@@ -123,6 +123,7 @@ export default async function TaxPaymentsPage({ searchParams }: { searchParams: 
           </table>
         </div>
       </Card>
+      <Pagination page={page} pageSize={pageSize} total={total} query={search ? { search } : {}} />
     </div>
   );
 }

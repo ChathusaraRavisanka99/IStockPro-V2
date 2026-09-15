@@ -77,7 +77,6 @@ export default async function ExpensesPage({ searchParams }: { searchParams: { s
   return (
     <div>
       <PageHeader title="Expenses" subtitle="Operating costs with date and category tracking" />
-      <ListControls search={search} placeholder="Search expense category or description" showViewToggle={false} />
 
       <Card className="mb-4">
         <form action={createExpense} className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
@@ -114,7 +113,8 @@ export default async function ExpensesPage({ searchParams }: { searchParams: { s
           <button className="rounded-lg bg-slate-900 px-3 py-2 text-white md:col-span-3 xl:col-span-5">Add Expense</button>
         </form>
       </Card>
-      <Pagination page={page} pageSize={pageSize} total={total} query={search ? { search } : {}} />
+
+      <ListControls search={search} placeholder="Search expense category or description" showViewToggle={false} />
 
       <Card>
         <div className="overflow-x-auto">
@@ -162,6 +162,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams: { s
           </table>
         </div>
       </Card>
+      <Pagination page={page} pageSize={pageSize} total={total} query={search ? { search } : {}} />
     </div>
   );
 }

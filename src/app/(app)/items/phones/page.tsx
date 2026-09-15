@@ -191,7 +191,6 @@ export default async function PhonesPage({ searchParams }: Props) {
   return (
     <div>
       <PageHeader title="Items - Phones" subtitle="Serialized inventory with IMEI and stock counts" />
-      <ListControls search={search} filter={status} view={view} placeholder="Search by IMEI or serial number" filterLabel="All statuses" filterOptions={["InStock", "Reserved", "Sold", "Returned", "Repair", "WrittenOff"].map((value) => ({ label: value, value }))} />
 
       <div className="grid gap-4 xl:grid-cols-3">
         <Card>
@@ -297,7 +296,8 @@ export default async function PhonesPage({ searchParams }: Props) {
           {!models.length ? <p className="text-sm text-slate-600">No models created yet.</p> : null}
         </div>
       </Card>
-      <Pagination page={page} pageSize={pageSize} total={phoneTotal} query={{ ...(search ? { search } : {}), ...(status ? { filter: status } : {}), view }} />
+
+      <ListControls search={search} filter={status} view={view} placeholder="Search by IMEI or serial number" filterLabel="All statuses" filterOptions={["InStock", "Reserved", "Sold", "Returned", "Repair", "WrittenOff"].map((value) => ({ label: value, value }))} />
 
       <Card className="mt-4">
         <h2 className="mb-3 text-lg font-semibold">Recent Serialized Units</h2>
@@ -361,6 +361,7 @@ export default async function PhonesPage({ searchParams }: Props) {
         </div>
         )}
       </Card>
+      <Pagination page={page} pageSize={pageSize} total={phoneTotal} query={{ ...(search ? { search } : {}), ...(status ? { filter: status } : {}), view }} />
     </div>
   );
 }

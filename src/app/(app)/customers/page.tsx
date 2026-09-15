@@ -79,7 +79,6 @@ export default async function CustomersPage({ searchParams }: Props) {
   return (
     <div>
       <PageHeader title="Customers" subtitle="Customer records with purchase history and lifetime value" />
-      <ListControls search={search} view={view} placeholder="Search customers by name, phone, or email" />
       <Card className="mb-4">
         <form action={createCustomer} className="grid gap-3 md:grid-cols-4">
           <input name="name" required placeholder="Customer name" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
@@ -89,6 +88,9 @@ export default async function CustomersPage({ searchParams }: Props) {
           <button className="rounded-lg bg-slate-900 px-3 py-2 text-white md:col-span-4">Add Customer</button>
         </form>
       </Card>
+
+      <ListControls search={search} view={view} placeholder="Search customers by name, phone, or email" />
+
       {view === "grid" ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {customers.map((customer) => {
