@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { formatMoney } from "@/lib/currency";
 import { CostRow } from "@/components/ui/cost-breakdown-modal";
 import { ReauthFields } from "@/components/ui/reauth-fields";
@@ -37,10 +38,19 @@ export function PhoneCostEditor({ phone, showCost, canGrade, requireReauth, user
   const tagCost = Number(phone.tagCost);
   const batteryCost = Number(phone.batteryCost);
   const totalCost = purchasePrice + tagCost + batteryCost;
+  const editRowRef = useRef<HTMLTableRowElement>(null);
+
+  // This table lives in a horizontally-scrolling wrapper (more columns than fit on
+  // mobile) — the "Edit" button sits in the last column, so on a phone the wrapper is
+  // already scrolled right when it's clicked. Without this, the edit form's own fields
+  // (leftmost columns) render off-screen and the user has to notice and swipe back.
+  useEffect(() => {
+    if (editing) editRowRef.current?.scrollIntoView({ inline: "start", block: "nearest" });
+  }, [editing]);
 
   if (editing) {
     return (
-      <tr className="border-b border-slate-200 bg-slate-50">
+      <tr ref={editRowRef} className="border-b border-slate-200 bg-slate-50">
         <td className="px-2 py-2" colSpan={showCost ? 9 : 7}>
           <form
             onSubmit={handleSubmit}

@@ -1,6 +1,6 @@
 "use client";
 
-import type { FormEvent } from "react";
+import { useEffect, useRef, type FormEvent } from "react";
 import { formatMoney } from "@/lib/currency";
 import { CostRow } from "@/components/ui/cost-breakdown-modal";
 import { useEditableRow, type ActionResult } from "@/components/ui/editable-row";
@@ -70,10 +70,19 @@ function EditForm({ item, error, pending, onSubmit, cancel }: { item: Accessory;
 
 export function AccessoryTableRow({ item, updateAction, archiveAction }: Props) {
   const { editing, error, pending, open, cancel, handleSubmit } = useEditableRow(updateAction);
+  const editRowRef = useRef<HTMLTableRowElement>(null);
+
+  // This table lives in a horizontally-scrolling wrapper (more columns than fit on
+  // mobile) — the "Edit" button sits in the last column, so on a phone the wrapper is
+  // already scrolled right when it's clicked. Without this, the edit form's own fields
+  // (leftmost columns) render off-screen and the user has to notice and swipe back.
+  useEffect(() => {
+    if (editing) editRowRef.current?.scrollIntoView({ inline: "start", block: "nearest" });
+  }, [editing]);
 
   if (editing) {
     return (
-      <tr className="border-b border-slate-200 bg-slate-50">
+      <tr ref={editRowRef} className="border-b border-slate-200 bg-slate-50">
         <td className="px-2 py-2" colSpan={10}>
           <EditForm item={item} error={error} pending={pending} onSubmit={handleSubmit} cancel={cancel} />
         </td>
