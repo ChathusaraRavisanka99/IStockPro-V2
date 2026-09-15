@@ -161,17 +161,6 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
   return (
     <div>
       <PageHeader title="Sales" subtitle="Create sales and auto-generate invoices" />
-      <ListControls
-        search={search}
-        filter={status}
-        filterLabel="All statuses"
-        filterOptions={["Draft", "Completed", "Voided"].map((value) => ({ label: value, value }))}
-        filter2={paymentStatus}
-        filter2Label="All payment statuses"
-        filterOptions2={["Unpaid", "PartiallyPaid", "Paid", "Voided"].map((value) => ({ label: value, value }))}
-        view={view}
-        placeholder="Search sale number or customer"
-      />
       <Card className="mb-4">
         <SaleForm
           customers={customers.map((customer) => ({ value: customer.id, label: customer.name }))}
@@ -183,6 +172,19 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
           action={createSale}
         />
       </Card>
+
+      <ListControls
+        search={search}
+        filter={status}
+        filterLabel="All statuses"
+        filterOptions={["Draft", "Completed", "Voided"].map((value) => ({ label: value, value }))}
+        filter2={paymentStatus}
+        filter2Label="All payment statuses"
+        filterOptions2={["Unpaid", "PartiallyPaid", "Paid", "Voided"].map((value) => ({ label: value, value }))}
+        view={view}
+        placeholder="Search sale number or customer"
+      />
+
       {view === "grid" ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {sales.map((sale) => (

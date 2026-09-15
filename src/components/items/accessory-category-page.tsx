@@ -143,7 +143,6 @@ export async function AccessoryCategoryPage({
   return (
     <div>
       <PageHeader title={title} subtitle="Accessory inventory with quantity and low-stock tracking" />
-      <ListControls search={search} view={view} placeholder="Search by accessory name or SKU" />
 
       <Card className="mb-4">
         <form action={createAccessory} className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
@@ -185,6 +184,8 @@ export async function AccessoryCategoryPage({
           <button className="rounded-lg bg-slate-900 px-3 py-2 text-white md:col-span-3 xl:col-span-4">Add</button>
         </form>
       </Card>
+
+      <ListControls search={search} view={view} placeholder="Search by accessory name or SKU" />
 
       {view === "grid" ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">

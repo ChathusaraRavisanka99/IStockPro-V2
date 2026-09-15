@@ -115,7 +115,6 @@ export default async function LotsPage({ searchParams }: Props) {
   return (
     <div>
       <PageHeader title="Lots" subtitle="Track batches, landed cost allocation, and IMEI source lookup" />
-      <ListControls search={search} view={view} placeholder="Search lot number or supplier" dateRange={{ from: fromDate, to: toDate }} />
 
       <Card className="mb-4">
         <form action={createLot} className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -170,6 +169,8 @@ export default async function LotsPage({ searchParams }: Props) {
           </div>
         ) : null}
       </Card>
+
+      <ListControls search={search} view={view} placeholder="Search lot number or supplier" dateRange={{ from: fromDate, to: toDate }} />
 
       {view === "grid" ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">

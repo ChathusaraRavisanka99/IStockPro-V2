@@ -148,7 +148,6 @@ export default async function QuotationsPage({ searchParams }: { searchParams: {
   return (
     <div>
       <PageHeader title="Quotations" subtitle="Create, price, and convert quotations into sales" />
-      <ListControls search={search} filter={status} view={view} filterLabel="All statuses" filterOptions={["Draft", "Converted"].map((value) => ({ label: value, value }))} placeholder="Search quote number or customer" />
       <Card className="mb-4">
         <QuotationForm
           customers={customers.map((customer) => ({ value: customer.id, label: customer.name }))}
@@ -160,9 +159,12 @@ export default async function QuotationsPage({ searchParams }: { searchParams: {
           action={createQuotation}
         />
       </Card>
+
+      <ListControls search={search} filter={status} view={view} filterLabel="All statuses" filterOptions={["Draft", "Converted"].map((value) => ({ label: value, value }))} placeholder="Search quote number or customer" />
+
       {view === "grid" ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {quotations.map((q) => <Card key={q.id}><p className="font-semibold text-slate-900">{q.quoteNumber}</p><p className="mt-1 text-sm text-slate-700">{q.customer?.name || "Walk-in"}</p><p className="text-sm text-slate-700">Valid until {q.validUntil ? q.validUntil.toISOString().slice(0, 10) : "-"}</p><p className="mt-3 text-lg font-semibold text-slate-900">{formatMoney(Number(q.totalAmount))}</p><p className="text-sm text-slate-700">{q.status}</p><div className="mt-3 flex flex-wrap gap-2"><Link href={`/quotations/${q.id}`} className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">View</Link>{q.status !== "Converted" ? <form action={convertQuotationToSale}><input type="hidden" name="quotationId" value={q.id} /><button className="rounded-lg bg-slate-900 px-3 py-1 text-sm text-white">Convert</button></form> : q.convertedSale ? <Link href={`/sales/${q.convertedSale.id}`} className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">View Sale {q.convertedSale.saleNumber}</Link> : null}</div></Card>)}
+          {quotations.map((q) =><Card key={q.id}><p className="font-semibold text-slate-900">{q.quoteNumber}</p><p className="mt-1 text-sm text-slate-700">{q.customer?.name || "Walk-in"}</p><p className="text-sm text-slate-700">Valid until {q.validUntil ? q.validUntil.toISOString().slice(0, 10) : "-"}</p><p className="mt-3 text-lg font-semibold text-slate-900">{formatMoney(Number(q.totalAmount))}</p><p className="text-sm text-slate-700">{q.status}</p><div className="mt-3 flex flex-wrap gap-2"><Link href={`/quotations/${q.id}`} className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">View</Link>{q.status !== "Converted" ? <form action={convertQuotationToSale}><input type="hidden" name="quotationId" value={q.id} /><button className="rounded-lg bg-slate-900 px-3 py-1 text-sm text-white">Convert</button></form> : q.convertedSale ? <Link href={`/sales/${q.convertedSale.id}`} className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">View Sale {q.convertedSale.saleNumber}</Link> : null}</div></Card>)}
         </div>
       ) : (
       <Card>

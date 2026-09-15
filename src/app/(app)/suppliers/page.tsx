@@ -59,7 +59,6 @@ export default async function SuppliersPage({ searchParams }: Props) {
   return (
     <div>
       <PageHeader title="Suppliers" subtitle="Manage suppliers and view sourcing analytics" />
-      <ListControls search={search} view={view} placeholder="Search suppliers by name, phone, or email" />
 
       <Card className="mb-4">
         <form action={createSupplier} className="grid gap-3 md:grid-cols-4">
@@ -70,6 +69,8 @@ export default async function SuppliersPage({ searchParams }: Props) {
           <button className="rounded-lg bg-slate-900 px-3 py-2 text-white md:col-span-4">Add Supplier</button>
         </form>
       </Card>
+
+      <ListControls search={search} view={view} placeholder="Search suppliers by name, phone, or email" />
 
       {view === "grid" ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">

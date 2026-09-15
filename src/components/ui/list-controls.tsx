@@ -64,14 +64,14 @@ export function ListControls({
         <SearchableSelect name="filter2" defaultValue={filter2} aria-label={filter2Label || "Filter"} placeholder={filter2Label || "All"} options={filterOptions2} />
       ) : null}
       {dateRange ? (
-        <div className="flex shrink-0 items-center gap-1.5 text-sm text-slate-700">
-          <label className="flex items-center gap-1">
+        <div className="grid grid-cols-2 gap-1.5 text-sm text-slate-700 sm:flex sm:shrink-0 sm:items-center">
+          <label className="flex min-w-0 items-center gap-1">
             From
-            <input type="date" name="from" defaultValue={dateRange.from} className="min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm" />
+            <input type="date" name="from" defaultValue={dateRange.from} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm" />
           </label>
-          <label className="flex items-center gap-1">
+          <label className="flex min-w-0 items-center gap-1">
             To
-            <input type="date" name="to" defaultValue={dateRange.to} className="min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm" />
+            <input type="date" name="to" defaultValue={dateRange.to} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm" />
           </label>
         </div>
       ) : null}
