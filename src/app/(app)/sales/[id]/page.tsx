@@ -111,6 +111,7 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
           <p className="text-xs font-semibold uppercase text-slate-500">Sale</p>
           <p className="mt-2 text-sm text-slate-700">Date: {sale.saleDate.toISOString().slice(0, 10)}</p>
           <p className="text-sm text-slate-700">Status: {sale.status}</p>
+          <span className={`mt-2 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${sale.saleType === "Wholesale" ? "bg-purple-100 text-purple-800" : "bg-slate-100 text-slate-700"}`}>{sale.saleType}</span>
         </Card>
         <Card>
           <p className="text-xs font-semibold uppercase text-slate-500">Payment</p>

@@ -48,10 +48,28 @@ export default async function LotDetailPage({ params }: { params: { id: string }
   ]);
   if (!lot) notFound();
 
-  const [lotSaleItems, lotReturnItems] = await Promise.all([
+  const [lotSaleItems, lotReturnItems, phoneExpenseRows, accessoryExpenseRows] = await Promise.all([
     prisma.saleItem.findMany({ where: { phone: { lotId: lot.id } }, select: { quantity: true, unitPrice: true, phoneId: true } }),
     prisma.returnItem.findMany({ where: { phone: { lotId: lot.id } }, select: { phoneId: true, condition: true } }),
+    // Expenses (and the popup they feed) are cost-sensitive — only fetch for roles that
+    // can already view cost, matching this page's Purchase/Tag/Battery Cost columns.
+    showCost ? prisma.expense.findMany({ where: { phoneId: { in: lot.phones.map((phone) => phone.id) } }, orderBy: { expenseDate: "desc" } }) : Promise.resolve([]),
+    showCost ? prisma.expense.findMany({ where: { accessoryId: { in: lot.accessoryItems.map((item) => item.accessoryId) } }, orderBy: { expenseDate: "desc" } }) : Promise.resolve([]),
   ]);
+  const expensesByPhone = new Map<string, typeof phoneExpenseRows>();
+  for (const expense of phoneExpenseRows) {
+    if (!expense.phoneId) continue;
+    const list = expensesByPhone.get(expense.phoneId) ?? [];
+    list.push(expense);
+    expensesByPhone.set(expense.phoneId, list);
+  }
+  const expensesByAccessory = new Map<string, typeof accessoryExpenseRows>();
+  for (const expense of accessoryExpenseRows) {
+    if (!expense.accessoryId) continue;
+    const list = expensesByAccessory.get(expense.accessoryId) ?? [];
+    list.push(expense);
+    expensesByAccessory.set(expense.accessoryId, list);
+  }
 
   const canGrade = lot.status === "Cleared";
   const requirePhoneCostReauth = lot.status !== "Collection";
@@ -794,6 +812,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
                     tagCost: Number(phone.tagCost),
                     batteryCost: Number(phone.batteryCost),
                     phoneVariant: { variantName: phone.phoneVariant.variantName, phoneModel: { brand: phone.phoneVariant.phoneModel.brand, modelName: phone.phoneVariant.phoneModel.modelName } },
+                    expenses: expensesByPhone.get(phone.id) ?? [],
                   }}
                   showCost={showCost}
                   canGrade={canGrade}
@@ -868,32 +887,53 @@ export default async function LotDetailPage({ params }: { params: { id: string }
               </tr>
             </thead>
             <tbody>
-              {lot.accessoryItems.map((item) => (
-                <CostRow
-                  key={item.id}
-                  className="border-b border-slate-200"
-                  data={{
-                    name: `${item.accessory.name} (${item.accessory.sku})`,
-                    unitCost: Number(item.unitCost),
-                    totalCost: Number(item.unitCost),
-                    wholesalePrice: Number(item.accessory.wholesalePrice),
-                    retailPrice: Number(item.accessory.retailPrice),
-                  }}
-                >
-                  <td className="px-2 py-2">{item.accessory.name}</td>
-                  <td className="px-2 py-2">{item.accessory.sku}</td>
-                  <td className="px-2 py-2">{item.quantity}</td>
-                  {showCost ? <td className="px-2 py-2">{formatMoney(item.unitCost)}</td> : null}
-                  {showCost ? <td className="px-2 py-2">{formatMoney(Number(item.unitCost) * item.quantity)}</td> : null}
-                  <td className="px-2 py-2">{item.createdAt.toISOString().slice(0, 10)}</td>
-                  <NoModalCell className="px-2 py-2">
-                    <form action={removeAccessoryFromLot}>
-                      <input type="hidden" name="id" value={item.id} />
-                      <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Remove</button>
-                    </form>
-                  </NoModalCell>
-                </CostRow>
-              ))}
+              {lot.accessoryItems.map((item) => {
+                const rowCells = (
+                  <>
+                    <td className="px-2 py-2">{item.accessory.name}</td>
+                    <td className="px-2 py-2">{item.accessory.sku}</td>
+                    <td className="px-2 py-2">{item.quantity}</td>
+                    {showCost ? <td className="px-2 py-2">{formatMoney(item.unitCost)}</td> : null}
+                    {showCost ? <td className="px-2 py-2">{formatMoney(Number(item.unitCost) * item.quantity)}</td> : null}
+                    <td className="px-2 py-2">{item.createdAt.toISOString().slice(0, 10)}</td>
+                    <NoModalCell className="px-2 py-2">
+                      <form action={removeAccessoryFromLot}>
+                        <input type="hidden" name="id" value={item.id} />
+                        <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Remove</button>
+                      </form>
+                    </NoModalCell>
+                  </>
+                );
+                if (!showCost) {
+                  return <tr key={item.id} className="border-b border-slate-200">{rowCells}</tr>;
+                }
+                return (
+                  <CostRow
+                    key={item.id}
+                    className="border-b border-slate-200"
+                    data={{
+                      name: `${item.accessory.name} (${item.accessory.sku})`,
+                      unitCost: Number(item.unitCost),
+                      totalCost: Number(item.unitCost),
+                      wholesalePrice: Number(item.accessory.wholesalePrice),
+                      retailPrice: Number(item.accessory.retailPrice),
+                      details: [
+                        { label: "Item", value: item.accessory.name },
+                        { label: "SKU", value: item.accessory.sku },
+                        { label: "Quantity in this lot", value: String(item.quantity) },
+                        { label: "Added", value: item.createdAt.toISOString().slice(0, 10) },
+                      ],
+                      expenses: (expensesByAccessory.get(item.accessoryId) ?? []).map((expense) => ({
+                        label: expense.category + (expense.description ? ` — ${expense.description}` : ""),
+                        amount: Number(expense.amount),
+                        date: expense.expenseDate.toISOString().slice(0, 10),
+                      })),
+                    }}
+                  >
+                    {rowCells}
+                  </CostRow>
+                );
+              })}
               {!lot.accessoryItems.length ? (
                 <tr>
                   <td className="px-2 py-4 text-slate-600" colSpan={showCost ? 7 : 5}>

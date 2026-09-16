@@ -38,6 +38,7 @@ function normalizeAccessory(item: {
   voltage: string | null;
   fastCharging: boolean;
   notes: string | null;
+  expenses: { category: string; description: string | null; amount: unknown; expenseDate: Date }[];
 }) {
   return {
     ...item,
@@ -63,13 +64,26 @@ export async function AccessoryCategoryPage({
   const page = parsePage(searchParams.page);
   const pageSize = parsePageSize(searchParams.pageSize);
   const where = { category, deletedAt: null, ...(search ? { OR: [{ name: { contains: search, mode: "insensitive" as const } }, { sku: { contains: search, mode: "insensitive" as const } }] } : {}) };
-  const [accessories, total] = await prisma.$transaction([
+  const [accessoryRows, total] = await prisma.$transaction([
     prisma.accessory.findMany({
     where,
     skip: (page - 1) * pageSize,
     take: pageSize,
     orderBy: { createdAt: "desc" },
   }), prisma.accessory.count({ where })]);
+
+  const expenseRows = await prisma.expense.findMany({
+    where: { accessoryId: { in: accessoryRows.map((item) => item.id) } },
+    orderBy: { expenseDate: "desc" },
+  });
+  const expensesByAccessory = new Map<string, typeof expenseRows>();
+  for (const expense of expenseRows) {
+    if (!expense.accessoryId) continue;
+    const list = expensesByAccessory.get(expense.accessoryId) ?? [];
+    list.push(expense);
+    expensesByAccessory.set(expense.accessoryId, list);
+  }
+  const accessories = accessoryRows.map((item) => ({ ...item, expenses: expensesByAccessory.get(item.id) ?? [] }));
 
   async function createAccessory(formData: FormData) {
     "use server";

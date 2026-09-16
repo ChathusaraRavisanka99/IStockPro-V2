@@ -19,6 +19,8 @@ type PhoneRow = {
   retailPrice: unknown;
   tagCost: unknown;
   batteryCost: unknown;
+  lot?: { lotNumber: string } | null;
+  expenses?: { category: string; description: string | null; amount: unknown; expenseDate: string | Date }[];
 };
 
 type Props = {
@@ -113,17 +115,8 @@ export function PhoneCostEditor({ phone, showCost, canGrade, requireReauth, user
     );
   }
 
-  return (
-    <CostRow
-      className="border-b border-slate-200"
-      data={{
-        name: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName} - ${phone.phoneVariant.variantName} - IMEI ${phone.imei}`,
-        unitCost: purchasePrice,
-        totalCost,
-        wholesalePrice: Number(phone.wholesalePrice ?? 0),
-        retailPrice: Number(phone.retailPrice ?? 0),
-      }}
-    >
+  const rowCells = (
+    <>
       <td className="px-2 py-2">
         {phone.imei}
         {phone.notes ? <p className="mt-0.5 text-xs italic text-slate-500">{phone.notes}</p> : null}
@@ -149,6 +142,43 @@ export function PhoneCostEditor({ phone, showCost, canGrade, requireReauth, user
           </form>
         </div>
       </td>
+    </>
+  );
+
+  // Cost/profit and expenses are sensitive figures — only wrap the row in the clickable
+  // detail popup when the viewer is already allowed to see cost (showCost), matching the
+  // gating already applied to this row's cost columns above. Otherwise render a plain row.
+  if (!showCost) {
+    return <tr className="border-b border-slate-200">{rowCells}</tr>;
+  }
+
+  return (
+    <CostRow
+      className="border-b border-slate-200"
+      data={{
+        name: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName} - ${phone.phoneVariant.variantName} - IMEI ${phone.imei}`,
+        unitCost: purchasePrice,
+        totalCost,
+        wholesalePrice: Number(phone.wholesalePrice ?? 0),
+        retailPrice: Number(phone.retailPrice ?? 0),
+        details: [
+          { label: "Model", value: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName}` },
+          { label: "Variant", value: phone.phoneVariant.variantName },
+          { label: "IMEI", value: phone.imei },
+          { label: "Status", value: phone.status },
+          { label: "Grade", value: phone.grade || "Not Graded" },
+          { label: "Battery health", value: phone.batteryHealth !== null ? `${phone.batteryHealth}%` : "-" },
+          ...(phone.lot ? [{ label: "Lot", value: phone.lot.lotNumber }] : []),
+          ...(phone.notes ? [{ label: "Notes", value: phone.notes }] : []),
+        ],
+        expenses: (phone.expenses ?? []).map((expense) => ({
+          label: expense.category + (expense.description ? ` — ${expense.description}` : ""),
+          amount: Number(expense.amount),
+          date: new Date(expense.expenseDate).toISOString().slice(0, 10),
+        })),
+      }}
+    >
+      {rowCells}
     </CostRow>
   );
 }

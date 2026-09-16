@@ -28,6 +28,11 @@ enum SaleStatus {
   Voided
 }
 
+enum SaleType {
+  Retail
+  Wholesale
+}
+
 enum InvoiceStatus {
   Draft
   Unpaid
@@ -270,6 +275,7 @@ model Sale {
   customer    Customer?  @relation(fields: [customerId], references: [id])
   customerId  String?
   saleDate    DateTime   @default(now())
+  saleType    SaleType   @default(Retail)
   subtotal    Decimal
   taxType     TaxType    @default(Amount)
   taxPercent  Decimal    @default(0)
