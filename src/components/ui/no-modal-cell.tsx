@@ -13,3 +13,12 @@ export function NoModalCell({ children, className, colSpan }: { children: React.
     </td>
   );
 }
+
+/** Same idea as NoModalCell, for a CostCard (div-based, e.g. grid view) instead of a table row. */
+export function NoModalDiv({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={className} onClick={(event) => event.stopPropagation()}>
+      {children}
+    </div>
+  );
+}

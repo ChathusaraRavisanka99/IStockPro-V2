@@ -14,6 +14,9 @@ type Props = {
   filter2?: string;
   filter2Label?: string;
   filterOptions2?: FilterOption[];
+  filter3?: string;
+  filter3Label?: string;
+  filterOptions3?: FilterOption[];
   placeholder?: string;
   view?: "list" | "grid";
   /** Set false for pages that only ever render a table (no Grid view implemented) — an
@@ -32,6 +35,9 @@ export function ListControls({
   filter2 = "",
   filter2Label,
   filterOptions2 = [],
+  filter3 = "",
+  filter3Label,
+  filterOptions3 = [],
   placeholder = "Search",
   view = "list",
   showViewToggle = true,
@@ -41,6 +47,7 @@ export function ListControls({
   if (search) query.set("search", search);
   if (filter) query.set("filter", filter);
   if (filter2) query.set("filter2", filter2);
+  if (filter3) query.set("filter3", filter3);
   if (dateRange?.from) query.set("from", dateRange.from);
   if (dateRange?.to) query.set("to", dateRange.to);
 
@@ -62,6 +69,9 @@ export function ListControls({
       ) : null}
       {filterOptions2.length ? (
         <SearchableSelect name="filter2" defaultValue={filter2} aria-label={filter2Label || "Filter"} placeholder={filter2Label || "All"} options={filterOptions2} />
+      ) : null}
+      {filterOptions3.length ? (
+        <SearchableSelect name="filter3" defaultValue={filter3} aria-label={filter3Label || "Filter"} placeholder={filter3Label || "All"} options={filterOptions3} />
       ) : null}
       {dateRange ? (
         <div className="grid grid-cols-2 gap-1.5 text-sm text-slate-700 sm:flex sm:shrink-0 sm:items-center">

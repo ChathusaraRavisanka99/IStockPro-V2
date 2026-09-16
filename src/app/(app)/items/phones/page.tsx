@@ -13,6 +13,8 @@ import { parsePage, parsePageSize } from "@/lib/pagination";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { formatMoney } from "@/lib/currency";
 import { ModelCardEditor } from "@/components/items/model-card-editor";
+import { CostRow, CostCard } from "@/components/ui/cost-breakdown-modal";
+import { NoModalCell, NoModalDiv } from "@/components/ui/no-modal-cell";
 import type { ActionResult } from "@/components/ui/editable-row";
 
 type Props = { searchParams: { search?: string; filter?: string; view?: "list" | "grid"; page?: string; pageSize?: string } };
@@ -61,6 +63,17 @@ export default async function PhonesPage({ searchParams }: Props) {
   const [phones, phoneTotal] = showCost
     ? await prisma.$transaction([prisma.phone.findMany({ where: phoneWhere, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize, include: { phoneVariant: { include: { phoneModel: true } }, lot: true } }), prisma.phone.count({ where: phoneWhere })])
     : await prisma.$transaction([prisma.phone.findMany({ where: phoneWhere, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize, select: { id: true, imei: true, status: true, grade: true, batteryHealth: true, notes: true, createdAt: true, phoneVariant: { include: { phoneModel: true } }, lot: true } }), prisma.phone.count({ where: phoneWhere })]);
+
+  // Expenses (and the popup they feed) are cost-sensitive, so only fetch/show them for
+  // roles that can already view cost — matches the Purchase Price column gating below.
+  const expenseRows = showCost ? await prisma.expense.findMany({ where: { phoneId: { in: phones.map((phone) => phone.id) } }, orderBy: { expenseDate: "desc" } }) : [];
+  const expensesByPhone = new Map<string, typeof expenseRows>();
+  for (const expense of expenseRows) {
+    if (!expense.phoneId) continue;
+    const list = expensesByPhone.get(expense.phoneId) ?? [];
+    list.push(expense);
+    expensesByPhone.set(expense.phoneId, list);
+  }
 
   async function createModel(formData: FormData) {
     "use server";
@@ -338,26 +351,69 @@ export default async function PhonesPage({ searchParams }: Props) {
         </h2>
         {view === "grid" ? (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {phones.map((phone) => (
-              <div key={phone.id} className="rounded-xl border border-slate-200 p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="font-medium text-slate-900">{phone.phoneVariant.phoneModel.brand} {phone.phoneVariant.phoneModel.modelName}</p>
-                  <span className="rounded-full border border-slate-300 px-2 py-0.5 text-xs text-slate-700">{phone.status}</span>
-                </div>
-                <p className="text-sm text-slate-700">{phone.phoneVariant.variantName}</p>
-                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
-                  <div className="flex justify-between gap-2"><dt>IMEI</dt><dd className="text-right text-slate-800">{phone.imei}</dd></div>
-                  <div className="flex justify-between gap-2"><dt>Lot</dt><dd className="text-right text-slate-800">{phone.lot.lotNumber}</dd></div>
-                  <div className="flex justify-between gap-2"><dt>Grade</dt><dd className="text-right text-slate-800">{phone.grade || "-"}</dd></div>
-                  {showCost ? <div className="flex justify-between gap-2"><dt>Purchase price</dt><dd className="text-right text-slate-800">{formatMoney(Number((phone as { purchasePrice?: number }).purchasePrice ?? 0))}</dd></div> : null}
-                </dl>
-                {phone.notes ? <p className="mt-2 text-xs italic text-slate-500">{phone.notes}</p> : null}
-                <form action={archivePhone} className="mt-3">
-                  <input type="hidden" name="id" value={phone.id} />
-                  <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Archive</button>
-                </form>
-              </div>
-            ))}
+            {phones.map((phone) => {
+              const costFields = phone as unknown as { purchasePrice?: unknown; wholesalePrice?: unknown; retailPrice?: unknown; tagCost?: unknown; batteryCost?: unknown };
+              const purchasePrice = Number(costFields.purchasePrice ?? 0);
+              const totalCost = purchasePrice + Number(costFields.tagCost ?? 0) + Number(costFields.batteryCost ?? 0);
+              const cardBody = (
+                <>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-medium text-slate-900">{phone.phoneVariant.phoneModel.brand} {phone.phoneVariant.phoneModel.modelName}</p>
+                    <span className="rounded-full border border-slate-300 px-2 py-0.5 text-xs text-slate-700">{phone.status}</span>
+                  </div>
+                  <p className="text-sm text-slate-700">{phone.phoneVariant.variantName}</p>
+                  <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
+                    <div className="flex justify-between gap-2"><dt>IMEI</dt><dd className="text-right text-slate-800">{phone.imei}</dd></div>
+                    <div className="flex justify-between gap-2"><dt>Lot</dt><dd className="text-right text-slate-800">{phone.lot.lotNumber}</dd></div>
+                    <div className="flex justify-between gap-2"><dt>Grade</dt><dd className="text-right text-slate-800">{phone.grade || "-"}</dd></div>
+                    {showCost ? <div className="flex justify-between gap-2"><dt>Purchase price</dt><dd className="text-right text-slate-800">{formatMoney(purchasePrice)}</dd></div> : null}
+                  </dl>
+                  {phone.notes ? <p className="mt-2 text-xs italic text-slate-500">{phone.notes}</p> : null}
+                  <NoModalDiv className="mt-3">
+                    <form action={archivePhone}>
+                      <input type="hidden" name="id" value={phone.id} />
+                      <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Archive</button>
+                    </form>
+                  </NoModalDiv>
+                </>
+              );
+              if (!showCost) {
+                return (
+                  <div key={phone.id} className="rounded-xl border border-slate-200 p-3">
+                    {cardBody}
+                  </div>
+                );
+              }
+              return (
+                <CostCard
+                  key={phone.id}
+                  className="rounded-xl border border-slate-200 p-3"
+                  data={{
+                    name: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName} - ${phone.phoneVariant.variantName} - IMEI ${phone.imei}`,
+                    unitCost: purchasePrice,
+                    totalCost,
+                    wholesalePrice: Number(costFields.wholesalePrice ?? 0),
+                    retailPrice: Number(costFields.retailPrice ?? 0),
+                    details: [
+                      { label: "Model", value: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName}` },
+                      { label: "Variant", value: phone.phoneVariant.variantName },
+                      { label: "IMEI", value: phone.imei },
+                      { label: "Status", value: phone.status },
+                      { label: "Grade", value: phone.grade || "Not Graded" },
+                      { label: "Lot", value: phone.lot.lotNumber },
+                      ...(phone.notes ? [{ label: "Notes", value: phone.notes }] : []),
+                    ],
+                    expenses: (expensesByPhone.get(phone.id) ?? []).map((expense) => ({
+                      label: expense.category + (expense.description ? ` — ${expense.description}` : ""),
+                      amount: Number(expense.amount),
+                      date: expense.expenseDate.toISOString().slice(0, 10),
+                    })),
+                  }}
+                >
+                  {cardBody}
+                </CostCard>
+              );
+            })}
             {!phones.length ? <p className="text-sm text-slate-600">No serialized units match these filters.</p> : null}
           </div>
         ) : (
@@ -376,21 +432,58 @@ export default async function PhonesPage({ searchParams }: Props) {
               </tr>
             </thead>
             <tbody>
-              {phones.map((phone) => (
-                <tr key={phone.id} className="border-b border-slate-200">
-                  <td className="px-2 py-2">
-                    {phone.imei}
-                    {phone.notes ? <p className="mt-0.5 text-xs italic text-slate-500">{phone.notes}</p> : null}
-                  </td>
-                  <td className="px-2 py-2">{phone.phoneVariant.phoneModel.brand + " " + phone.phoneVariant.phoneModel.modelName}</td>
-                  <td className="px-2 py-2">{phone.phoneVariant.variantName}</td>
-                  <td className="px-2 py-2">{phone.lot.lotNumber}</td>
-                  <td className="px-2 py-2">{phone.grade || "-"}</td>
-                  <td className="px-2 py-2">{phone.status}</td>
-                  {showCost ? <td className="px-2 py-2">{formatMoney(Number((phone as { purchasePrice?: number }).purchasePrice ?? 0))}</td> : null}
-                  <td className="px-2 py-2"><form action={archivePhone}><input type="hidden" name="id" value={phone.id} /><button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Archive</button></form></td>
-                </tr>
-              ))}
+              {phones.map((phone) => {
+                const costFields = phone as unknown as { purchasePrice?: unknown; wholesalePrice?: unknown; retailPrice?: unknown; tagCost?: unknown; batteryCost?: unknown };
+                const purchasePrice = Number(costFields.purchasePrice ?? 0);
+                const totalCost = purchasePrice + Number(costFields.tagCost ?? 0) + Number(costFields.batteryCost ?? 0);
+                const rowCells = (
+                  <>
+                    <td className="px-2 py-2">
+                      {phone.imei}
+                      {phone.notes ? <p className="mt-0.5 text-xs italic text-slate-500">{phone.notes}</p> : null}
+                    </td>
+                    <td className="px-2 py-2">{phone.phoneVariant.phoneModel.brand + " " + phone.phoneVariant.phoneModel.modelName}</td>
+                    <td className="px-2 py-2">{phone.phoneVariant.variantName}</td>
+                    <td className="px-2 py-2">{phone.lot.lotNumber}</td>
+                    <td className="px-2 py-2">{phone.grade || "-"}</td>
+                    <td className="px-2 py-2">{phone.status}</td>
+                    {showCost ? <td className="px-2 py-2">{formatMoney(purchasePrice)}</td> : null}
+                    <NoModalCell className="px-2 py-2"><form action={archivePhone}><input type="hidden" name="id" value={phone.id} /><button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Archive</button></form></NoModalCell>
+                  </>
+                );
+                if (!showCost) {
+                  return <tr key={phone.id} className="border-b border-slate-200">{rowCells}</tr>;
+                }
+                return (
+                  <CostRow
+                    key={phone.id}
+                    className="border-b border-slate-200"
+                    data={{
+                      name: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName} - ${phone.phoneVariant.variantName} - IMEI ${phone.imei}`,
+                      unitCost: purchasePrice,
+                      totalCost,
+                      wholesalePrice: Number(costFields.wholesalePrice ?? 0),
+                      retailPrice: Number(costFields.retailPrice ?? 0),
+                      details: [
+                        { label: "Model", value: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName}` },
+                        { label: "Variant", value: phone.phoneVariant.variantName },
+                        { label: "IMEI", value: phone.imei },
+                        { label: "Status", value: phone.status },
+                        { label: "Grade", value: phone.grade || "Not Graded" },
+                        { label: "Lot", value: phone.lot.lotNumber },
+                        ...(phone.notes ? [{ label: "Notes", value: phone.notes }] : []),
+                      ],
+                      expenses: (expensesByPhone.get(phone.id) ?? []).map((expense) => ({
+                        label: expense.category + (expense.description ? ` — ${expense.description}` : ""),
+                        amount: Number(expense.amount),
+                        date: expense.expenseDate.toISOString().slice(0, 10),
+                      })),
+                    }}
+                  >
+                    {rowCells}
+                  </CostRow>
+                );
+              })}
             </tbody>
           </table>
         </div>

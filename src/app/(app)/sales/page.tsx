@@ -20,11 +20,12 @@ function invoiceStatusColor(status?: string) {
   return "bg-red-100 text-red-800";
 }
 
-export default async function SalesPage({ searchParams }: { searchParams: { search?: string; filter?: string; filter2?: string; view?: "list" | "grid"; page?: string; pageSize?: string } }) {
+export default async function SalesPage({ searchParams }: { searchParams: { search?: string; filter?: string; filter2?: string; filter3?: string; view?: "list" | "grid"; page?: string; pageSize?: string } }) {
   const session = await getServerSession(authOptions);
   const search = searchParams.search?.trim() || "";
   const status = searchParams.filter || "";
   const paymentStatus = searchParams.filter2 || "";
+  const saleType = searchParams.filter3 || "";
   const view = searchParams.view === "grid" ? "grid" : "list";
   const page = parsePage(searchParams.page);
   const pageSize = parsePageSize(searchParams.pageSize);
@@ -36,6 +37,7 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
   const saleWhere = {
     ...(status ? { status: status as "Draft" | "Completed" | "Voided" } : {}),
     ...(paymentStatus ? { invoice: { status: paymentStatus as "Unpaid" | "PartiallyPaid" | "Paid" | "Voided" } } : {}),
+    ...(saleType ? { saleType: saleType as "Retail" | "Wholesale" } : {}),
     ...(search ? { OR: [{ saleNumber: { contains: search, mode: "insensitive" as const } }, { customer: { name: { contains: search, mode: "insensitive" as const } } }] } : {}),
   };
   const [sales, total] = await prisma.$transaction([prisma.sale.findMany({
@@ -53,6 +55,8 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
     "use server";
 
     const customerId = String(formData.get("customerId") || "").trim() || null;
+    const saleTypeInput = String(formData.get("saleType") || "Retail");
+    const saleType = (saleTypeInput === "Wholesale" ? "Wholesale" : "Retail") as "Retail" | "Wholesale";
     const taxTypeInput = String(formData.get("taxType") || "Amount");
     const taxType = (taxTypeInput === "Percent" ? "Percent" : "Amount") as "Percent" | "Amount";
     const taxValue = Number(formData.get("taxValue") || 0);
@@ -104,6 +108,7 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
         data: {
           saleNumber: `SAL-${now}`,
           customerId,
+          saleType,
           subtotal,
           taxType,
           taxPercent,
@@ -175,8 +180,8 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
           customers={customers.map((customer) => ({ value: customer.id, label: customer.name }))}
           customerQuickAdd={{ label: "Customer", action: createCustomerDependency, fields: [{ name: "name", label: "Name", required: true }, { name: "phone", label: "Phone" }, { name: "email", label: "Email" }] }}
           items={[
-            ...phones.map((phone) => ({ value: `phone:${phone.id}`, label: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName}${phone.grade ? ` (Grade ${phone.grade})` : ""} - IMEI ${phone.imei}`, price: Number(phone.retailPrice ?? phone.wholesalePrice ?? 0), maxQuantity: 1, notes: phone.notes, category: "Phone" })),
-            ...accessories.map((item) => ({ value: `accessory:${item.id}`, label: `${item.name} (${item.sku})`, price: Number(item.retailPrice), maxQuantity: item.quantity, notes: item.notes, category: item.category })),
+            ...phones.map((phone) => ({ value: `phone:${phone.id}`, label: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName}${phone.grade ? ` (Grade ${phone.grade})` : ""} - IMEI ${phone.imei}`, price: Number(phone.retailPrice ?? phone.wholesalePrice ?? 0), wholesalePrice: Number(phone.wholesalePrice ?? phone.retailPrice ?? 0), maxQuantity: 1, notes: phone.notes, category: "Phone" })),
+            ...accessories.map((item) => ({ value: `accessory:${item.id}`, label: `${item.name} (${item.sku})`, price: Number(item.retailPrice), wholesalePrice: Number(item.wholesalePrice || item.retailPrice), maxQuantity: item.quantity, notes: item.notes, category: item.category })),
           ]}
           action={createSale}
         />
@@ -190,6 +195,9 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
         filter2={paymentStatus}
         filter2Label="All payment statuses"
         filterOptions2={["Unpaid", "PartiallyPaid", "Paid", "Voided"].map((value) => ({ label: value, value }))}
+        filter3={saleType}
+        filter3Label="Retail & Wholesale"
+        filterOptions3={["Retail", "Wholesale"].map((value) => ({ label: value, value }))}
         view={view}
         placeholder="Search sale number or customer"
       />
@@ -205,7 +213,10 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
               <p className="text-sm text-slate-700">{sale.saleDate.toISOString().slice(0, 10)}</p>
               <p className="mt-3 text-lg font-semibold text-slate-900">{formatMoney(Number(sale.totalAmount))}</p>
               <p className="text-sm text-slate-700">{sale.invoice?.invoiceNumber || "No invoice"}</p>
-              <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${invoiceStatusColor(sale.invoice?.status)}`}>{sale.invoice?.status || "-"}</span>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${invoiceStatusColor(sale.invoice?.status)}`}>{sale.invoice?.status || "-"}</span>
+                <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${sale.saleType === "Wholesale" ? "bg-purple-100 text-purple-800" : "bg-slate-100 text-slate-700"}`}>{sale.saleType}</span>
+              </div>
               <div className="mt-3 flex gap-2">
                 <Link href={`/sales/${sale.id}`} className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">Manage</Link>
                 <Link href={`/sales/${sale.id}/receipt`} className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">Receipt</Link>
@@ -222,6 +233,7 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
                 <th className="px-2 py-2">Sale #</th>
                 <th className="px-2 py-2">Date</th>
                 <th className="px-2 py-2">Customer</th>
+                <th className="px-2 py-2">Type</th>
                 <th className="px-2 py-2">Total</th>
                 <th className="px-2 py-2">Invoice</th>
                 <th className="px-2 py-2">Status</th>
@@ -235,6 +247,9 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
                   <td className="px-2 py-2">{sale.saleDate.toISOString().slice(0, 10)}</td>
                   <td className="px-2 py-2">
                     {sale.customer ? <Link href={`/customers/${sale.customer.id}`} className="text-slate-800 underline">{sale.customer.name}</Link> : "Walk-in"}
+                  </td>
+                  <td className="px-2 py-2">
+                    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${sale.saleType === "Wholesale" ? "bg-purple-100 text-purple-800" : "bg-slate-100 text-slate-700"}`}>{sale.saleType}</span>
                   </td>
                   <td className="px-2 py-2">{formatMoney(Number(sale.totalAmount))}</td>
                   <td className="px-2 py-2">{sale.invoice?.invoiceNumber || "-"}</td>
@@ -253,7 +268,7 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
         </div>
       </Card>
       )}
-      <Pagination page={page} pageSize={pageSize} total={total} query={{ ...(search ? { search } : {}), ...(status ? { filter: status } : {}), ...(paymentStatus ? { filter2: paymentStatus } : {}), view }} />
+      <Pagination page={page} pageSize={pageSize} total={total} query={{ ...(search ? { search } : {}), ...(status ? { filter: status } : {}), ...(paymentStatus ? { filter2: paymentStatus } : {}), ...(saleType ? { filter3: saleType } : {}), view }} />
     </div>
   );
 }

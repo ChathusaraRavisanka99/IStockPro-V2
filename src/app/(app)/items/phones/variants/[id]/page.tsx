@@ -28,6 +28,17 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
   });
   if (!variant) notFound();
 
+  // Expenses (and the popup they feed) are cost-sensitive — only fetch for roles that
+  // can already view cost, matching the Purchase Price column gating below.
+  const expenseRows = showCost ? await prisma.expense.findMany({ where: { phoneId: { in: variant.phones.map((phone) => phone.id) } }, orderBy: { expenseDate: "desc" } }) : [];
+  const expensesByPhone = new Map<string, typeof expenseRows>();
+  for (const expense of expenseRows) {
+    if (!expense.phoneId) continue;
+    const list = expensesByPhone.get(expense.phoneId) ?? [];
+    list.push(expense);
+    expensesByPhone.set(expense.phoneId, list);
+  }
+
   async function updateVariant(formData: FormData): Promise<ActionResult> {
     "use server";
 
@@ -142,18 +153,8 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
               {variant.phones.map((phone) => {
                 const unitCost = Number(phone.purchasePrice);
                 const totalCost = unitCost + Number(phone.tagCost) + Number(phone.batteryCost) + Number(phone.repairCost);
-                return (
-                  <CostRow
-                    key={phone.id}
-                    className="border-b border-slate-200"
-                    data={{
-                      name: `${variant.phoneModel.brand} ${variant.phoneModel.modelName} - ${variant.variantName} - IMEI ${phone.imei}`,
-                      unitCost,
-                      totalCost,
-                      wholesalePrice: Number(phone.wholesalePrice ?? 0),
-                      retailPrice: Number(phone.retailPrice ?? 0),
-                    }}
-                  >
+                const rowCells = (
+                  <>
                     <td className="px-2 py-2">
                       {phone.imei}
                       {phone.notes ? <p className="mt-0.5 text-xs italic text-slate-500">{phone.notes}</p> : null}
@@ -166,6 +167,38 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
                     </NoModalCell>
                     {showCost ? <td className="px-2 py-2">{formatMoney(unitCost)}</td> : null}
                     <td className="px-2 py-2">{formatMoney(Number(phone.retailPrice ?? 0))}</td>
+                  </>
+                );
+                if (!showCost) {
+                  return <tr key={phone.id} className="border-b border-slate-200">{rowCells}</tr>;
+                }
+                return (
+                  <CostRow
+                    key={phone.id}
+                    className="border-b border-slate-200"
+                    data={{
+                      name: `${variant.phoneModel.brand} ${variant.phoneModel.modelName} - ${variant.variantName} - IMEI ${phone.imei}`,
+                      unitCost,
+                      totalCost,
+                      wholesalePrice: Number(phone.wholesalePrice ?? 0),
+                      retailPrice: Number(phone.retailPrice ?? 0),
+                      details: [
+                        { label: "Variant", value: `${variant.phoneModel.brand} ${variant.phoneModel.modelName} - ${variant.variantName}` },
+                        { label: "IMEI", value: phone.imei },
+                        { label: "Status", value: phone.status },
+                        { label: "Grade", value: phone.grade || "Not Graded" },
+                        { label: "Battery health", value: phone.batteryHealth !== null ? `${phone.batteryHealth}%` : "-" },
+                        { label: "Lot", value: phone.lot.lotNumber },
+                        ...(phone.notes ? [{ label: "Notes", value: phone.notes }] : []),
+                      ],
+                      expenses: (expensesByPhone.get(phone.id) ?? []).map((expense) => ({
+                        label: expense.category + (expense.description ? ` — ${expense.description}` : ""),
+                        amount: Number(expense.amount),
+                        date: expense.expenseDate.toISOString().slice(0, 10),
+                      })),
+                    }}
+                  >
+                    {rowCells}
                   </CostRow>
                 );
               })}

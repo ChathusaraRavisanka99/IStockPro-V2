@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type FormEvent } from "react";
 import { formatMoney } from "@/lib/currency";
-import { CostRow } from "@/components/ui/cost-breakdown-modal";
+import { CostRow, CostCard } from "@/components/ui/cost-breakdown-modal";
 import { useEditableRow, type ActionResult } from "@/components/ui/editable-row";
 
 type Accessory = {
@@ -19,6 +19,7 @@ type Accessory = {
   voltage: string | null;
   fastCharging: boolean;
   notes: string | null;
+  expenses?: { category: string; description: string | null; amount: unknown; expenseDate: string | Date }[];
 };
 
 type Props = {
@@ -93,7 +94,29 @@ export function AccessoryTableRow({ item, updateAction, archiveAction }: Props) 
   return (
     <CostRow
       className="border-b border-slate-200"
-      data={{ name: `${item.name} (${item.sku})`, unitCost: Number(item.purchasePrice), totalCost: Number(item.purchasePrice), wholesalePrice: Number(item.wholesalePrice), retailPrice: Number(item.retailPrice) }}
+      data={{
+        name: `${item.name} (${item.sku})`,
+        unitCost: Number(item.purchasePrice),
+        totalCost: Number(item.purchasePrice),
+        wholesalePrice: Number(item.wholesalePrice),
+        retailPrice: Number(item.retailPrice),
+        details: [
+          { label: "Name", value: item.name },
+          { label: "SKU", value: item.sku },
+          ...(item.connectorType || item.voltage || item.fastCharging
+            ? [{ label: "Specs", value: [item.connectorType, item.voltage, item.fastCharging ? "Fast charging" : null].filter(Boolean).join(" · ") }]
+            : []),
+          { label: "In stock", value: String(item.quantity) },
+          { label: "Sold", value: String(item.soldQuantity) },
+          { label: "Low stock threshold", value: String(item.lowStockThreshold) },
+          ...(item.notes ? [{ label: "Notes", value: item.notes }] : []),
+        ],
+        expenses: (item.expenses ?? []).map((expense) => ({
+          label: expense.category + (expense.description ? ` — ${expense.description}` : ""),
+          amount: Number(expense.amount),
+          date: new Date(expense.expenseDate).toISOString().slice(0, 10),
+        })),
+      }}
     >
       <td className="px-2 py-2">{item.name}</td>
       <td className="px-2 py-2">{item.sku}</td>
@@ -129,7 +152,31 @@ export function AccessoryGridCard({ item, updateAction, archiveAction }: Props) 
   }
 
   return (
-    <>
+    <CostCard
+      data={{
+        name: `${item.name} (${item.sku})`,
+        unitCost: Number(item.purchasePrice),
+        totalCost: Number(item.purchasePrice),
+        wholesalePrice: Number(item.wholesalePrice),
+        retailPrice: Number(item.retailPrice),
+        details: [
+          { label: "Name", value: item.name },
+          { label: "SKU", value: item.sku },
+          ...(item.connectorType || item.voltage || item.fastCharging
+            ? [{ label: "Specs", value: [item.connectorType, item.voltage, item.fastCharging ? "Fast charging" : null].filter(Boolean).join(" · ") }]
+            : []),
+          { label: "In stock", value: String(item.quantity) },
+          { label: "Sold", value: String(item.soldQuantity) },
+          { label: "Low stock threshold", value: String(item.lowStockThreshold) },
+          ...(item.notes ? [{ label: "Notes", value: item.notes }] : []),
+        ],
+        expenses: (item.expenses ?? []).map((expense) => ({
+          label: expense.category + (expense.description ? ` — ${expense.description}` : ""),
+          amount: Number(expense.amount),
+          date: new Date(expense.expenseDate).toISOString().slice(0, 10),
+        })),
+      }}
+    >
       <p className="font-semibold text-slate-900">{item.name}</p>
       <p className="mt-1 text-sm text-slate-700">{item.sku}</p>
       {item.connectorType || item.fastCharging || item.voltage ? (
@@ -139,7 +186,7 @@ export function AccessoryGridCard({ item, updateAction, archiveAction }: Props) 
       ) : null}
       <p className="mt-3 text-sm text-slate-700">{item.quantity} in stock | {formatMoney(Number(item.retailPrice))}</p>
       {item.notes ? <p className="mt-1 text-xs italic text-slate-500">{item.notes}</p> : null}
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex gap-2" onClick={(event) => event.stopPropagation()}>
         <button type="button" onClick={open} className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-700">
           Edit
         </button>
@@ -148,6 +195,6 @@ export function AccessoryGridCard({ item, updateAction, archiveAction }: Props) 
           <button className="rounded-lg border border-red-200 px-3 py-1 text-sm text-red-700">Archive</button>
         </form>
       </div>
-    </>
+    </CostCard>
   );
 }

@@ -5,7 +5,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { formatMoney } from "@/lib/currency";
 
 export type CartLine = { key: string; label: string; unitPrice: number; quantity: number; maxQuantity?: number; notes?: string | null };
-type ItemOption = { value: string; label: string; price: number; maxQuantity?: number; notes?: string | null; category?: string };
+type ItemOption = { value: string; label: string; price: number; wholesalePrice?: number; maxQuantity?: number; notes?: string | null; category?: string };
 
 type Props = {
   items: ItemOption[];
@@ -13,9 +13,14 @@ type Props = {
   onChange: (lines: CartLine[]) => void;
   fieldName?: string;
   showNotes?: boolean;
+  /** Which price an item picked from the list is added at. Defaults to "Retail" (the
+   * existing `price` field) — pass "Wholesale" to use `wholesalePrice` instead where set. */
+  priceMode?: "Retail" | "Wholesale";
 };
 
-export function CartBuilder({ items, lines, onChange, fieldName = "cartItems", showNotes = false }: Props) {
+export function CartBuilder({ items, lines, onChange, fieldName = "cartItems", showNotes = false, priceMode = "Retail" }: Props) {
+  const priceFor = (option: ItemOption) => (priceMode === "Wholesale" && option.wholesalePrice !== undefined ? option.wholesalePrice : option.price);
+
   const [pickerKey, setPickerKey] = useState("");
   const [pickerQty, setPickerQty] = useState("1");
   const [pickerResetCount, setPickerResetCount] = useState(0);
@@ -42,7 +47,7 @@ export function CartBuilder({ items, lines, onChange, fieldName = "cartItems", s
       next[existingIndex] = { ...next[existingIndex], quantity: next[existingIndex].quantity + qty };
       onChange(next);
     } else {
-      onChange([...lines, { key: item.value, label: item.label, unitPrice: item.price, quantity: qty, maxQuantity: item.maxQuantity, notes: item.notes }]);
+      onChange([...lines, { key: item.value, label: item.label, unitPrice: priceFor(item), quantity: qty, maxQuantity: item.maxQuantity, notes: item.notes }]);
     }
     setPickerKey("");
     setPickerQty("1");
@@ -95,7 +100,7 @@ export function CartBuilder({ items, lines, onChange, fieldName = "cartItems", s
             const remaining = option.maxQuantity !== undefined ? Math.max(0, option.maxQuantity - inCart) : undefined;
             return {
               value: option.value,
-              label: `${option.label} - ${formatMoney(option.price)}${remaining !== undefined ? ` (${remaining} available)` : ""}`,
+              label: `${option.label} - ${formatMoney(priceFor(option))}${remaining !== undefined ? ` (${remaining} available)` : ""}`,
             };
           })}
           onChange={setPickerKey}

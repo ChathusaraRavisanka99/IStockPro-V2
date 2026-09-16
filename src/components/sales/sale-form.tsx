@@ -6,7 +6,7 @@ import { CartBuilder, type CartLine } from "@/components/ui/cart-builder";
 import { formatMoney } from "@/lib/currency";
 
 type Option = { value: string; label: string };
-type ItemOption = { value: string; label: string; price: number; maxQuantity?: number; notes?: string | null; category?: string };
+type ItemOption = { value: string; label: string; price: number; wholesalePrice?: number; maxQuantity?: number; notes?: string | null; category?: string };
 
 type Props = {
   customers: Option[];
@@ -17,6 +17,7 @@ type Props = {
 
 export function SaleForm({ customers, customerQuickAdd, items, action }: Props) {
   const [lines, setLines] = useState<CartLine[]>([]);
+  const [saleType, setSaleType] = useState<"Retail" | "Wholesale">("Retail");
   const [taxMode, setTaxMode] = useState<"Percent" | "Amount">("Amount");
   const [taxValue, setTaxValue] = useState("0");
   const [handlingFee, setHandlingFee] = useState("0");
@@ -30,7 +31,22 @@ export function SaleForm({ customers, customerQuickAdd, items, action }: Props) 
     <form action={action} className="grid gap-4 lg:grid-cols-[1fr_280px]">
       <div className="grid content-start gap-3">
         <SearchableSelect name="customerId" placeholder="Walk-in customer" options={customers} quickAdd={customerQuickAdd} />
-        <CartBuilder items={items} lines={lines} onChange={setLines} showNotes />
+
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-slate-700">Sale type</span>
+          <input type="hidden" name="saleType" value={saleType} />
+          <div className="flex overflow-hidden rounded-lg border border-slate-300 text-sm">
+            <button type="button" onClick={() => setSaleType("Retail")} className={`px-3 py-1.5 ${saleType === "Retail" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
+              Retail
+            </button>
+            <button type="button" onClick={() => setSaleType("Wholesale")} className={`px-3 py-1.5 ${saleType === "Wholesale" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
+              Wholesale
+            </button>
+          </div>
+        </div>
+        <p className="-mt-1 text-xs text-slate-500">Items added below are priced at {saleType.toLowerCase()} price; you can still edit any line&apos;s price manually.</p>
+
+        <CartBuilder items={items} lines={lines} onChange={setLines} showNotes priceMode={saleType} />
       </div>
       <div className="grid content-start gap-3 rounded-xl border border-slate-200 p-4">
         <p className="text-sm font-semibold text-slate-900">Summary</p>
