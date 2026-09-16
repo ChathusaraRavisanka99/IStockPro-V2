@@ -9,6 +9,7 @@ import { canViewCost } from "@/lib/rbac";
 import { checkReauth } from "@/lib/reauth";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { InfoHelp } from "@/components/ui/info-help";
 import { LotRegisterForm, type BatchLine } from "@/components/items/lot-register-form";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { FxAmountInput } from "@/components/ui/fx-amount-input";
@@ -475,7 +476,16 @@ export default async function LotDetailPage({ params }: { params: { id: string }
 
   return (
     <div>
-      <PageHeader title={`Lot ${lot.lotNumber}`} subtitle={`Supplied by ${lot.supplier.name}`} />
+      <PageHeader
+        title={`Lot ${lot.lotNumber}`}
+        subtitle={`Supplied by ${lot.supplier.name}`}
+        help={
+          <>
+            <p>A lot moves through three stages: Collection (add phones/accessories, goods cost builds up automatically) → Shipped (add shipping cost) → Cleared (add tax/customs/other charges).</p>
+            <p className="mt-2">Only the card for the lot&apos;s current stage is shown — once you move it forward, use &quot;Correct a Charge&quot; below if you need to fix an earlier value.</p>
+          </>
+        }
+      />
       <div className="mb-4">
         <Link href="/lots" className="text-sm text-slate-700 underline">Back to Lots</Link>
       </div>
@@ -517,7 +527,12 @@ export default async function LotDetailPage({ params }: { params: { id: string }
 
       {lot.status === "Collection" ? (
         <Card className="mt-4 border-indigo-300">
-          <h2 className="mb-1 text-lg font-semibold">Move to Shipped</h2>
+          <h2 className="mb-1 flex items-center gap-1.5 text-lg font-semibold">
+            Move to Shipped
+            <InfoHelp size="sm" title="Move to Shipped">
+              This is the only cost you enter for the Shipped stage. It can be entered in a foreign currency — tick &quot;Foreign currency?&quot; and give the amount and conversion rate, and it converts to LKR automatically.
+            </InfoHelp>
+          </h2>
           <p className="mb-3 text-sm text-slate-600">
             Once everything for this shipment has been collected, add the shipping cost to move the lot to Shipped. Goods
             cost above is the running total of every phone/accessory added below — nothing to type here for that.
@@ -533,7 +548,12 @@ export default async function LotDetailPage({ params }: { params: { id: string }
 
       {lot.status === "Shipped" ? (
         <Card className="mt-4 border-amber-300">
-          <h2 className="mb-1 text-lg font-semibold">Clearance Charges</h2>
+          <h2 className="mb-1 flex items-center gap-1.5 text-lg font-semibold">
+            Clearance Charges
+            <InfoHelp size="sm" title="Clearance Charges">
+              Marking a lot Cleared unlocks phone grading below. Each charge can be entered in a foreign currency — tick &quot;Foreign currency?&quot; on it for a foreign amount + conversion rate instead of typing the LKR value directly.
+            </InfoHelp>
+          </h2>
           <p className="mb-3 text-sm text-slate-600">This lot was recorded as Shipped with just its goods and shipping cost. Once customs clears it, add the tax/customs/other charges here to mark it Cleared.</p>
           <form action={markLotCleared} className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <FxAmountInput name="taxCost" label="Tax cost" />
@@ -546,7 +566,12 @@ export default async function LotDetailPage({ params }: { params: { id: string }
 
       {showCost && lot.status !== "Collection" ? (
         <Card className="mt-4">
-          <h2 className="mb-3 text-lg font-semibold">Correct a Charge</h2>
+          <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
+            Correct a Charge
+            <InfoHelp size="sm" title="Correct a Charge">
+              Fix a shipping or clearance charge you already entered for an earlier stage. If the lot has moved on since that charge was normally entered, you&apos;ll be asked to re-confirm your own password before it saves, as a guard against accidental edits.
+            </InfoHelp>
+          </h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <LotChargeEditor
               title="Shipping Cost"
@@ -574,7 +599,12 @@ export default async function LotDetailPage({ params }: { params: { id: string }
 
       {showCost ? (
         <Card className="mt-4">
-          <h2 className="mb-3 text-lg font-semibold">Record a Payment</h2>
+          <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
+            Record a Payment
+            <InfoHelp size="sm" title="Record a Payment">
+              Log what you&apos;ve paid the supplier toward this lot&apos;s total cost. You can attach a photo or PDF of the payment slip as proof — it&apos;s kept alongside the payment record below.
+            </InfoHelp>
+          </h2>
           <form action={recordLotPayment} className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <label className="grid min-w-0 gap-1 text-sm text-slate-700">
               Amount
@@ -646,7 +676,12 @@ export default async function LotDetailPage({ params }: { params: { id: string }
 
       {showCost ? (
         <Card className="mt-4">
-          <h2 className="mb-3 text-lg font-semibold">Lot Performance</h2>
+          <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
+            Lot Performance
+            <InfoHelp size="sm" title="Lot Performance">
+              How this lot is doing so far: how much of it has sold, its return/damage rate, and the profit realized on units sold to date. Unsold units aren&apos;t counted in the P&amp;L yet.
+            </InfoHelp>
+          </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <p className="text-xs font-semibold uppercase text-slate-500">Sold / In Stock</p>
@@ -674,7 +709,12 @@ export default async function LotDetailPage({ params }: { params: { id: string }
       ) : null}
 
       <Card className="mt-4">
-        <h2 className="mb-3 text-lg font-semibold">Register Phones in This Lot</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
+          Register Phones in This Lot
+          <InfoHelp size="sm" title="Register Phones in This Lot">
+            This is how goods cost builds up during Collection. Purchase/tag/battery costs each support foreign-currency entry — tick &quot;Foreign currency?&quot; on a field to enter a foreign amount and conversion rate instead of the LKR value.
+          </InfoHelp>
+        </h2>
         <p className="mb-3 text-sm text-slate-600">
           Pick a product, scan or type each IMEI, and click Add to Batch — the product stays selected so you can keep
           adding more units of it. Create a brand-new variant on the fly with the + option in the picker.
@@ -714,7 +754,12 @@ export default async function LotDetailPage({ params }: { params: { id: string }
       </Card>
 
       <Card className="mt-4">
-        <h2 className="mb-3 text-lg font-semibold">Units in This Lot</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
+          Units in This Lot
+          <InfoHelp size="sm" title="Units in This Lot">
+            Every phone registered to this lot. Grading only becomes available once the lot is Cleared. Editing a unit&apos;s cost after Collection has ended asks you to re-confirm your password first.
+          </InfoHelp>
+        </h2>
         <p className="mb-3 text-sm text-slate-600">Click a row to see its cost and profit breakdown.</p>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
@@ -771,7 +816,12 @@ export default async function LotDetailPage({ params }: { params: { id: string }
       </Card>
 
       <Card className="mt-4">
-        <h2 className="mb-3 text-lg font-semibold">Add Accessories to This Lot</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
+          Add Accessories to This Lot
+          <InfoHelp size="sm" title="Add Accessories to This Lot">
+            Accessories aren&apos;t serialized, so they&apos;re added by quantity and immediately increase that item&apos;s stock count. Unit cost supports foreign-currency entry the same way phone costs do.
+          </InfoHelp>
+        </h2>
         <p className="mb-3 text-sm text-slate-600">
           Accessories aren&apos;t serialized like phones, so add them by quantity — each add here increases that item&apos;s stock count immediately. Don&apos;t see the item? Create it on the fly with the + option in the picker.
         </p>

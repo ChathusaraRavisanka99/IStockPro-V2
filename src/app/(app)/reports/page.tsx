@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { canViewCost } from "@/lib/rbac";
 import { PageHeader } from "@/components/ui/page-header";
+import { InfoHelp } from "@/components/ui/info-help";
 import { Card } from "@/components/ui/card";
 import { computeReportData } from "@/lib/reports";
 import { formatMoney } from "@/lib/currency";
@@ -48,7 +49,17 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
 
   return (
     <div>
-      <PageHeader title="Reports" subtitle="Financial performance and inventory management analysis" />
+      <PageHeader
+        title="Reports"
+        subtitle="Financial performance and inventory management analysis"
+        help={
+          <p>
+            Everything on this page except the two Receivables/Payables and Inventory Valuation sections is scoped to
+            the From/To date range you pick below — those two are always as-of-right-now snapshots. Use Download Report
+            to export the current range.
+          </p>
+        }
+      />
 
       <Card className="mb-4">
         <form method="get" className="flex flex-wrap items-end gap-3">
@@ -65,7 +76,12 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
         </form>
       </Card>
 
-      <h2 className="mb-2 mt-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Financial Overview ({toDateInputValue(from)} to {toDateInputValue(to)})</h2>
+      <h2 className="mb-2 mt-2 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-500">
+        Financial Overview ({toDateInputValue(from)} to {toDateInputValue(to)})
+        <InfoHelp size="sm" title="Financial Overview">
+          Key totals for the selected date range: revenue, cost of goods sold, gross/net profit, expenses, taxes, and refunds. Net Profit is revenue minus COGS, returns, operating expenses, and taxes.
+        </InfoHelp>
+      </h2>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <p className="text-sm font-medium text-slate-700">Revenue</p>
@@ -113,13 +129,23 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
       </div>
 
       <Card className="mt-4">
-        <h3 className="mb-3 text-base font-semibold">Revenue &amp; Gross Profit Trend</h3>
+        <h3 className="mb-3 flex items-center gap-1.5 text-base font-semibold">
+          Revenue &amp; Gross Profit Trend
+          <InfoHelp size="sm" title="Revenue &amp; Gross Profit Trend">
+            Daily revenue and gross profit across the selected date range, so you can spot trends or unusually strong/weak days.
+          </InfoHelp>
+        </h3>
         <RevenueTrendChart data={dailyRevenue} />
       </Card>
 
       <div className="mt-6 grid gap-4 xl:grid-cols-2">
         <Card>
-          <h3 className="mb-3 text-base font-semibold">Income Statement</h3>
+          <h3 className="mb-3 flex items-center gap-1.5 text-base font-semibold">
+            Income Statement
+            <InfoHelp size="sm" title="Income Statement">
+              A simple P&amp;L for the selected range: revenue minus cost of goods sold, returns, and other expenses (operating costs + tax), down to net income.
+            </InfoHelp>
+          </h3>
           <div className="grid gap-2 text-sm text-slate-800">
             <p className="flex justify-between"><span>Total Revenue</span><span>{formatMoney(f.revenue)}</span></p>
             <p className="flex justify-between text-slate-600"><span>Cost of Goods Sold</span><span>-{formatMoney(f.cogs)}</span></p>
@@ -131,7 +157,12 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
         </Card>
 
         <Card>
-          <h3 className="mb-3 text-base font-semibold">Sales by Item</h3>
+          <h3 className="mb-3 flex items-center gap-1.5 text-base font-semibold">
+            Sales by Item
+            <InfoHelp size="sm" title="Sales by Item">
+              The best-selling items in the selected date range by revenue, phones and accessories combined.
+            </InfoHelp>
+          </h3>
           <SalesByItemChart data={salesByItem} />
           <div className="mt-4 overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -162,7 +193,12 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
         </Card>
       </div>
 
-      <h2 className="mb-2 mt-6 text-sm font-semibold uppercase tracking-wide text-slate-500">Receivables & Payables (current)</h2>
+      <h2 className="mb-2 mt-6 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-500">
+        Receivables &amp; Payables (current)
+        <InfoHelp size="sm" title="Receivables &amp; Payables">
+          A live snapshot, not scoped to the date range above: what customers still owe you on unpaid/partial invoices, and what you still owe suppliers across lots that aren&apos;t fully paid off.
+        </InfoHelp>
+      </h2>
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <p className="text-sm font-medium text-slate-700">Accounts Receivable</p>
@@ -176,7 +212,12 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
         </Card>
       </div>
 
-      <h2 className="mb-2 mt-6 text-sm font-semibold uppercase tracking-wide text-slate-500">Inventory Valuation (current)</h2>
+      <h2 className="mb-2 mt-6 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-500">
+        Inventory Valuation (current)
+        <InfoHelp size="sm" title="Inventory Valuation">
+          What&apos;s currently sitting in stock is worth, at cost and at retail — also a live snapshot, not scoped to the date range above.
+        </InfoHelp>
+      </h2>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <p className="text-sm font-medium text-slate-700">Inventory at Cost</p>
@@ -200,7 +241,12 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
 
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
         <Card>
-          <h3 className="mb-3 text-base font-semibold">Inventory by Category</h3>
+          <h3 className="mb-3 flex items-center gap-1.5 text-base font-semibold">
+            Inventory by Category
+            <InfoHelp size="sm" title="Inventory by Category">
+              Current stock broken down by category, showing unit counts and cost vs. retail value for each.
+            </InfoHelp>
+          </h3>
           <InventoryValuationChart data={inv.inventoryByCategory} />
           <div className="mt-4 overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -227,7 +273,12 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
         </Card>
 
         <Card>
-          <h3 className="mb-3 text-base font-semibold">Low Stock Alerts</h3>
+          <h3 className="mb-3 flex items-center gap-1.5 text-base font-semibold">
+            Low Stock Alerts
+            <InfoHelp size="sm" title="Low Stock Alerts">
+              Every model or accessory whose in-stock count is at or below its low-stock threshold, right now.
+            </InfoHelp>
+          </h3>
           {inv.lowStockItems.length ? (
             <div className="grid gap-1.5 text-sm">
               {inv.lowStockItems.map((item) => (
@@ -245,7 +296,12 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
 
       <div className="mt-4">
         <Card>
-          <h3 className="mb-3 text-base font-semibold">Aging Stock Detail</h3>
+          <h3 className="mb-3 flex items-center gap-1.5 text-base font-semibold">
+            Aging Stock Detail
+            <InfoHelp size="sm" title="Aging Stock Detail">
+              Phones that have been sitting in stock for {AGING_DAYS} days or more without selling — a signal to consider a price adjustment or promotion.
+            </InfoHelp>
+          </h3>
           {inv.agingPhones.length ? (
             <div className="grid gap-1.5 text-sm">
               {inv.agingPhones.slice(0, 8).map((phone) => (

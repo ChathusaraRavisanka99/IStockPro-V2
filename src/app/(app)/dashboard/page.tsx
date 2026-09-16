@@ -62,7 +62,17 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <PageHeader title="Dashboard" subtitle="Business overview and stock health" />
+      <PageHeader
+        title="Dashboard"
+        subtitle="Business overview and stock health"
+        help={
+          <p>
+            A quick snapshot of the business: sales this month, invoices still owed, current stock levels, and anything
+            running low. The tiles are all-time or current-month figures — for date-filtered financial reports, see the
+            Reports page.
+          </p>
+        }
+      />
       <DashboardWidgetLayout widgets={[
         { id: "monthly-sales", title: "Monthly Sales", value: formatMoney(monthSales), helper: "Completed sales in current month" },
         { id: "pending-invoices", title: "Invoices Pending", value: String(pendingInvoices), helper: "Unpaid and partially paid invoices" },
@@ -75,7 +85,7 @@ export default async function DashboardPage() {
       ]} />
 
       <div className="mt-6 grid gap-4 xl:grid-cols-2">
-        <DataTableShell title="Top Stock Models">
+        <DataTableShell title="Top Stock Models" help="The 5 phone models with the most in-stock units right now, highest first.">
           <div className="space-y-2 text-sm">
             {topStock.map((row) => (
               <div key={row.id} className="flex items-center justify-between rounded-lg border border-slate-300 px-3 py-2">
@@ -86,7 +96,7 @@ export default async function DashboardPage() {
             {!topStock.length ? <p className="text-slate-600">No model stock data available yet.</p> : null}
           </div>
         </DataTableShell>
-        <DataTableShell title="Low Stock Watchlist">
+        <DataTableShell title="Low Stock Watchlist" help="Phone models and accessories whose in-stock quantity has fallen at or below their configured low-stock threshold — a signal it's time to reorder.">
           <div className="space-y-2 text-sm">
             {lowStockPhoneModels.map((model) => {
               const inStock = model.variants.reduce((acc, variant) => acc + variant._count.phones, 0);

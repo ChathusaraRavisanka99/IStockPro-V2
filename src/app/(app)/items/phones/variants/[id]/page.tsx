@@ -7,6 +7,7 @@ import { authOptions } from "@/lib/auth";
 import { canViewCost } from "@/lib/rbac";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { InfoHelp } from "@/components/ui/info-help";
 import { formatMoney } from "@/lib/currency";
 import { VariantSpecEditor } from "@/components/items/variant-spec-editor";
 import { CostRow } from "@/components/ui/cost-breakdown-modal";
@@ -64,7 +65,17 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
 
   return (
     <div>
-      <PageHeader title={`${variant.phoneModel.brand} ${variant.phoneModel.modelName} - ${variant.variantName}`} subtitle="Variant specifications and unit inventory" />
+      <PageHeader
+        title={`${variant.phoneModel.brand} ${variant.phoneModel.modelName} - ${variant.variantName}`}
+        subtitle="Variant specifications and unit inventory"
+        help={
+          <p>
+            Edit this variant&apos;s specs and default tag/battery cost on the left — those defaults pre-fill when
+            registering new units of this variant. Every individual unit registered under it is listed below; click a
+            row for its cost/profit breakdown.
+          </p>
+        }
+      />
       <div className="mb-4">
         <Link href="/items/phone-catalog" className="text-sm text-slate-700 underline">Back to Catalog</Link>
       </div>
@@ -108,7 +119,12 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
       </div>
 
       <Card className="mt-4">
-        <h2 className="mb-3 text-lg font-semibold">Units</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
+          Units
+          <InfoHelp size="sm" title="Units">
+            Every individual phone of this exact variant, by IMEI. Click a row to see its unit cost, wholesale/retail price, and profit breakdown.
+          </InfoHelp>
+        </h2>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>

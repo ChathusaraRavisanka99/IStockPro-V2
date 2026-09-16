@@ -160,7 +160,16 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
 
   return (
     <div>
-      <PageHeader title="Sales" subtitle="Create sales and auto-generate invoices" />
+      <PageHeader
+        title="Sales"
+        subtitle="Create sales and auto-generate invoices"
+        help={
+          <p>
+            Build a sale by picking a customer and adding phones/accessories from stock — an invoice is generated
+            automatically. Open a sale afterward to record payments, print a receipt, or void it if it was made in error.
+          </p>
+        }
+      />
       <Card className="mb-4">
         <SaleForm
           customers={customers.map((customer) => ({ value: customer.id, label: customer.name }))}

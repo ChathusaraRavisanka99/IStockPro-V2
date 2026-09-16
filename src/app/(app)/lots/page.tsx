@@ -7,6 +7,7 @@ import { authOptions } from "@/lib/auth";
 import { canViewCost } from "@/lib/rbac";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { InfoHelp } from "@/components/ui/info-help";
 import { ListControls } from "@/components/ui/list-controls";
 import { Pagination } from "@/components/ui/pagination";
 import { parsePage, parsePageSize } from "@/lib/pagination";
@@ -114,9 +115,25 @@ export default async function LotsPage({ searchParams }: Props) {
 
   return (
     <div>
-      <PageHeader title="Lots" subtitle="Track batches, landed cost allocation, and IMEI source lookup" />
+      <PageHeader
+        title="Lots"
+        subtitle="Track batches, landed cost allocation, and IMEI source lookup"
+        help={
+          <>
+            <p>A lot is one purchased batch of stock. Create it here with just a lot number, supplier, and start date — it begins in the Collection stage.</p>
+            <p className="mt-2">Open a lot to add phones and accessories to it; the goods cost builds up automatically from what you enter. From there you move it through Shipped and Cleared, adding shipping/tax/customs charges as they come in.</p>
+            <p className="mt-2">Use Search IMEI below to trace which lot a specific phone came from, and the From/To dates to filter lots by their start date.</p>
+          </>
+        }
+      />
 
       <Card className="mb-4">
+        <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
+          Create Lot
+          <InfoHelp size="sm" title="Create Lot">
+            Just three fields to start — supplier and dates matter for reporting, but everything cost-related (goods, shipping, tax) is added on the lot&apos;s own page as it moves through its stages.
+          </InfoHelp>
+        </h2>
         <form action={createLot} className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <label className="grid min-w-0 gap-1 text-sm text-slate-700">
             Lot number
@@ -147,6 +164,12 @@ export default async function LotsPage({ searchParams }: Props) {
       </Card>
 
       <Card className="mb-4">
+        <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
+          Search IMEI
+          <InfoHelp size="sm" title="Search IMEI">
+            Look up which lot (and supplier) a specific phone was sourced from by its IMEI.
+          </InfoHelp>
+        </h2>
         <form method="get" className="flex gap-2">
           <input
             name="imei"

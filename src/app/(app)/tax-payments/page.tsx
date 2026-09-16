@@ -64,7 +64,17 @@ export default async function TaxPaymentsPage({ searchParams }: { searchParams: 
 
   return (
     <div>
-      <PageHeader title="Tax Payments" subtitle="Record tax settlements and receipt references" />
+      <PageHeader
+        title="Tax Payments"
+        subtitle="Record tax settlements and receipt references"
+        help={
+          <p>
+            Log each tax payment you make with its period, amount, and paid date. Attach a receipt file if you have one —
+            it&apos;s stored and can be reopened later from the table below. Use the search bar to find a payment by period
+            or note.
+          </p>
+        }
+      />
 
       <Card className="mb-4">
         <form action={createTaxPayment} className="grid gap-3 md:grid-cols-5">

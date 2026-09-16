@@ -78,7 +78,17 @@ export default async function CustomersPage({ searchParams }: Props) {
 
   return (
     <div>
-      <PageHeader title="Customers" subtitle="Customer records with purchase history and lifetime value" />
+      <PageHeader
+        title="Customers"
+        subtitle="Customer records with purchase history and lifetime value"
+        help={
+          <p>
+            Add a customer here to keep their contact details on file and track their lifetime spend. Open a customer to
+            see their full purchase history. Archiving a customer removes them from this list without deleting their past
+            sales records.
+          </p>
+        }
+      />
       <Card className="mb-4">
         <form action={createCustomer} className="grid gap-3 md:grid-cols-4">
           <input name="name" required placeholder="Customer name" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />

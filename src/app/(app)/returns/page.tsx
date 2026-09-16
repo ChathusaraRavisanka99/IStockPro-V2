@@ -136,7 +136,16 @@ export default async function ReturnsPage({ searchParams }: { searchParams: { se
 
   return (
     <div>
-      <PageHeader title="Returns" subtitle="Create sale-linked returns and credit notes" />
+      <PageHeader
+        title="Returns"
+        subtitle="Create sale-linked returns and credit notes"
+        help={
+          <p>
+            Every return is linked back to the original sale. Pick the sale, choose which items are coming back and why,
+            and a credit note is generated automatically for the returned amount.
+          </p>
+        }
+      />
       <Card className="mb-4">
         <ReturnForm
           sales={saleOptions}

@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { canManageUsers } from "@/lib/rbac";
 import { PageHeader } from "@/components/ui/page-header";
+import { InfoHelp } from "@/components/ui/info-help";
 import { Card } from "@/components/ui/card";
 import { importBackup, type ImportSummary } from "@/lib/backup";
 
@@ -175,12 +176,26 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
 
   return (
     <div>
-      <PageHeader title="Settings" subtitle="Users, audit logs, and backup operations" />
+      <PageHeader
+        title="Settings"
+        subtitle="Users, audit logs, and backup operations"
+        help={
+          <p>
+            Manage who can log in and what they can do, change your own password, back up or restore the whole database,
+            and review a log of recent system actions. Most of this section is read-only unless you&apos;re an admin.
+          </p>
+        }
+      />
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card className="min-w-0 xl:col-span-2">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Users &amp; Roles</h2>
+            <h2 className="flex items-center gap-1.5 text-lg font-semibold">
+              Users &amp; Roles
+              <InfoHelp size="sm" title="Users &amp; Roles">
+                Create staff accounts and set what each person can access — see the role descriptions above. Only admins can create users, change roles, or reset passwords.
+              </InfoHelp>
+            </h2>
             <span className="text-xs text-slate-600">{isAdmin ? "Admin access" : "Read-only"}</span>
           </div>
 
@@ -278,7 +293,12 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
         </Card>
 
         <Card className="min-w-0 xl:col-span-2">
-          <h2 className="mb-3 text-lg font-semibold">My Account</h2>
+          <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
+            My Account
+            <InfoHelp size="sm" title="My Account">
+              Change the password for the account you&apos;re currently signed in as. You&apos;ll need to enter your current password first.
+            </InfoHelp>
+          </h2>
           <p className="mb-3 text-sm text-slate-600">Signed in as <span className="font-medium text-slate-800">{session?.user?.username}</span>. Change your own password below.</p>
           {searchParams?.pwError ? (
             <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{searchParams.pwError}</p>
@@ -304,7 +324,12 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
         </Card>
 
         <Card className="min-w-0 xl:col-span-2">
-          <h2 className="mb-3 text-lg font-semibold">Database Backup</h2>
+          <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
+            Database Backup
+            <InfoHelp size="sm" title="Database Backup">
+              Export every business record to a single JSON file, or import one back in. Imports are additive only — anything that already exists (matched by ID, IMEI, SKU, etc.) is left untouched, so importing is always safe to re-run.
+            </InfoHelp>
+          </h2>
           <p className="mb-3 text-sm text-slate-600">
             Export downloads every business record (inventory, sales, quotations, lots, customers, suppliers, financials) as a single JSON file.
             User accounts and passwords are never included. Importing that file elsewhere — or back into this system — only ever adds records that
@@ -355,7 +380,12 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
       </div>
 
       <Card className="mt-4">
-        <h2 className="mb-3 text-lg font-semibold">Recent Audit Logs</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
+          Recent Audit Logs
+          <InfoHelp size="sm" title="Recent Audit Logs">
+            A running record of sensitive actions — password resets, changes, and backup imports — with who did them and when.
+          </InfoHelp>
+        </h2>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>

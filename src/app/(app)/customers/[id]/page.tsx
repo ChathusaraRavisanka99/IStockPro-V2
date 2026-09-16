@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { InfoHelp } from "@/components/ui/info-help";
 import { formatMoney } from "@/lib/currency";
 
 function invoiceStatusColor(status?: string) {
@@ -27,7 +28,16 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
 
   return (
     <div>
-      <PageHeader title={customer.name} subtitle="Customer profile, purchase history, and outstanding balance" />
+      <PageHeader
+        title={customer.name}
+        subtitle="Customer profile, purchase history, and outstanding balance"
+        help={
+          <p>
+            An overview of this customer: their contact details, lifetime spend, and how much they currently owe across
+            unpaid invoices. Click Manage on any sale below to record a payment or view its invoice.
+          </p>
+        }
+      />
       <div className="mb-4">
         <Link href="/customers" className="text-sm text-slate-700 underline">Back to Customers</Link>
       </div>
@@ -53,7 +63,12 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
 
       {unpaidSales.length ? (
         <Card className="mt-4">
-          <h2 className="mb-3 text-lg font-semibold">Unpaid Invoices</h2>
+          <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
+            Unpaid Invoices
+            <InfoHelp size="sm" title="Unpaid Invoices">
+              Sales for this customer that still have a balance owed — either unpaid or partially paid. Open one and record a payment against it to clear or reduce the balance.
+            </InfoHelp>
+          </h2>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
@@ -88,7 +103,12 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
       ) : null}
 
       <Card className="mt-4">
-        <h2 className="mb-3 text-lg font-semibold">All Sales</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
+          All Sales
+          <InfoHelp size="sm" title="All Sales">
+            Every sale ever made to this customer, most recent first, regardless of payment status.
+          </InfoHelp>
+        </h2>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
