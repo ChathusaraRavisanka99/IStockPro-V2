@@ -182,6 +182,11 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
                       totalCost,
                       wholesalePrice: Number(phone.wholesalePrice ?? 0),
                       retailPrice: Number(phone.retailPrice ?? 0),
+                      costBreakdown: [
+                        { label: "Tag cost", amount: Number(phone.tagCost) },
+                        { label: "Battery cost", amount: Number(phone.batteryCost) },
+                        { label: "Repair cost", amount: Number(phone.repairCost) },
+                      ],
                       details: [
                         { label: "Variant", value: `${variant.phoneModel.brand} ${variant.phoneModel.modelName} - ${variant.variantName}` },
                         { label: "IMEI", value: phone.imei },

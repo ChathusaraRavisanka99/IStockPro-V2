@@ -161,6 +161,10 @@ export function PhoneCostEditor({ phone, showCost, canGrade, requireReauth, user
         totalCost,
         wholesalePrice: Number(phone.wholesalePrice ?? 0),
         retailPrice: Number(phone.retailPrice ?? 0),
+        costBreakdown: [
+          { label: "Tag cost", amount: tagCost },
+          { label: "Battery cost", amount: batteryCost },
+        ],
         details: [
           { label: "Model", value: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName}` },
           { label: "Variant", value: phone.phoneVariant.variantName },

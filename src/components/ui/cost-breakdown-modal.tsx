@@ -15,6 +15,9 @@ export type CostBreakdownData = {
   /** Expense records linked to this item. Pass an empty array (vs. omitting the prop) to show the
    * section with a "no expenses" message rather than hiding it entirely. */
   expenses?: { label: string; amount: number; date: string }[];
+  /** What's added on top of unitCost to reach totalCost (e.g. tag cost, battery cost).
+   * Only rendered when unitCost and totalCost actually differ; zero-amount entries are hidden. */
+  costBreakdown?: { label: string; amount: number }[];
 };
 
 function CostBreakdownDialog({ data, onClose }: { data: CostBreakdownData; onClose: () => void }) {
@@ -23,6 +26,8 @@ function CostBreakdownDialog({ data, onClose }: { data: CostBreakdownData; onClo
   const wholesaleProfit = data.wholesalePrice - data.totalCost;
   const wholesaleProfitPercent = data.wholesalePrice > 0 ? (wholesaleProfit / data.wholesalePrice) * 100 : 0;
   const totalExpenses = (data.expenses ?? []).reduce((sum, expense) => sum + expense.amount, 0);
+  const nonZeroCostBreakdown = (data.costBreakdown ?? []).filter((entry) => entry.amount !== 0);
+  const showCostBreakdown = data.unitCost !== data.totalCost && nonZeroCostBreakdown.length > 0;
 
   if (typeof document === "undefined") return null;
 
@@ -49,6 +54,14 @@ function CostBreakdownDialog({ data, onClose }: { data: CostBreakdownData; onClo
 
         <div className="grid gap-1.5 text-sm text-slate-700">
           <p className="flex justify-between"><span>Unit cost</span><span>{formatMoney(data.unitCost)}</span></p>
+          {showCostBreakdown
+            ? nonZeroCostBreakdown.map((entry) => (
+                <p key={entry.label} className="flex justify-between pl-3 text-xs text-slate-500">
+                  <span>+ {entry.label}</span>
+                  <span>{formatMoney(entry.amount)}</span>
+                </p>
+              ))
+            : null}
           <p className="flex justify-between"><span>Total cost</span><span>{formatMoney(data.totalCost)}</span></p>
           <p className="flex justify-between"><span>Wholesale price</span><span>{formatMoney(data.wholesalePrice)}</span></p>
           <p className="flex justify-between"><span>Retail price</span><span>{formatMoney(data.retailPrice)}</span></p>
