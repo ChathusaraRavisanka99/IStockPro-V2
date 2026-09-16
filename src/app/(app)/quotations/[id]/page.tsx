@@ -22,7 +22,16 @@ export default async function QuotationDetailPage({ params }: { params: { id: st
 
   return (
     <div>
-      <PageHeader title={`Quotation ${quotation.quoteNumber}`} subtitle="Quotation details and pricing summary" />
+      <PageHeader
+        title={`Quotation ${quotation.quoteNumber}`}
+        subtitle="Quotation details and pricing summary"
+        help={
+          <p>
+            A read-only snapshot of this quote&apos;s pricing and validity. If it has already been converted to a sale, a
+            link to that sale is shown in the Status card above.
+          </p>
+        }
+      />
       <div className="mb-4"><Link href="/quotations" className="text-sm text-slate-700 underline">Back to Quotations</Link></div>
       <div className="grid gap-4 lg:grid-cols-3">
         <Card>

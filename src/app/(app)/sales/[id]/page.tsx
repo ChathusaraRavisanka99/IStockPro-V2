@@ -7,6 +7,7 @@ import { authOptions } from "@/lib/auth";
 import { canViewCost } from "@/lib/rbac";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { InfoHelp } from "@/components/ui/info-help";
 import { formatMoney } from "@/lib/currency";
 import { formatSaleItemName } from "@/lib/format-item-name";
 import { uploadFile, getSignedDownloadUrl, isStorageKey, buildKey } from "@/lib/storage";
@@ -89,6 +90,12 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
         title={`Sale ${sale.saleNumber}`}
         subtitle="Manage payments and view line items"
         actions={<Link href={`/sales/${sale.id}/receipt`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800">Print Receipt</Link>}
+        help={
+          <p>
+            This sale&apos;s invoice, payment history, and line items. If it isn&apos;t fully paid, record payments below
+            as they come in — the status badge and remaining balance update automatically.
+          </p>
+        }
       />
       <div className="mb-4">
         <Link href="/sales" className="text-sm text-slate-700 underline">Back to Sales</Link>
@@ -118,7 +125,12 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
 
       {invoice && canManagePayments ? (
         <Card className="mt-4">
-          <h2 className="mb-3 text-lg font-semibold">Record a Payment</h2>
+          <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
+            Record a Payment
+            <InfoHelp size="sm" title="Record a Payment">
+              Log a payment against this invoice&apos;s remaining balance. You can attach a photo or PDF of the payment slip as proof — it&apos;s kept alongside the payment record below.
+            </InfoHelp>
+          </h2>
           {remaining > 0 ? (
             <form action={recordPayment} className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <label className="grid min-w-0 gap-1 text-sm text-slate-700">
@@ -192,7 +204,12 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
       ) : null}
 
       <Card className="mt-4">
-        <h2 className="mb-3 text-lg font-semibold">Line Items</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
+          Line Items
+          <InfoHelp size="sm" title="Line Items">
+            The phones and accessories included in this sale, with the price each was sold at.
+          </InfoHelp>
+        </h2>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>

@@ -147,7 +147,17 @@ export default async function QuotationsPage({ searchParams }: { searchParams: {
 
   return (
     <div>
-      <PageHeader title="Quotations" subtitle="Create, price, and convert quotations into sales" />
+      <PageHeader
+        title="Quotations"
+        subtitle="Create, price, and convert quotations into sales"
+        help={
+          <p>
+            Draft a price quote for a customer before committing to a sale. A quotation doesn&apos;t reserve stock or
+            affect inventory — once the customer accepts, click Convert on it to turn it into an actual sale with an
+            invoice.
+          </p>
+        }
+      />
       <Card className="mb-4">
         <QuotationForm
           customers={customers.map((customer) => ({ value: customer.id, label: customer.name }))}

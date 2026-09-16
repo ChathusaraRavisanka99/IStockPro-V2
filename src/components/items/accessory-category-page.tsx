@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { PageHeader } from "@/components/ui/page-header";
+import { InfoHelp } from "@/components/ui/info-help";
 import { Card } from "@/components/ui/card";
 import { prisma } from "@/lib/prisma";
 import { ListControls } from "@/components/ui/list-controls";
@@ -142,9 +143,25 @@ export async function AccessoryCategoryPage({
 
   return (
     <div>
-      <PageHeader title={title} subtitle="Accessory inventory with quantity and low-stock tracking" />
+      <PageHeader
+        title={title}
+        subtitle="Accessory inventory with quantity and low-stock tracking"
+        help={
+          <p>
+            Non-serialized stock — tracked by quantity, not individual IMEI. Add new {title.toLowerCase()} here, then use
+            search and List/Grid view below to find and edit existing ones. Archiving an item removes it from active
+            stock without deleting its sales history.
+          </p>
+        }
+      />
 
       <Card className="mb-4">
+        <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
+          Add {title}
+          <InfoHelp size="sm" title={`Add ${title}`}>
+            Set the starting quantity and low-stock threshold — you&apos;ll get a low-stock alert on the Dashboard once quantity falls at or below the threshold.
+          </InfoHelp>
+        </h2>
         <form action={createAccessory} className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
           <input name="name" placeholder="Name" className="rounded-lg border border-slate-300 bg-white px-3 py-2" required />
           <input name="sku" placeholder="SKU" className="rounded-lg border border-slate-300 bg-white px-3 py-2" required />

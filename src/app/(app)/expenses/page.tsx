@@ -76,7 +76,17 @@ export default async function ExpensesPage({ searchParams }: { searchParams: { s
 
   return (
     <div>
-      <PageHeader title="Expenses" subtitle="Operating costs with date and category tracking" />
+      <PageHeader
+        title="Expenses"
+        subtitle="Operating costs with date and category tracking"
+        help={
+          <p>
+            Record day-to-day operating costs that aren&apos;t part of a lot&apos;s landed cost — rent, utilities, repairs,
+            and so on. You can optionally link an expense to a specific phone or accessory (e.g. a repair cost) and attach
+            a receipt. Use the search bar to find an expense by category or description.
+          </p>
+        }
+      />
 
       <Card className="mb-4">
         <form action={createExpense} className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">

@@ -90,7 +90,17 @@ export default async function PhoneCatalogPage({ searchParams }: { searchParams?
 
   return (
     <div>
-      <PageHeader title="Phone Catalog" subtitle="Browse every model and variant with full specifications" />
+      <PageHeader
+        title="Phone Catalog"
+        subtitle="Browse every model and variant with full specifications"
+        help={
+          <p>
+            A browsable, read-only view of every phone model and variant with full specs and in-stock counts — use the
+            filters below to narrow by make, storage, RAM, color, or price. To add or edit models and variants, use
+            Items - Phones instead.
+          </p>
+        }
+      />
       <div className="mb-4 flex sm:justify-end">
         <div className="flex w-full rounded-lg border border-slate-300 bg-white p-1 text-sm sm:w-auto">
           <a href={`?${new URLSearchParams({ ...searchParams, view: "list" }).toString()}`} className={`flex-1 rounded-md px-4 py-2 text-center transition sm:flex-none sm:px-3 sm:py-1 ${view === "list" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"}`}>List</a>

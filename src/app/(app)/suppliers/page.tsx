@@ -58,7 +58,16 @@ export default async function SuppliersPage({ searchParams }: Props) {
 
   return (
     <div>
-      <PageHeader title="Suppliers" subtitle="Manage suppliers and view sourcing analytics" />
+      <PageHeader
+        title="Suppliers"
+        subtitle="Manage suppliers and view sourcing analytics"
+        help={
+          <p>
+            Suppliers are who you source stock from — add one here so it&apos;s selectable when creating a lot. The table
+            below tracks how many lots and units each supplier has provided and an estimate of total spend with them.
+          </p>
+        }
+      />
 
       <Card className="mb-4">
         <form action={createSupplier} className="grid gap-3 md:grid-cols-4">

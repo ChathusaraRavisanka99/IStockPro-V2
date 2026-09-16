@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { canViewCost } from "@/lib/rbac";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { InfoHelp } from "@/components/ui/info-help";
 import { ListControls } from "@/components/ui/list-controls";
 import { Pagination } from "@/components/ui/pagination";
 import { parsePage, parsePageSize } from "@/lib/pagination";
@@ -190,11 +191,25 @@ export default async function PhonesPage({ searchParams }: Props) {
 
   return (
     <div>
-      <PageHeader title="Items - Phones" subtitle="Serialized inventory with IMEI and stock counts" />
+      <PageHeader
+        title="Items - Phones"
+        subtitle="Serialized inventory with IMEI and stock counts"
+        help={
+          <>
+            <p>Phones are tracked at three levels: Model (e.g. iPhone 13), Variant (a specific color/storage/RAM combo), and Unit (one physical phone with its own IMEI).</p>
+            <p className="mt-2">Most units come in automatically when you register phones on a lot&apos;s page — the three forms below are for one-off additions or setting up a new model/variant ahead of time.</p>
+          </>
+        }
+      />
 
       <div className="grid gap-4 xl:grid-cols-3">
         <Card>
-          <h2 className="mb-3 text-lg font-semibold">Add Phone Model</h2>
+          <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
+            Add Phone Model
+            <InfoHelp size="sm" title="Add Phone Model">
+              A model is the phone family (brand + model name), e.g. &quot;Apple iPhone 13&quot;. Set its low-stock threshold and warranty period here — these apply to every variant under it.
+            </InfoHelp>
+          </h2>
           <form action={createModel} className="grid gap-2">
             <input name="brand" required placeholder="Brand" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
             <input name="modelName" required placeholder="Model name" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
@@ -213,7 +228,12 @@ export default async function PhonesPage({ searchParams }: Props) {
         </Card>
 
         <Card>
-          <h2 className="mb-3 text-lg font-semibold">Add Variant</h2>
+          <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
+            Add Variant
+            <InfoHelp size="sm" title="Add Variant">
+              A variant is a specific configuration of a model — color, storage, RAM, and the rest of its specs. Every physical unit you register belongs to one variant.
+            </InfoHelp>
+          </h2>
           <form action={createVariant} className="grid gap-2">
             <SearchableSelect
               name="phoneModelId"
@@ -243,7 +263,12 @@ export default async function PhonesPage({ searchParams }: Props) {
         </Card>
 
         <Card>
-          <h2 className="mb-3 text-lg font-semibold">Add Phone Unit</h2>
+          <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
+            Add Phone Unit
+            <InfoHelp size="sm" title="Add Phone Unit">
+              Registers one physical phone by IMEI against a variant and a lot. Prefer adding units from the lot&apos;s own page when you&apos;re receiving a batch — use this only for a single one-off addition.
+            </InfoHelp>
+          </h2>
           <form action={createPhoneUnit} className="grid gap-2">
             <input name="imei" required placeholder="IMEI" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
             <SearchableSelect name="phoneVariantId" required placeholder="Select variant" options={variants.map((variant) => ({ value: variant.id, label: `${variant.phoneModel.brand} ${variant.phoneModel.modelName} - ${variant.variantName}` }))} />
@@ -286,7 +311,12 @@ export default async function PhonesPage({ searchParams }: Props) {
 
       <Card className="mt-4">
         <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Models and In-Stock Counts</h2>
+          <h2 className="flex items-center gap-1.5 text-lg font-semibold">
+            Models and In-Stock Counts
+            <InfoHelp size="sm" title="Models and In-Stock Counts">
+              Every model you&apos;ve created, with its variants and how many units of each are currently in stock. Use Edit on a model to change its details, or click a variant to drill into its individual units.
+            </InfoHelp>
+          </h2>
           <Link href="/items/phone-catalog" className="text-sm text-slate-700 underline">View full catalog</Link>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
@@ -300,7 +330,12 @@ export default async function PhonesPage({ searchParams }: Props) {
       <ListControls search={search} filter={status} view={view} placeholder="Search by IMEI or serial number" filterLabel="All statuses" filterOptions={["InStock", "Reserved", "Sold", "Returned", "Repair", "WrittenOff"].map((value) => ({ label: value, value }))} />
 
       <Card className="mt-4">
-        <h2 className="mb-3 text-lg font-semibold">Recent Serialized Units</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
+          Recent Serialized Units
+          <InfoHelp size="sm" title="Recent Serialized Units">
+            Individual phones by IMEI, filtered and searched with the bar above. Archiving a unit here removes it from active stock without deleting its history.
+          </InfoHelp>
+        </h2>
         {view === "grid" ? (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {phones.map((phone) => (
