@@ -90,8 +90,14 @@ export default async function ExpensesPage({ searchParams }: { searchParams: { s
 
       <Card className="mb-4">
         <form action={createExpense} className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
-          <input name="category" required placeholder="Category" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
-          <input name="description" placeholder="Description" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
+          <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+            Category
+            <input name="category" required placeholder="Category" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+          </label>
+          <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+            Description
+            <input name="description" placeholder="Description" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+          </label>
           <label className="grid min-w-0 gap-1 text-sm text-slate-700">
             Amount
             <input name="amount" type="number" step="0.01" min={0} required placeholder="Amount" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
