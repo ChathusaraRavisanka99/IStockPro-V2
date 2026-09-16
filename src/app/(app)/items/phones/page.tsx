@@ -394,6 +394,10 @@ export default async function PhonesPage({ searchParams }: Props) {
                     totalCost,
                     wholesalePrice: Number(costFields.wholesalePrice ?? 0),
                     retailPrice: Number(costFields.retailPrice ?? 0),
+                    costBreakdown: [
+                      { label: "Tag cost", amount: Number(costFields.tagCost ?? 0) },
+                      { label: "Battery cost", amount: Number(costFields.batteryCost ?? 0) },
+                    ],
                     details: [
                       { label: "Model", value: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName}` },
                       { label: "Variant", value: phone.phoneVariant.variantName },
@@ -464,6 +468,10 @@ export default async function PhonesPage({ searchParams }: Props) {
                       totalCost,
                       wholesalePrice: Number(costFields.wholesalePrice ?? 0),
                       retailPrice: Number(costFields.retailPrice ?? 0),
+                      costBreakdown: [
+                        { label: "Tag cost", amount: Number(costFields.tagCost ?? 0) },
+                        { label: "Battery cost", amount: Number(costFields.batteryCost ?? 0) },
+                      ],
                       details: [
                         { label: "Model", value: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName}` },
                         { label: "Variant", value: phone.phoneVariant.variantName },
