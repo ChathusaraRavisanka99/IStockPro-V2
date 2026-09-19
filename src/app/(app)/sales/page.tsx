@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { canViewCost } from "@/lib/rbac";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { ListControls } from "@/components/ui/list-controls";
@@ -22,6 +23,7 @@ function invoiceStatusColor(status?: string) {
 
 export default async function SalesPage({ searchParams }: { searchParams: { search?: string; filter?: string; filter2?: string; filter3?: string; view?: "list" | "grid"; page?: string; pageSize?: string } }) {
   const session = await getServerSession(authOptions);
+  const showCost = canViewCost(session?.user?.role as "admin" | "manager" | "staff" | undefined);
   const search = searchParams.search?.trim() || "";
   const status = searchParams.filter || "";
   const paymentStatus = searchParams.filter2 || "";
@@ -180,8 +182,8 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
           customers={customers.map((customer) => ({ value: customer.id, label: customer.name }))}
           customerQuickAdd={{ label: "Customer", action: createCustomerDependency, fields: [{ name: "name", label: "Name", required: true }, { name: "phone", label: "Phone" }, { name: "email", label: "Email" }] }}
           items={[
-            ...phones.map((phone) => ({ value: `phone:${phone.id}`, label: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName}${phone.grade ? ` (Grade ${phone.grade})` : ""} - IMEI ${phone.imei}`, price: Number(phone.retailPrice ?? phone.wholesalePrice ?? 0), wholesalePrice: Number(phone.wholesalePrice ?? phone.retailPrice ?? 0), maxQuantity: 1, notes: phone.notes, category: "Phone", details: [{ label: "Model", value: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName}` }, { label: "Variant", value: phone.phoneVariant.variantName }, { label: "IMEI", value: phone.imei }, { label: "Grade", value: phone.grade || "Not Graded" }, { label: "Battery health", value: phone.batteryHealth !== null ? `${phone.batteryHealth}%` : "-" }, { label: "Status", value: phone.status }] })),
-            ...accessories.map((item) => ({ value: `accessory:${item.id}`, label: `${item.name} (${item.sku})`, price: Number(item.retailPrice), wholesalePrice: Number(item.wholesalePrice || item.retailPrice), maxQuantity: item.quantity, notes: item.notes, category: item.category, details: [{ label: "Name", value: item.name }, { label: "SKU", value: item.sku }, { label: "Category", value: item.category }, ...(item.connectorType || item.voltage || item.fastCharging ? [{ label: "Specs", value: [item.connectorType, item.voltage, item.fastCharging ? "Fast charging" : null].filter(Boolean).join(" · ") }] : []), { label: "In stock", value: String(item.quantity) }] })),
+            ...phones.map((phone) => ({ value: `phone:${phone.id}`, label: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName}${phone.grade ? ` (Grade ${phone.grade})` : ""} - IMEI ${phone.imei}`, price: Number(phone.retailPrice ?? phone.wholesalePrice ?? 0), wholesalePrice: Number(phone.wholesalePrice ?? phone.retailPrice ?? 0), ...(showCost ? { cost: { unitCost: Number(phone.purchasePrice), totalCost: Number(phone.purchasePrice) + Number(phone.tagCost) + Number(phone.batteryCost) + Number(phone.repairCost), breakdown: [{ label: "Tag cost", amount: Number(phone.tagCost) }, { label: "Battery cost", amount: Number(phone.batteryCost) }, { label: "Repair cost", amount: Number(phone.repairCost) }] } } : {}), maxQuantity: 1, notes: phone.notes, category: "Phone", details: [{ label: "Model", value: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName}` }, { label: "Variant", value: phone.phoneVariant.variantName }, { label: "IMEI", value: phone.imei }, { label: "Grade", value: phone.grade || "Not Graded" }, { label: "Battery health", value: phone.batteryHealth !== null ? `${phone.batteryHealth}%` : "-" }, { label: "Status", value: phone.status }] })),
+            ...accessories.map((item) => ({ value: `accessory:${item.id}`, label: `${item.name} (${item.sku})`, price: Number(item.retailPrice), wholesalePrice: Number(item.wholesalePrice || item.retailPrice), ...(showCost ? { cost: { unitCost: Number(item.purchasePrice), totalCost: Number(item.purchasePrice) } } : {}), maxQuantity: item.quantity, notes: item.notes, category: item.category, details: [{ label: "Name", value: item.name }, { label: "SKU", value: item.sku }, { label: "Category", value: item.category }, ...(item.connectorType || item.voltage || item.fastCharging ? [{ label: "Specs", value: [item.connectorType, item.voltage, item.fastCharging ? "Fast charging" : null].filter(Boolean).join(" · ") }] : []), { label: "In stock", value: String(item.quantity) }] })),
           ]}
           action={createSale}
         />

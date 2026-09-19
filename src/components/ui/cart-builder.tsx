@@ -16,6 +16,8 @@ export type CartItemOption = {
   category?: string;
   /** When present, picking Add opens a popup showing these details (plus prices) to confirm first. */
   details?: { label: string; value: string }[];
+  /** Cost figures shown in that popup — only set for roles allowed to view cost. */
+  cost?: { unitCost: number; totalCost: number; breakdown?: { label: string; amount: number }[] };
 };
 type ItemOption = CartItemOption;
 
@@ -160,6 +162,7 @@ export function CartBuilder({ items, lines, onChange, fieldName = "cartItems", s
           details={pickerItem.details}
           retailPrice={pickerItem.price}
           wholesalePrice={pickerItem.wholesalePrice}
+          cost={pickerItem.cost}
           priceMode={priceMode}
           quantity={pickerQty}
           onQuantityChange={setPickerQty}

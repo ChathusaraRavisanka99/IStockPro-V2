@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { canViewCost } from "@/lib/rbac";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { ListControls } from "@/components/ui/list-controls";
@@ -15,6 +16,7 @@ type CartLine = { key: string; unitPrice: number; quantity: number };
 
 export default async function QuotationsPage({ searchParams }: { searchParams: { search?: string; filter?: string; filter3?: string; view?: "list" | "grid"; page?: string; pageSize?: string } }) {
   const session = await getServerSession(authOptions);
+  const showCost = canViewCost(session?.user?.role as "admin" | "manager" | "staff" | undefined);
   const search = searchParams.search?.trim() || "";
   const status = searchParams.filter || "";
   const quoteType = searchParams.filter3 || "";
@@ -25,12 +27,12 @@ export default async function QuotationsPage({ searchParams }: { searchParams: {
     prisma.customer.findMany({ where: { deletedAt: null }, orderBy: { name: "asc" } }),
     prisma.phoneModel.findMany({ where: { deletedAt: null }, orderBy: [{ brand: "asc" }, { modelName: "asc" }] }),
     prisma.phoneVariant.findMany({ where: { deletedAt: null, phoneModel: { deletedAt: null } }, include: { phoneModel: true }, orderBy: { variantName: "asc" } }),
-    prisma.phone.findMany({ where: { deletedAt: null, status: "InStock" }, select: { phoneVariantId: true, retailPrice: true, wholesalePrice: true }, orderBy: { createdAt: "desc" } }),
+    prisma.phone.findMany({ where: { deletedAt: null, status: "InStock" }, select: { phoneVariantId: true, retailPrice: true, wholesalePrice: true, purchasePrice: true, tagCost: true, batteryCost: true, repairCost: true }, orderBy: { createdAt: "desc" } }),
   ]);
 
   // Quotation lines are model/variant level (no specific unit), so offer the most recent in-stock
   // unit's retail/wholesale price as the starting price — still editable per line.
-  const priceByVariant = new Map<string, { retail: number; wholesale: number; inStock: number }>();
+  const priceByVariant = new Map<string, { retail: number; wholesale: number; inStock: number; cost: { unitCost: number; totalCost: number; breakdown: { label: string; amount: number }[] } }>();
   for (const phone of stockPhones) {
     const existing = priceByVariant.get(phone.phoneVariantId);
     if (existing) {
@@ -39,7 +41,13 @@ export default async function QuotationsPage({ searchParams }: { searchParams: {
     }
     const retail = Number(phone.retailPrice ?? 0);
     const wholesale = Number(phone.wholesalePrice ?? 0) || retail;
-    priceByVariant.set(phone.phoneVariantId, { retail, wholesale, inStock: 1 });
+    const unitCost = Number(phone.purchasePrice);
+    const extras = [
+      { label: "Tag cost", amount: Number(phone.tagCost) },
+      { label: "Battery cost", amount: Number(phone.batteryCost) },
+      { label: "Repair cost", amount: Number(phone.repairCost) },
+    ];
+    priceByVariant.set(phone.phoneVariantId, { retail, wholesale, inStock: 1, cost: { unitCost, totalCost: unitCost + extras.reduce((sum, entry) => sum + entry.amount, 0), breakdown: extras } });
   }
   const quoteWhere = {
     ...(status ? { status } : {}),
@@ -197,6 +205,7 @@ export default async function QuotationsPage({ searchParams }: { searchParams: {
                 label: `${model.brand} ${model.modelName}`,
                 price: priced?.retail ?? 0,
                 wholesalePrice: priced?.wholesale ?? 0,
+                ...(showCost && priced ? { cost: priced.cost } : {}),
                 category: "Model",
                 details: [
                   { label: "Brand", value: model.brand },
@@ -217,6 +226,7 @@ export default async function QuotationsPage({ searchParams }: { searchParams: {
                 label: `${variant.phoneModel.brand} ${variant.phoneModel.modelName} - ${variant.variantName}`,
                 price: priced?.retail ?? 0,
                 wholesalePrice: priced?.wholesale ?? 0,
+                ...(showCost && priced ? { cost: priced.cost } : {}),
                 category: "Variant",
                 details: [
                   { label: "Model", value: `${variant.phoneModel.brand} ${variant.phoneModel.modelName}` },

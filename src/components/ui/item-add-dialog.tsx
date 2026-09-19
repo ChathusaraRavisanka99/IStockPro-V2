@@ -8,6 +8,8 @@ type Props = {
   details: { label: string; value: string }[];
   retailPrice: number;
   wholesalePrice?: number;
+  /** Cost figures — only passed for roles allowed to see cost. */
+  cost?: { unitCost: number; totalCost: number; breakdown?: { label: string; amount: number }[] };
   priceMode: "Retail" | "Wholesale";
   quantity: string;
   onQuantityChange: (value: string) => void;
@@ -18,7 +20,13 @@ type Props = {
   onCancel: () => void;
 };
 
-export function ItemAddDialog({ name, details, retailPrice, wholesalePrice, priceMode, quantity, onQuantityChange, remaining, notes, onConfirm, onCancel }: Props) {
+function profitLabel(price: number, cost: number) {
+  if (price <= 0) return "";
+  const profit = price - cost;
+  return ` · profit ${((profit / price) * 100).toFixed(1)}%`;
+}
+
+export function ItemAddDialog({ name, details, retailPrice, wholesalePrice, cost, priceMode, quantity, onQuantityChange, remaining, notes, onConfirm, onCancel }: Props) {
   if (typeof document === "undefined") return null;
   const appliedPrice = priceMode === "Wholesale" && wholesalePrice !== undefined ? wholesalePrice : retailPrice;
 
@@ -44,20 +52,56 @@ export function ItemAddDialog({ name, details, retailPrice, wholesalePrice, pric
         ) : null}
 
         <div className="grid gap-1.5 text-sm text-slate-700">
+          {cost ? (
+            <>
+              <p className="flex justify-between">
+                <span>Unit cost</span>
+                <span>{formatMoney(cost.unitCost)}</span>
+              </p>
+              {(cost.breakdown ?? [])
+                .filter((entry) => entry.amount !== 0)
+                .map((entry) => (
+                  <p key={entry.label} className="flex justify-between pl-3 text-xs text-slate-500">
+                    <span>+ {entry.label}</span>
+                    <span>{formatMoney(entry.amount)}</span>
+                  </p>
+                ))}
+              <p className="flex justify-between font-medium text-slate-900">
+                <span>Total cost</span>
+                <span>{formatMoney(cost.totalCost)}</span>
+              </p>
+              <div className="my-1 border-t border-slate-100" />
+            </>
+          ) : null}
           <p className="flex justify-between">
             <span>Retail price</span>
-            <span className={priceMode === "Retail" ? "font-semibold text-slate-900" : ""}>{formatMoney(retailPrice)}</span>
+            <span className={priceMode === "Retail" ? "font-semibold text-slate-900" : ""}>
+              {formatMoney(retailPrice)}
+              {cost ? <span className="text-xs font-normal text-slate-500">{profitLabel(retailPrice, cost.totalCost)}</span> : null}
+            </span>
           </p>
           {wholesalePrice !== undefined ? (
             <p className="flex justify-between">
               <span>Wholesale price</span>
-              <span className={priceMode === "Wholesale" ? "font-semibold text-slate-900" : ""}>{formatMoney(wholesalePrice)}</span>
+              <span className={priceMode === "Wholesale" ? "font-semibold text-slate-900" : ""}>
+                {formatMoney(wholesalePrice)}
+                {cost ? <span className="text-xs font-normal text-slate-500">{profitLabel(wholesalePrice, cost.totalCost)}</span> : null}
+              </span>
             </p>
           ) : null}
           <p className="mt-1 flex justify-between border-t border-slate-200 pt-2 font-medium text-slate-900">
             <span>Added at ({priceMode.toLowerCase()})</span>
             <span>{formatMoney(appliedPrice)}</span>
           </p>
+          {cost ? (
+            <p className="flex justify-between font-medium text-slate-900">
+              <span>Profit at this price</span>
+              <span className={appliedPrice - cost.totalCost >= 0 ? "text-green-700" : "text-red-700"}>
+                {formatMoney(appliedPrice - cost.totalCost)}
+                {appliedPrice > 0 ? ` (${(((appliedPrice - cost.totalCost) / appliedPrice) * 100).toFixed(1)}%)` : ""}
+              </span>
+            </p>
+          ) : null}
         </div>
 
         {notes ? (
