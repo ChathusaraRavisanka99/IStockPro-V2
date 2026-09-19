@@ -41,7 +41,7 @@ export default async function QuotationDetailPage({ params }: { params: { id: st
           <p className="text-sm text-slate-700">{contactEmail || "No email"}</p>
         </Card>
         <Card><p className="text-xs font-semibold uppercase text-slate-500">Dates</p><p className="mt-2 text-sm text-slate-700">Created: {quotation.quoteDate.toISOString().slice(0, 10)}</p><p className="text-sm text-slate-700">Valid until: {quotation.validUntil?.toISOString().slice(0, 10) || "-"}</p></Card>
-        <Card><p className="text-xs font-semibold uppercase text-slate-500">Status</p><p className="mt-2 text-lg font-semibold text-slate-900">{quotation.status}</p><p className="text-sm text-slate-700">Total: {formatMoney(Number(quotation.totalAmount))}</p>{quotation.convertedSale ? <Link href={`/sales/${quotation.convertedSale.id}`} className="mt-2 inline-block text-sm text-slate-800 underline">View Sale {quotation.convertedSale.saleNumber}</Link> : null}</Card>
+        <Card><p className="text-xs font-semibold uppercase text-slate-500">Status</p><p className="mt-2 text-lg font-semibold text-slate-900">{quotation.status}</p><span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${quotation.saleType === "Wholesale" ? "bg-purple-100 text-purple-800" : "bg-slate-100 text-slate-700"}`}>{quotation.saleType}</span><p className="text-sm text-slate-700">Total: {formatMoney(Number(quotation.totalAmount))}</p>{quotation.convertedSale ? <Link href={`/sales/${quotation.convertedSale.id}`} className="mt-2 inline-block text-sm text-slate-800 underline">View Sale {quotation.convertedSale.saleNumber}</Link> : null}</Card>
       </div>
 
       {quotation.notes ? (

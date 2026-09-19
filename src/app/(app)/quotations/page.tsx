@@ -13,26 +13,47 @@ import { formatMoney } from "@/lib/currency";
 
 type CartLine = { key: string; unitPrice: number; quantity: number };
 
-export default async function QuotationsPage({ searchParams }: { searchParams: { search?: string; filter?: string; view?: "list" | "grid"; page?: string; pageSize?: string } }) {
+export default async function QuotationsPage({ searchParams }: { searchParams: { search?: string; filter?: string; filter3?: string; view?: "list" | "grid"; page?: string; pageSize?: string } }) {
   const session = await getServerSession(authOptions);
   const search = searchParams.search?.trim() || "";
   const status = searchParams.filter || "";
+  const quoteType = searchParams.filter3 || "";
   const page = parsePage(searchParams.page);
   const pageSize = parsePageSize(searchParams.pageSize);
   const view = searchParams.view === "grid" ? "grid" : "list";
-  const [customers, models, variants] = await Promise.all([
+  const [customers, models, variants, stockPhones] = await Promise.all([
     prisma.customer.findMany({ where: { deletedAt: null }, orderBy: { name: "asc" } }),
     prisma.phoneModel.findMany({ where: { deletedAt: null }, orderBy: [{ brand: "asc" }, { modelName: "asc" }] }),
     prisma.phoneVariant.findMany({ where: { deletedAt: null, phoneModel: { deletedAt: null } }, include: { phoneModel: true }, orderBy: { variantName: "asc" } }),
+    prisma.phone.findMany({ where: { deletedAt: null, status: "InStock" }, select: { phoneVariantId: true, retailPrice: true, wholesalePrice: true }, orderBy: { createdAt: "desc" } }),
   ]);
+
+  // Quotation lines are model/variant level (no specific unit), so offer the most recent in-stock
+  // unit's retail/wholesale price as the starting price — still editable per line.
+  const priceByVariant = new Map<string, { retail: number; wholesale: number; inStock: number }>();
+  for (const phone of stockPhones) {
+    const existing = priceByVariant.get(phone.phoneVariantId);
+    if (existing) {
+      existing.inStock += 1;
+      continue;
+    }
+    const retail = Number(phone.retailPrice ?? 0);
+    const wholesale = Number(phone.wholesalePrice ?? 0) || retail;
+    priceByVariant.set(phone.phoneVariantId, { retail, wholesale, inStock: 1 });
+  }
+  const quoteWhere = {
+    ...(status ? { status } : {}),
+    ...(quoteType ? { saleType: quoteType as "Retail" | "Wholesale" } : {}),
+    ...(search ? { OR: [{ quoteNumber: { contains: search, mode: "insensitive" as const } }, { customer: { name: { contains: search, mode: "insensitive" as const } } }] } : {}),
+  };
   const quotations = await prisma.quotation.findMany({
     skip: (page - 1) * pageSize,
     take: pageSize,
-    where: { ...(status ? { status } : {}), ...(search ? { OR: [{ quoteNumber: { contains: search, mode: "insensitive" } }, { customer: { name: { contains: search, mode: "insensitive" } } }] } : {}) },
+    where: quoteWhere,
     orderBy: { quoteDate: "desc" },
     include: { customer: true, items: true, convertedSale: true },
   });
-  const total = await prisma.quotation.count({ where: { ...(status ? { status } : {}), ...(search ? { OR: [{ quoteNumber: { contains: search, mode: "insensitive" } }, { customer: { name: { contains: search, mode: "insensitive" } } }] } : {}) } });
+  const total = await prisma.quotation.count({ where: quoteWhere });
 
   async function createQuotation(formData: FormData) {
     "use server";
@@ -40,6 +61,8 @@ export default async function QuotationsPage({ searchParams }: { searchParams: {
     const customerId = String(formData.get("customerId") || "").trim() || null;
     const customerEmail = String(formData.get("customerEmail") || "").trim() || null;
     const customerPhone = String(formData.get("customerPhone") || "").trim() || null;
+    const saleTypeInput = String(formData.get("saleType") || "Retail");
+    const saleType = (saleTypeInput === "Wholesale" ? "Wholesale" : "Retail") as "Retail" | "Wholesale";
     const taxTypeInput = String(formData.get("taxType") || "Percent");
     const taxType = (taxTypeInput === "Amount" ? "Amount" : "Percent") as "Percent" | "Amount";
     const taxValue = Number(formData.get("taxValue") || 0);
@@ -68,6 +91,7 @@ export default async function QuotationsPage({ searchParams }: { searchParams: {
         customerId,
         customerEmail,
         customerPhone,
+        saleType,
         subtotal,
         taxType,
         taxPercent,
@@ -108,6 +132,7 @@ export default async function QuotationsPage({ searchParams }: { searchParams: {
       data: {
         saleNumber: `SAL-${now}`,
         customerId: quotation.customerId,
+        saleType: quotation.saleType,
         subtotal: quotation.subtotal,
         taxType: quotation.taxType,
         taxPercent: quotation.taxPercent,
@@ -163,18 +188,54 @@ export default async function QuotationsPage({ searchParams }: { searchParams: {
           customers={customers.map((customer) => ({ value: customer.id, label: customer.name }))}
           customerQuickAdd={{ label: "Customer", action: createCustomerDependency, fields: [{ name: "name", label: "Name", required: true }, { name: "phone", label: "Phone" }, { name: "email", label: "Email" }] }}
           items={[
-            ...models.map((model) => ({ value: `model:${model.id}`, label: `${model.brand} ${model.modelName}`, price: 0, category: "Model" })),
-            ...variants.map((variant) => ({ value: `variant:${variant.id}`, label: `${variant.phoneModel.brand} ${variant.phoneModel.modelName} - ${variant.variantName}`, price: 0, category: "Variant" })),
+            ...models.map((model) => {
+              const modelVariants = variants.filter((variant) => variant.phoneModelId === model.id);
+              const priced = modelVariants.map((variant) => priceByVariant.get(variant.id)).find(Boolean);
+              const inStock = modelVariants.reduce((sum, variant) => sum + (priceByVariant.get(variant.id)?.inStock ?? 0), 0);
+              return {
+                value: `model:${model.id}`,
+                label: `${model.brand} ${model.modelName}`,
+                price: priced?.retail ?? 0,
+                wholesalePrice: priced?.wholesale ?? 0,
+                category: "Model",
+                details: [
+                  { label: "Brand", value: model.brand },
+                  { label: "Model", value: model.modelName },
+                  { label: "Variants", value: String(modelVariants.length) },
+                  { label: "In stock", value: String(inStock) },
+                  { label: "Warranty", value: `${model.warrantyMonths} months` },
+                ],
+              };
+            }),
+            ...variants.map((variant) => {
+              const priced = priceByVariant.get(variant.id);
+              const specs = [["Color", variant.color], ["Storage", variant.storage], ["RAM", variant.ram], ["Screen", variant.screenSize], ["Processor", variant.processor], ["Camera", variant.camera], ["OS", variant.os], ["Network", variant.networkType], ["Battery", variant.battery]]
+                .filter(([, value]) => value)
+                .map(([label, value]) => ({ label: label as string, value: value as string }));
+              return {
+                value: `variant:${variant.id}`,
+                label: `${variant.phoneModel.brand} ${variant.phoneModel.modelName} - ${variant.variantName}`,
+                price: priced?.retail ?? 0,
+                wholesalePrice: priced?.wholesale ?? 0,
+                category: "Variant",
+                details: [
+                  { label: "Model", value: `${variant.phoneModel.brand} ${variant.phoneModel.modelName}` },
+                  { label: "Variant", value: variant.variantName },
+                  ...specs,
+                  { label: "In stock", value: String(priced?.inStock ?? 0) },
+                ],
+              };
+            }),
           ]}
           action={createQuotation}
         />
       </Card>
 
-      <ListControls search={search} filter={status} view={view} filterLabel="All statuses" filterOptions={["Draft", "Converted"].map((value) => ({ label: value, value }))} placeholder="Search quote number or customer" />
+      <ListControls search={search} filter={status} view={view} filterLabel="All statuses" filterOptions={["Draft", "Converted"].map((value) => ({ label: value, value }))} filter3={quoteType} filter3Label="Retail & Wholesale" filterOptions3={["Retail", "Wholesale"].map((value) => ({ label: value, value }))} placeholder="Search quote number or customer" />
 
       {view === "grid" ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {quotations.map((q) =><Card key={q.id}><p className="font-semibold text-slate-900">{q.quoteNumber}</p><p className="mt-1 text-sm text-slate-700">{q.customer?.name || "Walk-in"}</p><p className="text-sm text-slate-700">Valid until {q.validUntil ? q.validUntil.toISOString().slice(0, 10) : "-"}</p><p className="mt-3 text-lg font-semibold text-slate-900">{formatMoney(Number(q.totalAmount))}</p><p className="text-sm text-slate-700">{q.status}</p><div className="mt-3 flex flex-wrap gap-2"><Link href={`/quotations/${q.id}`} className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">View</Link>{q.status !== "Converted" ? <form action={convertQuotationToSale}><input type="hidden" name="quotationId" value={q.id} /><button className="rounded-lg bg-slate-900 px-3 py-1 text-sm text-white">Convert</button></form> : q.convertedSale ? <Link href={`/sales/${q.convertedSale.id}`} className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">View Sale {q.convertedSale.saleNumber}</Link> : null}</div></Card>)}
+          {quotations.map((q) =><Card key={q.id}><p className="font-semibold text-slate-900">{q.quoteNumber}</p><p className="mt-1 text-sm text-slate-700">{q.customer?.name || "Walk-in"}</p><p className="text-sm text-slate-700">Valid until {q.validUntil ? q.validUntil.toISOString().slice(0, 10) : "-"}</p><p className="mt-3 text-lg font-semibold text-slate-900">{formatMoney(Number(q.totalAmount))}</p><p className="text-sm text-slate-700">{q.status}</p><span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${q.saleType === "Wholesale" ? "bg-purple-100 text-purple-800" : "bg-slate-100 text-slate-700"}`}>{q.saleType}</span><div className="mt-3 flex flex-wrap gap-2"><Link href={`/quotations/${q.id}`} className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">View</Link>{q.status !== "Converted" ? <form action={convertQuotationToSale}><input type="hidden" name="quotationId" value={q.id} /><button className="rounded-lg bg-slate-900 px-3 py-1 text-sm text-white">Convert</button></form> : q.convertedSale ? <Link href={`/sales/${q.convertedSale.id}`} className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">View Sale {q.convertedSale.saleNumber}</Link> : null}</div></Card>)}
         </div>
       ) : (
       <Card>
@@ -184,6 +245,7 @@ export default async function QuotationsPage({ searchParams }: { searchParams: {
               <tr className="border-b border-slate-300 text-left text-slate-700">
                 <th className="px-2 py-2">Quote #</th>
                 <th className="px-2 py-2">Customer</th>
+                <th className="px-2 py-2">Type</th>
                 <th className="px-2 py-2">Valid Until</th>
                 <th className="px-2 py-2">Total</th>
                 <th className="px-2 py-2">Status</th>
@@ -196,6 +258,7 @@ export default async function QuotationsPage({ searchParams }: { searchParams: {
                 <tr key={q.id} className="border-b border-slate-200">
                   <td className="px-2 py-2">{q.quoteNumber}</td>
                   <td className="px-2 py-2">{q.customer?.name || "Walk-in"}</td>
+                  <td className="px-2 py-2"><span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${q.saleType === "Wholesale" ? "bg-purple-100 text-purple-800" : "bg-slate-100 text-slate-700"}`}>{q.saleType}</span></td>
                   <td className="px-2 py-2">{q.validUntil ? q.validUntil.toISOString().slice(0, 10) : "-"}</td>
                   <td className="px-2 py-2">{formatMoney(Number(q.totalAmount))}</td>
                   <td className="px-2 py-2">{q.status}</td>
@@ -221,7 +284,7 @@ export default async function QuotationsPage({ searchParams }: { searchParams: {
         </div>
       </Card>
       )}
-      <Pagination page={page} pageSize={pageSize} total={total} query={{ ...(search ? { search } : {}), ...(status ? { filter: status } : {}), view }} />
+      <Pagination page={page} pageSize={pageSize} total={total} query={{ ...(search ? { search } : {}), ...(status ? { filter: status } : {}), ...(quoteType ? { filter3: quoteType } : {}), view }} />
     </div>
   );
 }

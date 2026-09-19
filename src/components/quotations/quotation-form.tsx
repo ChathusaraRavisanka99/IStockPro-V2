@@ -2,21 +2,21 @@
 
 import { useMemo, useState } from "react";
 import { SearchableSelect, type QuickAdd } from "@/components/ui/searchable-select";
-import { CartBuilder, type CartLine } from "@/components/ui/cart-builder";
+import { CartBuilder, repriceLines, type CartLine, type CartItemOption } from "@/components/ui/cart-builder";
+import { SaleTypeToggle } from "@/components/ui/sale-type-toggle";
 import { formatMoney } from "@/lib/currency";
 
 type Option = { value: string; label: string };
-type ItemOption = { value: string; label: string; price: number; category?: string };
-
 type Props = {
   customers: Option[];
   customerQuickAdd: QuickAdd;
-  items: ItemOption[];
+  items: CartItemOption[];
   action: (formData: FormData) => void | Promise<void>;
 };
 
 export function QuotationForm({ customers, customerQuickAdd, items, action }: Props) {
   const [lines, setLines] = useState<CartLine[]>([]);
+  const [quoteType, setQuoteType] = useState<"Retail" | "Wholesale">("Retail");
   const [taxMode, setTaxMode] = useState<"Percent" | "Amount">("Percent");
   const [taxValue, setTaxValue] = useState("0");
   const [handlingFee, setHandlingFee] = useState("0");
@@ -34,7 +34,16 @@ export function QuotationForm({ customers, customerQuickAdd, items, action }: Pr
           <input name="customerPhone" placeholder="Customer phone (optional)" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
         </div>
         <input name="customerEmail" type="email" placeholder="Customer email (optional)" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
-        <CartBuilder items={items} lines={lines} onChange={setLines} />
+        <SaleTypeToggle
+          label="Quotation type"
+          name="saleType"
+          value={quoteType}
+          onChange={(next) => {
+            setLines((current) => repriceLines(current, items, quoteType, next));
+            setQuoteType(next);
+          }}
+        />
+        <CartBuilder items={items} lines={lines} onChange={setLines} priceMode={quoteType} />
         <input name="notes" placeholder="Notes for this quotation (e.g. delivery preferences, special terms)" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
       </div>
       <div className="grid content-start gap-3 rounded-xl border border-slate-200 p-4">

@@ -2,10 +2,36 @@
 
 import { useState } from "react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { ItemAddDialog } from "@/components/ui/item-add-dialog";
 import { formatMoney } from "@/lib/currency";
 
 export type CartLine = { key: string; label: string; unitPrice: number; quantity: number; maxQuantity?: number; notes?: string | null };
-type ItemOption = { value: string; label: string; price: number; wholesalePrice?: number; maxQuantity?: number; notes?: string | null; category?: string };
+export type CartItemOption = {
+  value: string;
+  label: string;
+  price: number;
+  wholesalePrice?: number;
+  maxQuantity?: number;
+  notes?: string | null;
+  category?: string;
+  /** When present, picking Add opens a popup showing these details (plus prices) to confirm first. */
+  details?: { label: string; value: string }[];
+};
+type ItemOption = CartItemOption;
+
+export function priceForMode(option: { price: number; wholesalePrice?: number }, mode: "Retail" | "Wholesale") {
+  return mode === "Wholesale" && option.wholesalePrice !== undefined ? option.wholesalePrice : option.price;
+}
+
+/** Re-prices cart lines for a new Retail/Wholesale mode. A line whose price was manually
+ * edited (i.e. no longer equals the old mode's price) is left alone. */
+export function repriceLines(lines: CartLine[], items: ItemOption[], from: "Retail" | "Wholesale", to: "Retail" | "Wholesale"): CartLine[] {
+  return lines.map((line) => {
+    const item = items.find((option) => option.value === line.key);
+    if (!item || line.unitPrice !== priceForMode(item, from)) return line;
+    return { ...line, unitPrice: priceForMode(item, to) };
+  });
+}
 
 type Props = {
   items: ItemOption[];
@@ -19,12 +45,13 @@ type Props = {
 };
 
 export function CartBuilder({ items, lines, onChange, fieldName = "cartItems", showNotes = false, priceMode = "Retail" }: Props) {
-  const priceFor = (option: ItemOption) => (priceMode === "Wholesale" && option.wholesalePrice !== undefined ? option.wholesalePrice : option.price);
+  const priceFor = (option: ItemOption) => priceForMode(option, priceMode);
 
   const [pickerKey, setPickerKey] = useState("");
   const [pickerQty, setPickerQty] = useState("1");
   const [pickerResetCount, setPickerResetCount] = useState(0);
   const [activeCategory, setActiveCategory] = useState("All");
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const categories = ["All", ...Array.from(new Set(items.map((item) => item.category).filter((value): value is string => Boolean(value))))];
   const visibleItems = activeCategory === "All" ? items : items.filter((item) => item.category === activeCategory);
@@ -33,7 +60,15 @@ export function CartBuilder({ items, lines, onChange, fieldName = "cartItems", s
   const pickerAlreadyInCart = lines.find((line) => line.key === pickerKey)?.quantity ?? 0;
   const pickerRemaining = pickerItem?.maxQuantity !== undefined ? Math.max(0, pickerItem.maxQuantity - pickerAlreadyInCart) : undefined;
 
+  function requestAdd() {
+    const item = items.find((option) => option.value === pickerKey);
+    if (!item) return;
+    if (item.details) setDialogOpen(true);
+    else addToCart();
+  }
+
   function addToCart() {
+    setDialogOpen(false);
     const item = items.find((option) => option.value === pickerKey);
     if (!item) return;
     const existingIndex = lines.findIndex((line) => line.key === item.value);
@@ -114,10 +149,26 @@ export function CartBuilder({ items, lines, onChange, fieldName = "cartItems", s
           aria-label="Quantity to add"
           className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 sm:w-24"
         />
-        <button type="button" onClick={addToCart} disabled={!pickerKey || pickerRemaining === 0} className="shrink-0 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50">
+        <button type="button" onClick={requestAdd} disabled={!pickerKey || pickerRemaining === 0} className="shrink-0 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50">
           Add
         </button>
       </div>
+
+      {dialogOpen && pickerItem?.details ? (
+        <ItemAddDialog
+          name={pickerItem.label}
+          details={pickerItem.details}
+          retailPrice={pickerItem.price}
+          wholesalePrice={pickerItem.wholesalePrice}
+          priceMode={priceMode}
+          quantity={pickerQty}
+          onQuantityChange={setPickerQty}
+          remaining={pickerRemaining}
+          notes={showNotes ? pickerItem.notes : null}
+          onConfirm={addToCart}
+          onCancel={() => setDialogOpen(false)}
+        />
+      ) : null}
 
       {showNotes && pickerItem?.notes ? (
         <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
