@@ -389,6 +389,7 @@ model Quotation {
   customerEmail   String?
   customerPhone   String?
   quoteDate       DateTime  @default(now())
+  saleType        SaleType  @default(Retail)
   validUntil      DateTime?
   taxType         TaxType   @default(Percent)
   taxPercent      Decimal   @default(0)

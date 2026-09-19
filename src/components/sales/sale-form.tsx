@@ -2,16 +2,16 @@
 
 import { useMemo, useState } from "react";
 import { SearchableSelect, type QuickAdd } from "@/components/ui/searchable-select";
-import { CartBuilder, type CartLine } from "@/components/ui/cart-builder";
+import { CartBuilder, repriceLines, type CartLine, type CartItemOption } from "@/components/ui/cart-builder";
+import { SaleTypeToggle } from "@/components/ui/sale-type-toggle";
 import { formatMoney } from "@/lib/currency";
 
 type Option = { value: string; label: string };
-type ItemOption = { value: string; label: string; price: number; wholesalePrice?: number; maxQuantity?: number; notes?: string | null; category?: string };
 
 type Props = {
   customers: Option[];
   customerQuickAdd: QuickAdd;
-  items: ItemOption[];
+  items: CartItemOption[];
   action: (formData: FormData) => void | Promise<void>;
 };
 
@@ -32,19 +32,15 @@ export function SaleForm({ customers, customerQuickAdd, items, action }: Props) 
       <div className="grid content-start gap-3">
         <SearchableSelect name="customerId" placeholder="Walk-in customer" options={customers} quickAdd={customerQuickAdd} />
 
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-700">Sale type</span>
-          <input type="hidden" name="saleType" value={saleType} />
-          <div className="flex overflow-hidden rounded-lg border border-slate-300 text-sm">
-            <button type="button" onClick={() => setSaleType("Retail")} className={`px-3 py-1.5 ${saleType === "Retail" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
-              Retail
-            </button>
-            <button type="button" onClick={() => setSaleType("Wholesale")} className={`px-3 py-1.5 ${saleType === "Wholesale" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
-              Wholesale
-            </button>
-          </div>
-        </div>
-        <p className="-mt-1 text-xs text-slate-500">Items added below are priced at {saleType.toLowerCase()} price; you can still edit any line&apos;s price manually.</p>
+        <SaleTypeToggle
+          label="Sale type"
+          name="saleType"
+          value={saleType}
+          onChange={(next) => {
+            setLines((current) => repriceLines(current, items, saleType, next));
+            setSaleType(next);
+          }}
+        />
 
         <CartBuilder items={items} lines={lines} onChange={setLines} showNotes priceMode={saleType} />
       </div>
