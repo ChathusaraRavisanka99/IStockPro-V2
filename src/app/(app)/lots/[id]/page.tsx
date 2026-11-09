@@ -21,6 +21,9 @@ import { CostRow } from "@/components/ui/cost-breakdown-modal";
 import { NoModalCell } from "@/components/ui/no-modal-cell";
 import { LotChargeEditor } from "@/components/items/lot-charge-editor";
 import type { ActionResult } from "@/components/ui/editable-row";
+import { PasswordConfirmDialog } from "@/components/ui/password-confirm-dialog";
+import { formatVariantSpecs } from "@/lib/format-item-name";
+import { softDeleteLot } from "@/lib/lots";
 
 function computeGoodsCost(phones: { purchasePrice: unknown }[], accessoryItems: { unitCost: unknown; quantity: number }[]) {
   return phones.reduce((sum, phone) => sum + Number(phone.purchasePrice), 0) + accessoryItems.reduce((sum, item) => sum + Number(item.unitCost) * item.quantity, 0);
@@ -379,6 +382,15 @@ export default async function LotDetailPage({ params }: { params: { id: string }
       if (!check.ok) return check;
     }
 
+    const existingPhone = await prisma.phone.findUnique({ where: { id }, select: { imei: true, lotId: true } });
+    if (!existingPhone || existingPhone.lotId !== params.id) return { ok: false, error: "Unit not found in this lot." };
+    const imei = String(formData.get("imei") ?? existingPhone.imei).trim();
+    if (!imei) return { ok: false, error: "IMEI can't be empty." };
+    if (imei !== existingPhone.imei) {
+      const clash = await prisma.phone.findFirst({ where: { imei: { equals: imei, mode: "insensitive" }, id: { not: id } }, select: { id: true } });
+      if (clash) return { ok: false, error: `IMEI ${imei} is already registered to another unit.` };
+    }
+
     const purchasePrice = Number(formData.get("purchasePrice") || 0);
     const wholesalePrice = Number(formData.get("wholesalePrice") || 0);
     const retailPrice = Number(formData.get("retailPrice") || 0);
@@ -389,7 +401,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
     const batteryHealthInput = String(formData.get("batteryHealth") || "");
     const batteryHealth = batteryHealthInput.trim() ? Math.max(0, Math.min(100, Number(batteryHealthInput))) : null;
 
-    const data: Prisma.PhoneUpdateInput = { purchasePrice, wholesalePrice, retailPrice, tagCost, batteryCost };
+    const data: Prisma.PhoneUpdateInput = { imei, purchasePrice, wholesalePrice, retailPrice, tagCost, batteryCost };
     if (currentLot?.status === "Cleared") {
       data.grade = grade;
       data.batteryHealth = batteryHealth;
@@ -399,6 +411,18 @@ export default async function LotDetailPage({ params }: { params: { id: string }
 
     revalidatePath(`/lots/${params.id}`);
     revalidatePath("/items/phones");
+    return { ok: true };
+  }
+
+  async function deleteLot(formData: FormData): Promise<ActionResult> {
+    "use server";
+    const check = await checkReauth(formData);
+    if (!check.ok) return check;
+    const result = await softDeleteLot(params.id);
+    if (!result.ok) return result;
+    revalidatePath("/lots");
+    revalidatePath("/items/phones");
+    revalidatePath("/dashboard");
     return { ok: true };
   }
 
@@ -503,8 +527,19 @@ export default async function LotDetailPage({ params }: { params: { id: string }
           </>
         }
       />
-      <div className="mb-4">
+      <div className="mb-4 flex items-center justify-between gap-2">
         <Link href="/lots" className="text-sm text-slate-700 underline">Back to Lots</Link>
+        <PasswordConfirmDialog
+          label="Delete lot"
+          title={`Delete lot ${lot.lotNumber}?`}
+          message="This removes the lot and archives all its units. It's kept for 30 days, then permanently deleted. Lots with sold units can't be deleted. Enter your password to confirm."
+          username={username}
+          fields={{ id: lot.id }}
+          action={deleteLot}
+          confirmLabel="Delete lot"
+          redirectTo="/lots"
+          buttonClassName="rounded-md border border-red-200 px-3 py-1 text-sm text-red-700"
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
@@ -738,7 +773,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
           {!canGrade ? " Phones aren't graded yet — grading opens up once this lot is Cleared." : ""}
         </p>
         <LotRegisterForm
-          variants={variants.map((variant) => ({ value: variant.id, label: `${variant.phoneModel.brand} ${variant.phoneModel.modelName} - ${variant.variantName}`, defaultTagCost: Number(variant.defaultTagCost), defaultBatteryCost: Number(variant.defaultBatteryCost) }))}
+          variants={variants.map((variant) => ({ value: variant.id, label: `${variant.phoneModel.brand} ${variant.phoneModel.modelName} - ${variant.variantName}${formatVariantSpecs(variant) ? ` (${formatVariantSpecs(variant)})` : ""}`, defaultTagCost: Number(variant.defaultTagCost), defaultBatteryCost: Number(variant.defaultBatteryCost) }))}
           existingImeis={allPhones.map((phone) => phone.imei)}
           showCost={showCost}
           allowGrading={canGrade}
@@ -774,7 +809,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
         <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
           Units in This Lot
           <InfoHelp size="sm" title="Units in This Lot">
-            Every phone registered to this lot. Grading only becomes available once the lot is Cleared. Editing a unit&apos;s cost after Collection has ended asks you to re-confirm your password first.
+            Every phone registered to this lot. Grading only becomes available once the lot is Cleared. Editing a unit&apos;s cost after Collection has ended asks you to re-confirm your password first. Changing an IMEI always asks you to re-type the new number to confirm.
           </InfoHelp>
         </h2>
         <p className="mb-3 text-sm text-slate-600">Click a row to see its cost and profit breakdown.</p>
@@ -810,7 +845,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
                     retailPrice: phone.retailPrice !== null ? Number(phone.retailPrice) : null,
                     tagCost: Number(phone.tagCost),
                     batteryCost: Number(phone.batteryCost),
-                    phoneVariant: { variantName: phone.phoneVariant.variantName, phoneModel: { brand: phone.phoneVariant.phoneModel.brand, modelName: phone.phoneVariant.phoneModel.modelName } },
+                    phoneVariant: { variantName: phone.phoneVariant.variantName, specs: formatVariantSpecs(phone.phoneVariant), phoneModel: { brand: phone.phoneVariant.phoneModel.brand, modelName: phone.phoneVariant.phoneModel.modelName } },
                     expenses: expensesByPhone.get(phone.id) ?? [],
                   }}
                   showCost={showCost}

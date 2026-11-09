@@ -7,10 +7,18 @@ import { ListControls } from "@/components/ui/list-controls";
 import { Pagination } from "@/components/ui/pagination";
 import { parsePage, parsePageSize } from "@/lib/pagination";
 import { formatMoney } from "@/lib/currency";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { checkReauth } from "@/lib/reauth";
+import { PasswordConfirmDialog } from "@/components/ui/password-confirm-dialog";
+import { CustomerEditDialog } from "@/components/customers/customer-edit-dialog";
+import type { ActionResult } from "@/components/ui/editable-row";
 
 type Props = { searchParams: { search?: string; view?: "list" | "grid"; page?: string; pageSize?: string } };
 
 export default async function CustomersPage({ searchParams }: Props) {
+  const session = await getServerSession(authOptions);
+  const username = session?.user?.username;
   const search = searchParams.search?.trim() || "";
   const view = searchParams.view === "grid" ? "grid" : "list";
   const page = parsePage(searchParams.page);
@@ -45,35 +53,40 @@ export default async function CustomersPage({ searchParams }: Props) {
     revalidatePath("/customers");
   }
 
-  async function replaceCustomer(formData: FormData) {
+  async function updateCustomer(formData: FormData): Promise<ActionResult> {
     "use server";
 
     const id = String(formData.get("id") || "");
     const name = String(formData.get("name") || "").trim();
-    if (!id || !name) return;
-    const customer = await prisma.customer.findUnique({ where: { id } });
-    if (!customer || customer.deletedAt) return;
+    if (!id || !name) return { ok: false, error: "Name is required." };
+    const customer = await prisma.customer.findUnique({ where: { id }, select: { deletedAt: true } });
+    if (!customer || customer.deletedAt) return { ok: false, error: "Customer not found." };
 
-    await prisma.$transaction([
-      prisma.customer.update({ where: { id }, data: { deletedAt: new Date() } }),
-      prisma.customer.create({
-        data: {
-          name,
-          phone: String(formData.get("phone") || "").trim() || null,
-          email: String(formData.get("email") || "").trim() || null,
-          address: String(formData.get("address") || "").trim() || null,
-        },
-      }),
-    ]);
+    await prisma.customer.update({
+      where: { id },
+      data: {
+        name,
+        phone: String(formData.get("phone") || "").trim() || null,
+        email: String(formData.get("email") || "").trim() || null,
+        address: String(formData.get("address") || "").trim() || null,
+      },
+    });
     revalidatePath("/customers");
+    revalidatePath(`/customers/${id}`);
+    return { ok: true };
   }
 
-  async function deleteCustomer(formData: FormData) {
+  async function deleteCustomer(formData: FormData): Promise<ActionResult> {
     "use server";
+    const check = await checkReauth(formData);
+    if (!check.ok) return check;
     const id = String(formData.get("id") || "");
-    if (!id) return;
+    if (!id) return { ok: false, error: "Missing customer." };
+    // Soft delete: past sales keep their customer; the record is purged after 30 days
+    // only if nothing references it any more (see src/lib/purge.ts).
     await prisma.customer.update({ where: { id }, data: { deletedAt: new Date() } });
     revalidatePath("/customers");
+    return { ok: true };
   }
 
   return (
@@ -84,8 +97,8 @@ export default async function CustomersPage({ searchParams }: Props) {
         help={
           <p>
             Add a customer here to keep their contact details on file and track their lifetime spend. Open a customer to
-            see their full purchase history. Archiving a customer removes them from this list without deleting their past
-            sales records.
+            see their full purchase history. Edit a customer to update their details. Deleting one asks for your password, removes them from this
+            list without touching their past sales, and permanently deletes the record after 30 days.
           </p>
         }
       />
@@ -112,8 +125,16 @@ export default async function CustomersPage({ searchParams }: Props) {
                 <p className="text-sm text-slate-700">{customer.email || "No email"}</p>
                 <p className="mt-3 text-sm text-slate-700">{customer.sales.length} sales | {formatMoney(lifetimeValue)}</p>
                 <div className="mt-3 flex gap-2">
-                  <form action={deleteCustomer}><input type="hidden" name="id" value={customer.id} /><button className="rounded-lg border border-red-200 px-3 py-1 text-sm text-red-700">Archive</button></form>
-                  <form action={replaceCustomer}><input type="hidden" name="id" value={customer.id} /><input type="hidden" name="name" value={customer.name} /><input type="hidden" name="phone" value={customer.phone || ""} /><input type="hidden" name="email" value={customer.email || ""} /><input type="hidden" name="address" value={customer.address || ""} /><button className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-700">Save Copy</button></form>
+                  <CustomerEditDialog customer={{ id: customer.id, name: customer.name, phone: customer.phone, email: customer.email, address: customer.address }} action={updateCustomer} buttonClassName="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-700" />
+                  <PasswordConfirmDialog
+                    label="Delete"
+                    title={`Delete ${customer.name}?`}
+                    message="The customer is removed from this list; their past sales stay intact. It's permanently deleted after 30 days. Enter your password to confirm."
+                    username={username}
+                    fields={{ id: customer.id }}
+                    action={deleteCustomer}
+                    buttonClassName="rounded-lg border border-red-200 px-3 py-1 text-sm text-red-700"
+                  />
                 </div>
               </Card>
             );
@@ -141,7 +162,19 @@ export default async function CustomersPage({ searchParams }: Props) {
                     <td className="px-2 py-2">{customer.phone || "-"}</td>
                     <td className="px-2 py-2">{customer.sales.length}</td>
                     <td className="px-2 py-2">{formatMoney(lifetimeValue)}</td>
-                    <td className="px-2 py-2"><form action={deleteCustomer}><input type="hidden" name="id" value={customer.id} /><button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Archive</button></form></td>
+                    <td className="px-2 py-2">
+                      <div className="flex gap-2">
+                  <CustomerEditDialog customer={{ id: customer.id, name: customer.name, phone: customer.phone, email: customer.email, address: customer.address }} action={updateCustomer} />
+                  <PasswordConfirmDialog
+                    label="Delete"
+                    title={`Delete ${customer.name}?`}
+                    message="The customer is removed from this list; their past sales stay intact. It's permanently deleted after 30 days. Enter your password to confirm."
+                    username={username}
+                    fields={{ id: customer.id }}
+                    action={deleteCustomer}
+                  />
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
