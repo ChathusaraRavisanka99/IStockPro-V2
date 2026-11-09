@@ -13,6 +13,11 @@ import { Pagination } from "@/components/ui/pagination";
 import { parsePage, parsePageSize } from "@/lib/pagination";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { formatMoney } from "@/lib/currency";
+import { checkReauth } from "@/lib/reauth";
+import { softDeleteLot } from "@/lib/lots";
+import { PasswordConfirmDialog } from "@/components/ui/password-confirm-dialog";
+import { LotFxConverter, LotFxAmount, LotFxHeader } from "@/components/items/lot-fx-converter";
+import type { ActionResult } from "@/components/ui/editable-row";
 
 type Props = {
   searchParams?: {
@@ -29,6 +34,7 @@ type Props = {
 export default async function LotsPage({ searchParams }: Props) {
   const session = await getServerSession(authOptions);
   const showCost = canViewCost(session?.user?.role as "admin" | "manager" | "staff" | undefined);
+  const username = session?.user?.username;
   const imeiQuery = searchParams?.imei?.trim();
   const search = searchParams?.search?.trim() || "";
   const view = searchParams?.view === "grid" ? "grid" : "list";
@@ -59,12 +65,14 @@ export default async function LotsPage({ searchParams }: Props) {
       include: {
         supplier: true,
         phones: {
+          where: { deletedAt: null },
           select: {
             id: true,
             imei: true,
             purchasePrice: true,
           },
         },
+        accessoryItems: { select: { unitCost: true, quantity: true } },
       },
     }),
     prisma.lot.count({ where: lotWhere }),
@@ -104,6 +112,35 @@ export default async function LotsPage({ searchParams }: Props) {
     revalidatePath("/lots");
     redirect(`/lots/${lot.id}`);
   }
+
+  async function deleteLot(formData: FormData): Promise<ActionResult> {
+    "use server";
+    const check = await checkReauth(formData);
+    if (!check.ok) return check;
+    const result = await softDeleteLot(String(formData.get("id") || ""));
+    if (!result.ok) return result;
+    revalidatePath("/lots");
+    revalidatePath("/items/phones");
+    revalidatePath("/dashboard");
+    return { ok: true };
+  }
+
+  const lotTotalCost = (lot: (typeof lots)[number]) =>
+    Number(lot.shippingCost) + Number(lot.taxCost) + Number(lot.customsCost) + Number(lot.otherCost) +
+    lot.phones.reduce((sum, phone) => sum + Number(phone.purchasePrice), 0) +
+    lot.accessoryItems.reduce((sum, item) => sum + Number(item.unitCost) * item.quantity, 0);
+
+  const deleteButton = (lot: (typeof lots)[number]) => (
+    <PasswordConfirmDialog
+      label="Delete"
+      title={`Delete lot ${lot.lotNumber}?`}
+      message="This removes the lot and archives all its units. It's kept for 30 days, then permanently deleted. Lots with sold units can't be deleted. Enter your password to confirm."
+      username={username}
+      fields={{ id: lot.id }}
+      action={deleteLot}
+      confirmLabel="Delete lot"
+    />
+  );
 
   async function createSupplierDependency(formData: FormData) {
     "use server";
@@ -195,6 +232,7 @@ export default async function LotsPage({ searchParams }: Props) {
 
       <ListControls search={search} view={view} placeholder="Search lot number or supplier" dateRange={{ from: fromDate, to: toDate }} />
 
+      <LotFxConverterSlot enabled={showCost}>
       {view === "grid" ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {lots.map((lot) => {
@@ -207,13 +245,20 @@ export default async function LotsPage({ searchParams }: Props) {
                 <p className="mt-1 text-sm text-slate-700">{lot.supplier.name}</p>
                 <p className="text-sm text-slate-700">{lot.purchaseDate.toISOString().slice(0, 10)}</p>
                 <p className="mt-3 text-sm text-slate-700">{units} unit{units === 1 ? "" : "s"}</p>
-                {showCost ? <p className="text-sm text-slate-700">Landed cost/unit: {formatMoney(landedPerUnit)}</p> : null}
+                {showCost ? (
+                  <>
+                    <p className="text-sm text-slate-700">Landed cost/unit: {formatMoney(landedPerUnit)}</p>
+                    <p className="text-sm text-slate-700">Total cost: {formatMoney(lotTotalCost(lot))}</p>
+                    <p className="text-sm text-slate-700">In foreign currency: <LotFxAmount lkr={lotTotalCost(lot)} /></p>
+                  </>
+                ) : null}
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${lot.status === "Cleared" ? "bg-sky-100 text-sky-800" : lot.status === "Shipped" ? "bg-indigo-100 text-indigo-800" : "bg-slate-200 text-slate-700"}`}>{lot.status}</span>
                   <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${lot.paymentStatus === "Paid" ? "bg-green-100 text-green-800" : lot.paymentStatus === "Partial" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"}`}>{lot.paymentStatus}</span>
                 </div>
-                <div>
-                  <Link href={`/lots/${lot.id}`} className="mt-3 inline-block rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">View</Link>
+                <div className="mt-3 flex items-center gap-2">
+                  <Link href={`/lots/${lot.id}`} className="inline-block rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">View</Link>
+                  {deleteButton(lot)}
                 </div>
               </Card>
             );
@@ -233,7 +278,9 @@ export default async function LotsPage({ searchParams }: Props) {
                 <th className="px-2 py-2">Status</th>
                 <th className="px-2 py-2">Payment</th>
                 {showCost ? <th className="px-2 py-2">Landed Cost/Unit</th> : null}
-                <th className="px-2 py-2">View</th>
+                {showCost ? <th className="px-2 py-2">Total Cost</th> : null}
+                {showCost ? <th className="px-2 py-2"><LotFxHeader /></th> : null}
+                <th className="px-2 py-2">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -254,13 +301,20 @@ export default async function LotsPage({ searchParams }: Props) {
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${lot.paymentStatus === "Paid" ? "bg-green-100 text-green-800" : lot.paymentStatus === "Partial" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"}`}>{lot.paymentStatus}</span>
                     </td>
                     {showCost ? <td className="px-2 py-2">{formatMoney(landedPerUnit)}</td> : null}
-                    <td className="px-2 py-2"><Link href={`/lots/${lot.id}`} className="text-slate-800 underline">View</Link></td>
+                    {showCost ? <td className="px-2 py-2">{formatMoney(lotTotalCost(lot))}</td> : null}
+                    {showCost ? <td className="px-2 py-2"><LotFxAmount lkr={lotTotalCost(lot)} /></td> : null}
+                    <td className="px-2 py-2">
+                      <div className="flex items-center gap-2">
+                        <Link href={`/lots/${lot.id}`} className="text-slate-800 underline">View</Link>
+                        {deleteButton(lot)}
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
               {!lots.length ? (
                 <tr>
-                  <td className="px-2 py-5 text-slate-600" colSpan={showCost ? 8 : 7}>
+                  <td className="px-2 py-5 text-slate-600" colSpan={showCost ? 10 : 7}>
                     No lots created yet.
                   </td>
                 </tr>
@@ -270,7 +324,12 @@ export default async function LotsPage({ searchParams }: Props) {
         </div>
       </Card>
       )}
+      </LotFxConverterSlot>
       <Pagination page={page} pageSize={pageSize} total={total} query={{ ...(search ? { search } : {}), ...(imeiQuery ? { imei: imeiQuery } : {}), ...(fromDate ? { from: fromDate } : {}), ...(toDate ? { to: toDate } : {}), view }} />
     </div>
   );
+}
+
+function LotFxConverterSlot({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
+  return enabled ? <LotFxConverter>{children}</LotFxConverter> : <>{children}</>;
 }

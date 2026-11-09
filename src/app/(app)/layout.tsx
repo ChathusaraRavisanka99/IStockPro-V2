@@ -5,6 +5,7 @@ import { AppNav } from "@/components/ui/app-nav";
 import { MobileNav } from "@/components/ui/mobile-nav";
 import { LogoutButton } from "@/components/ui/logout-button";
 import { authOptions } from "@/lib/auth";
+import { schedulePurgeIfDue } from "@/lib/purge";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!session?.user || session.error) {
     redirect("/login");
   }
+
+  // Permanently remove records soft-deleted 30+ days ago (throttled, runs in the background).
+  schedulePurgeIfDue();
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[280px_1fr]">

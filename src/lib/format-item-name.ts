@@ -17,3 +17,14 @@ export function formatSaleItemName(item: { phone?: PhoneNameParts | null; access
   }
   return "Line item";
 }
+
+/** "Black · 128GB · 8GB RAM" — the at-a-glance specs for a phone variant, skipping blanks. */
+export function formatVariantSpecs(variant: { color?: string | null; storage?: string | null; ram?: string | null }): string {
+  const withUnit = (value: string | null | undefined) => {
+    const trimmed = value?.trim();
+    if (!trimmed) return "";
+    return /^\d+(\.\d+)?$/.test(trimmed) ? `${trimmed}GB` : trimmed;
+  };
+  const ram = withUnit(variant.ram);
+  return [variant.color?.trim() || "", withUnit(variant.storage), ram ? `${ram} RAM` : ""].filter(Boolean).join(" · ");
+}
