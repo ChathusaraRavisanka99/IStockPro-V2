@@ -15,6 +15,7 @@ export const navItems: NavItem[] = [
     children: [
       { href: "/items/phones", label: "Phones" },
       { href: "/items/phone-catalog", label: "Phone Catalog" },
+      { href: "/items/phones/price-history", label: "Price History" },
       { href: "/items/chargers", label: "Chargers" },
       { href: "/items/cables", label: "Cables" },
       { href: "/items/handsfree", label: "Handsfree" },

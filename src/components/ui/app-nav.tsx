@@ -44,7 +44,9 @@ export function AppNav() {
               {itemsOpen ? (
                 <div className="ml-2 grid gap-1 pl-3">
                   {item.children.map((child) => {
-                    const childIsActive = pathname === child.href || pathname.startsWith(`${child.href}/`);
+                    // Most specific match wins, so /items/phones/price-history lights up only "Price History", not "Phones" too.
+                    const matches = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+                    const childIsActive = matches(child.href) && !item.children!.some((other) => other.href.length > child.href.length && matches(other.href));
 
                     return (
                       <Link

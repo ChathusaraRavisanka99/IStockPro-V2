@@ -24,6 +24,7 @@ import type { ActionResult } from "@/components/ui/editable-row";
 import { PasswordConfirmDialog } from "@/components/ui/password-confirm-dialog";
 import { formatVariantSpecs } from "@/lib/format-item-name";
 import { softDeleteLot } from "@/lib/lots";
+import { priceChangeLogs } from "@/lib/price-history";
 
 function computeGoodsCost(phones: { purchasePrice: unknown }[], accessoryItems: { unitCost: unknown; quantity: number }[]) {
   return phones.reduce((sum, phone) => sum + Number(phone.purchasePrice), 0) + accessoryItems.reduce((sum, item) => sum + Number(item.unitCost) * item.quantity, 0);
@@ -382,7 +383,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
       if (!check.ok) return check;
     }
 
-    const existingPhone = await prisma.phone.findUnique({ where: { id }, select: { imei: true, lotId: true } });
+    const existingPhone = await prisma.phone.findUnique({ where: { id }, select: { imei: true, lotId: true, retailPrice: true, wholesalePrice: true } });
     if (!existingPhone || existingPhone.lotId !== params.id) return { ok: false, error: "Unit not found in this lot." };
     const imei = String(formData.get("imei") ?? existingPhone.imei).trim();
     if (!imei) return { ok: false, error: "IMEI can't be empty." };
@@ -407,10 +408,13 @@ export default async function LotDetailPage({ params }: { params: { id: string }
       data.batteryHealth = batteryHealth;
     }
 
-    await prisma.phone.update({ where: { id }, data });
+    const actingUser = await getServerSession(authOptions);
+    const priceLogs = priceChangeLogs(id, actingUser?.user?.id, existingPhone, { retailPrice, wholesalePrice });
+    await prisma.$transaction([prisma.phone.update({ where: { id }, data }), ...(priceLogs.length ? [prisma.auditLog.createMany({ data: priceLogs })] : [])]);
 
     revalidatePath(`/lots/${params.id}`);
     revalidatePath("/items/phones");
+    revalidatePath("/items/phones/price-history");
     return { ok: true };
   }
 
