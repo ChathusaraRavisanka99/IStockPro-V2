@@ -23,6 +23,7 @@ export default async function DashboardPage() {
       where: { deletedAt: null },
       include: {
         variants: {
+          where: { deletedAt: null },
           include: {
             _count: {
               select: {

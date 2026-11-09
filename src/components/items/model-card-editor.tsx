@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEditableRow, type ActionResult } from "@/components/ui/editable-row";
+import { DeleteVariantButton } from "@/components/items/delete-variant-button";
 
 type Model = {
   id: string;
@@ -12,7 +13,15 @@ type Model = {
   variants: { id: string; variantName: string; _count: { phones: number } }[];
 };
 
-export function ModelCardEditor({ model, updateAction }: { model: Model; updateAction: (formData: FormData) => Promise<ActionResult> }) {
+export function ModelCardEditor({
+  model,
+  updateAction,
+  deleteVariantAction,
+}: {
+  model: Model;
+  updateAction: (formData: FormData) => Promise<ActionResult>;
+  deleteVariantAction: (formData: FormData) => Promise<ActionResult>;
+}) {
   const { editing, error, pending, open, cancel, handleSubmit } = useEditableRow(updateAction);
 
   return (
@@ -65,10 +74,11 @@ export function ModelCardEditor({ model, updateAction }: { model: Model; updateA
       )}
       <ul className="mt-2 space-y-1 text-sm text-slate-700">
         {model.variants.map((variant) => (
-          <li key={variant.id}>
+          <li key={variant.id} className="flex items-start justify-between gap-2">
             <Link href={`/items/phones/variants/${variant.id}`} className="underline hover:text-slate-900">
               {variant.variantName} - In stock: {variant._count.phones}
             </Link>
+            <DeleteVariantButton variantId={variant.id} variantName={variant.variantName} deleteAction={deleteVariantAction} />
           </li>
         ))}
         {!model.variants.length ? <li>No variants yet.</li> : null}

@@ -13,6 +13,8 @@ import { VariantSpecEditor } from "@/components/items/variant-spec-editor";
 import { CostRow } from "@/components/ui/cost-breakdown-modal";
 import { NoModalCell } from "@/components/ui/no-modal-cell";
 import type { ActionResult } from "@/components/ui/editable-row";
+import { deletePhoneVariant } from "@/lib/phone-variants";
+import { DeleteVariantButton } from "@/components/items/delete-variant-button";
 
 export default async function PhoneVariantDetailPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -26,7 +28,7 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
       phones: { where: { deletedAt: null }, orderBy: { createdAt: "desc" }, include: { lot: true } },
     },
   });
-  if (!variant) notFound();
+  if (!variant || variant.deletedAt) notFound();
 
   // Expenses (and the popup they feed) are cost-sensitive — only fetch for roles that
   // can already view cost, matching the Purchase Price column gating below.
@@ -69,6 +71,11 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
     return { ok: true };
   }
 
+  async function deleteVariant(formData: FormData): Promise<ActionResult> {
+    "use server";
+    return deletePhoneVariant(String(formData.get("id") || ""));
+  }
+
   const statusCounts = variant.phones.reduce<Record<string, number>>((acc, phone) => {
     acc[phone.status] = (acc[phone.status] || 0) + 1;
     return acc;
@@ -87,8 +94,15 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
           </p>
         }
       />
-      <div className="mb-4">
+      <div className="mb-4 flex items-start justify-between gap-2">
         <Link href="/items/phone-catalog" className="text-sm text-slate-700 underline">Back to Catalog</Link>
+        <DeleteVariantButton
+          variantId={variant.id}
+          variantName={variant.variantName}
+          deleteAction={deleteVariant}
+          redirectTo="/items/phones"
+          className="rounded-md border border-red-200 px-3 py-1 text-sm text-red-700 disabled:opacity-60"
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
