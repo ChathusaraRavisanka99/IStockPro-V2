@@ -16,6 +16,7 @@ import { ModelCardEditor } from "@/components/items/model-card-editor";
 import { CostRow, CostCard } from "@/components/ui/cost-breakdown-modal";
 import { NoModalCell, NoModalDiv } from "@/components/ui/no-modal-cell";
 import type { ActionResult } from "@/components/ui/editable-row";
+import { createOrRestorePhoneVariant, deletePhoneVariant } from "@/lib/phone-variants";
 
 type Props = { searchParams: { search?: string; filter?: string; view?: "list" | "grid"; page?: string; pageSize?: string } };
 
@@ -34,6 +35,8 @@ export default async function PhonesPage({ searchParams }: Props) {
       orderBy: [{ brand: "asc" }, { modelName: "asc" }],
       include: {
         variants: {
+          where: { deletedAt: null },
+          orderBy: { variantName: "asc" },
           include: {
             _count: {
               select: {
@@ -132,23 +135,14 @@ export default async function PhonesPage({ searchParams }: Props) {
 
     if (!phoneModelId || !variantName) return;
 
-    await prisma.phoneVariant.create({
-      data: {
-        phoneModelId,
-        variantName,
-        color,
-        storage,
-        ram,
-        screenSize,
-        processor,
-        camera,
-        os,
-        networkType,
-        battery,
-      },
-    });
+    await createOrRestorePhoneVariant({ phoneModelId, variantName, color, storage, ram, screenSize, processor, camera, os, networkType, battery });
 
     revalidatePath("/items/phones");
+  }
+
+  async function deleteVariant(formData: FormData): Promise<ActionResult> {
+    "use server";
+    return deletePhoneVariant(String(formData.get("id") || ""));
   }
 
   async function createPhoneUnit(formData: FormData) {
@@ -327,14 +321,14 @@ export default async function PhonesPage({ searchParams }: Props) {
           <h2 className="flex items-center gap-1.5 text-lg font-semibold">
             Models and In-Stock Counts
             <InfoHelp size="sm" title="Models and In-Stock Counts">
-              Every model you&apos;ve created, with its variants and how many units of each are currently in stock. Use Edit on a model to change its details, or click a variant to drill into its individual units.
+              Every model you&apos;ve created, with its variants and how many units of each are currently in stock. Use Edit on a model to change its details, click a variant to drill into its individual units, or Delete a variant you no longer need (only allowed once it has no active units).
             </InfoHelp>
           </h2>
           <Link href="/items/phone-catalog" className="text-sm text-slate-700 underline">View full catalog</Link>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           {models.map((model) => (
-            <ModelCardEditor key={model.id} model={model} updateAction={updateModel} />
+            <ModelCardEditor key={model.id} model={model} updateAction={updateModel} deleteVariantAction={deleteVariant} />
           ))}
           {!models.length ? <p className="text-sm text-slate-600">No models created yet.</p> : null}
         </div>

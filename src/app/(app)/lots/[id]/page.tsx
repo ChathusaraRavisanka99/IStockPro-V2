@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
+import { createOrRestorePhoneVariant } from "@/lib/phone-variants";
 import { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { canViewCost } from "@/lib/rbac";
@@ -138,9 +139,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
 
     if (!phoneModelId || !variantName) return;
 
-    await prisma.phoneVariant.create({
-      data: { phoneModelId, variantName, color, storage, ram, screenSize, processor, camera, os, networkType, battery },
-    });
+    await createOrRestorePhoneVariant({ phoneModelId, variantName, color, storage, ram, screenSize, processor, camera, os, networkType, battery });
 
     revalidatePath(`/lots/${params.id}`);
   }
