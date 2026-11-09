@@ -324,7 +324,10 @@ export default async function PhonesPage({ searchParams }: Props) {
               Every model you&apos;ve created, with its variants and how many units of each are currently in stock. Use Edit on a model to change its details, click a variant to drill into its individual units, or Delete a variant you no longer need (only allowed once it has no active units).
             </InfoHelp>
           </h2>
-          <Link href="/items/phone-catalog" className="text-sm text-slate-700 underline">View full catalog</Link>
+          <div className="flex gap-3">
+            <Link href="/items/phones/price-history" className="text-sm text-slate-700 underline">Price history</Link>
+            <Link href="/items/phone-catalog" className="text-sm text-slate-700 underline">View full catalog</Link>
+          </div>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           {models.map((model) => (
