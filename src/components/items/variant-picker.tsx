@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { createPortal } from "react-dom";
+import { Check, ChevronsUpDown, Plus, Search, Smartphone } from "lucide-react";
+import { Modal, modalButton, modalField } from "@/components/ui/modal";
 import { useRouter } from "next/navigation";
 import { SearchableSelect, type QuickAdd } from "@/components/ui/searchable-select";
 import { buildVariantName, compareSizes } from "@/lib/variant-specs";
@@ -184,137 +185,179 @@ export function VariantPicker({ variants, value, onChange, name, placeholder = "
   return (
     <>
       {name ? <input type="hidden" name={name} value={value} /> : null}
-      <button type="button" onClick={() => setOpen(true)} className={`${input} text-left ${selectedLabel ? "text-slate-900" : "text-slate-400"}`}>
-        {selectedLabel || placeholder}
+      <button type="button" onClick={() => setOpen(true)} className={`${input} flex items-center justify-between gap-2 text-left transition hover:border-slate-400 ${selectedLabel ? "text-slate-900" : "text-slate-400"}`}>
+        <span className="truncate">{selectedLabel || placeholder}</span>
+        <ChevronsUpDown className="size-4 shrink-0 text-slate-400" />
       </button>
-      {open && typeof document !== "undefined"
-        ? createPortal(
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setOpen(false)}>
-              <div role="dialog" aria-modal="true" className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
-                <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-5 py-3">
-                  <h3 className="text-base font-semibold text-slate-900">{creating ? "Create new variant" : "Select variant"}</h3>
-                  <button type="button" onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-700" aria-label="Close">
-                    ✕
-                  </button>
-                </div>
-
-                {creating && create ? (
-                  <div className="grid gap-3 overflow-y-auto px-5 py-4">
-                    <p className="text-xs text-slate-500">Storage, RAM and color are optional. Leave the name blank to build it from them.</p>
-                    <label className="grid gap-1 text-xs text-slate-700">
-                      Model
-                      <SearchableSelect
-                        placeholder="Select model"
-                        value={newVariant.phoneModelId}
-                        options={create.models.map((model) => ({ value: model.id, label: model.label }))}
-                        onChange={(next) => setNewVariant((current) => ({ ...current, phoneModelId: next }))}
-                        quickAdd={create.modelQuickAdd}
-                      />
-                    </label>
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <label className="grid gap-1 text-xs text-slate-700">
-                        Storage
-                        <input value={newVariant.storage} onChange={(event) => setNewVariant((current) => ({ ...current, storage: event.target.value }))} placeholder="e.g. 128GB" className={input} />
-                      </label>
-                      <label className="grid gap-1 text-xs text-slate-700">
-                        RAM
-                        <input value={newVariant.ram} onChange={(event) => setNewVariant((current) => ({ ...current, ram: event.target.value }))} placeholder="e.g. 6GB" className={input} />
-                      </label>
-                      <label className="grid gap-1 text-xs text-slate-700">
-                        Color
-                        <input value={newVariant.color} onChange={(event) => setNewVariant((current) => ({ ...current, color: event.target.value }))} placeholder="e.g. Midnight" className={input} />
-                      </label>
-                    </div>
-                    <label className="grid gap-1 text-xs text-slate-700">
-                      Variant name (optional)
-                      <input
-                        value={newVariant.variantName}
-                        onChange={(event) => setNewVariant((current) => ({ ...current, variantName: event.target.value }))}
-                        placeholder={buildVariantName({ storage: newVariant.storage || null, ram: newVariant.ram || null, color: newVariant.color || null })}
-                        className={input}
-                      />
-                    </label>
-                    {createError ? <p className="text-xs text-red-700">{createError}</p> : null}
-                    <div className="flex justify-end gap-2">
-                      <button type="button" onClick={() => setCreating(false)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700">
-                        Back
-                      </button>
-                      <button type="button" disabled={pending} onClick={submitCreate} className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm text-white disabled:opacity-60">
-                        {pending ? "Creating..." : "Create & select"}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="grid gap-2 border-b border-slate-200 px-5 py-3">
-                      <div className="flex flex-col gap-2 sm:flex-row">
-                        <input autoFocus value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Type to search, e.g. 13 pro 256 blue" className={input} />
-                        <select
-                          value={modelId}
-                          onChange={(event) => {
-                            setModelId(event.target.value);
-                            setStorage("");
-                            setRam("");
-                            setColor("");
-                          }}
-                          className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm sm:w-56"
-                        >
-                          <option value="">All models</option>
-                          {models.map((model) => (
-                            <option key={model.id} value={model.id}>
-                              {model.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <Chips label="Storage" options={storageOptions} value={storage} onChange={(next) => { setStorage(next); setRam(""); setColor(""); }} />
-                      <Chips label="RAM" options={ramOptions} value={ram} onChange={(next) => { setRam(next); setColor(""); }} />
-                      <Chips label="Color" options={colorOptions} value={color} onChange={setColor} />
-                      {hasStock ? (
-                        <label className="flex items-center gap-2 text-xs text-slate-600">
-                          <input type="checkbox" checked={inStockOnly} onChange={(event) => setInStockOnly(event.target.checked)} />
-                          In stock only
-                        </label>
-                      ) : null}
-                    </div>
-                    <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
-                      {Array.from(groups).map(([model, list]) => (
-                        <div key={model} className="mb-2">
-                          <p className="px-3 py-1 text-xs font-semibold uppercase text-slate-500">{model}</p>
-                          {list.map((variant) => (
-                            <button
-                              key={variant.id}
-                              type="button"
-                              onClick={() => choose(variant)}
-                              className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-100 ${variant.id === value ? "bg-slate-100" : ""}`}
-                            >
-                              <span className="min-w-0">
-                                <span className="font-medium text-slate-900">{variant.variantName}</span>
-                                <span className="mt-0.5 flex flex-wrap gap-1">
-                                  {variant.color ? <span className="rounded bg-rose-50 px-1.5 py-0.5 text-xs text-rose-800">{variant.color}</span> : null}
-                                  {variant.storage ? <span className="rounded bg-sky-50 px-1.5 py-0.5 text-xs text-sky-800">{variant.storage}</span> : null}
-                                  {variant.ram ? <span className="rounded bg-violet-50 px-1.5 py-0.5 text-xs text-violet-800">{variant.ram} RAM</span> : null}
-                                </span>
-                              </span>
-                              {variant.inStock !== undefined ? <span className="shrink-0 text-xs text-slate-500">{variant.inStock} in stock</span> : null}
-                            </button>
-                          ))}
-                        </div>
-                      ))}
-                      {!results.length ? <p className="px-3 py-4 text-center text-sm text-slate-500">No variants match.</p> : null}
-                      {create ? (
-                        <button type="button" onClick={startCreate} className="mt-1 w-full rounded-lg border border-dashed border-slate-300 px-3 py-2 text-left text-sm font-medium text-slate-800 hover:bg-slate-50">
-                          + Create new variant{storage || ram || color ? ` (${[storage, ram && `${ram} RAM`, color].filter(Boolean).join(" · ")})` : ""}
-                        </button>
-                      ) : null}
-                    </div>
-                  </>
-                )}
+      {open ? (
+        <Modal
+          title={creating ? "Create new variant" : "Select variant"}
+          subtitle={creating ? "Storage, RAM and color are optional — leave the name blank to build it from them" : `${results.length} of ${variants.length} variants`}
+          icon={creating ? <Plus className="size-4" /> : <Smartphone className="size-4" />}
+          size="lg"
+          flush={!creating}
+          busy={pending}
+          onClose={() => {
+            setOpen(false);
+            reset();
+          }}
+          footer={
+            creating && create ? (
+              <>
+                <button type="button" onClick={() => setCreating(false)} disabled={pending} className={modalButton.secondary}>
+                  Back to list
+                </button>
+                <button type="button" disabled={pending} onClick={submitCreate} className={modalButton.primary}>
+                  {pending ? "Creating..." : "Create & select"}
+                </button>
+              </>
+            ) : search || modelId || storage || ram || color || inStockOnly ? (
+              <button
+                type="button"
+                onClick={() => {
+                  reset();
+                  setInStockOnly(false);
+                }}
+                className={modalButton.secondary}
+              >
+                Clear filters
+              </button>
+            ) : undefined
+          }
+        >
+          {creating && create ? (
+            <div className="grid gap-3">
+              <label className={modalField.label}>
+                Model
+                <SearchableSelect
+                  placeholder="Select model"
+                  value={newVariant.phoneModelId}
+                  options={create.models.map((model) => ({ value: model.id, label: model.label }))}
+                  onChange={(next) => setNewVariant((current) => ({ ...current, phoneModelId: next }))}
+                  quickAdd={create.modelQuickAdd}
+                />
+              </label>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className={modalField.label}>
+                  Storage
+                  <input value={newVariant.storage} onChange={(event) => setNewVariant((current) => ({ ...current, storage: event.target.value }))} placeholder="e.g. 128GB" className={modalField.input} />
+                </label>
+                <label className={modalField.label}>
+                  RAM
+                  <input value={newVariant.ram} onChange={(event) => setNewVariant((current) => ({ ...current, ram: event.target.value }))} placeholder="e.g. 6GB" className={modalField.input} />
+                </label>
+                <label className={modalField.label}>
+                  Color
+                  <input value={newVariant.color} onChange={(event) => setNewVariant((current) => ({ ...current, color: event.target.value }))} placeholder="e.g. Midnight" className={modalField.input} />
+                </label>
               </div>
-            </div>,
-            document.body
-          )
-        : null}
+              <label className={modalField.label}>
+                Variant name (optional)
+                <input
+                  value={newVariant.variantName}
+                  onChange={(event) => setNewVariant((current) => ({ ...current, variantName: event.target.value }))}
+                  placeholder={buildVariantName({ storage: newVariant.storage || null, ram: newVariant.ram || null, color: newVariant.color || null })}
+                  className={modalField.input}
+                />
+              </label>
+              <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                Will be saved as{" "}
+                <span className="font-medium text-slate-900">
+                  {newVariant.variantName.trim() || buildVariantName({ storage: newVariant.storage || null, ram: newVariant.ram || null, color: newVariant.color || null })}
+                </span>
+              </p>
+              {createError ? <p className="text-xs text-red-700">{createError}</p> : null}
+            </div>
+          ) : (
+            <>
+              <div className="sticky top-0 z-10 grid gap-2 border-b border-slate-100 bg-white px-5 py-3">
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <div className="relative min-w-0 flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      data-autofocus
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && results.length) {
+                          event.preventDefault();
+                          choose(results[0]);
+                        }
+                      }}
+                      placeholder="Type to search, e.g. 13 pro 256 blue"
+                      className={`${modalField.input} pl-9`}
+                    />
+                  </div>
+                  <select
+                    value={modelId}
+                    onChange={(event) => {
+                      setModelId(event.target.value);
+                      setStorage("");
+                      setRam("");
+                      setColor("");
+                    }}
+                    className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm sm:w-56"
+                  >
+                    <option value="">All models</option>
+                    {models.map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <Chips label="Storage" options={storageOptions} value={storage} onChange={(next) => { setStorage(next); setRam(""); setColor(""); }} />
+                <Chips label="RAM" options={ramOptions} value={ram} onChange={(next) => { setRam(next); setColor(""); }} />
+                <Chips label="Color" options={colorOptions} value={color} onChange={setColor} />
+                {hasStock ? (
+                  <label className="flex items-center gap-2 text-xs text-slate-600">
+                    <input type="checkbox" checked={inStockOnly} onChange={(event) => setInStockOnly(event.target.checked)} />
+                    In stock only
+                  </label>
+                ) : null}
+              </div>
+              <div className="px-2 py-2">
+                {Array.from(groups).map(([model, list]) => (
+                  <div key={model} className="mb-2">
+                    <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{model}</p>
+                    {list.map((variant) => (
+                      <button
+                        key={variant.id}
+                        type="button"
+                        onClick={() => choose(variant)}
+                        className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition hover:bg-slate-100 ${variant.id === value ? "bg-slate-100 ring-1 ring-slate-300" : ""}`}
+                      >
+                        <span className="min-w-0">
+                          <span className="font-medium text-slate-900">{variant.variantName}</span>
+                          {search && results[0]?.id === variant.id ? <span className="ml-2 text-[10px] uppercase text-slate-400">Enter ↵</span> : null}
+                          <span className="mt-0.5 flex flex-wrap gap-1">
+                            {variant.color ? <span className="rounded bg-rose-50 px-1.5 py-0.5 text-xs text-rose-800">{variant.color}</span> : null}
+                            {variant.storage ? <span className="rounded bg-sky-50 px-1.5 py-0.5 text-xs text-sky-800">{variant.storage}</span> : null}
+                            {variant.ram ? <span className="rounded bg-violet-50 px-1.5 py-0.5 text-xs text-violet-800">{variant.ram} RAM</span> : null}
+                          </span>
+                        </span>
+                        <span className="flex shrink-0 items-center gap-2">
+                          {variant.inStock !== undefined ? (
+                            <span className={`rounded-full px-2 py-0.5 text-xs ${variant.inStock ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-500"}`}>{variant.inStock} in stock</span>
+                          ) : null}
+                          {variant.id === value ? <Check className="size-4 text-slate-700" /> : null}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ))}
+                {!results.length ? <p className="px-3 py-6 text-center text-sm text-slate-500">No variants match these filters.</p> : null}
+                {create ? (
+                  <button type="button" onClick={startCreate} className="mt-1 flex w-full items-center gap-2 rounded-lg border border-dashed border-slate-300 px-3 py-2.5 text-left text-sm font-medium text-slate-800 transition hover:border-slate-400 hover:bg-slate-50">
+                    <Plus className="size-4" />
+                    Create new variant{storage || ram || color ? ` (${[storage, ram && `${ram} RAM`, color].filter(Boolean).join(" · ")})` : ""}
+                  </button>
+                ) : null}
+              </div>
+            </>
+          )}
+        </Modal>
+      ) : null}
     </>
   );
 }

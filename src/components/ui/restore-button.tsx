@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Modal, modalButton } from "@/components/ui/modal";
 import type { RestoreIssue, RestoreResult } from "@/lib/recycle-bin";
 
 export function RestoreIssueList({ issues }: { issues: RestoreIssue[] }) {
@@ -13,7 +14,7 @@ export function RestoreIssueList({ issues }: { issues: RestoreIssue[] }) {
       {issues.map((issue, index) => (
         <li
           key={index}
-          className={`rounded-lg border px-2.5 py-1.5 text-xs ${issue.level === "block" ? "border-red-200 bg-red-50 text-red-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}
+          className={`rounded-lg border px-2.5 py-1.5 text-xs leading-relaxed ${issue.level === "block" ? "border-red-200 bg-red-50 text-red-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}
         >
           <span className="font-semibold">{issue.level === "block" ? "Blocked: " : "Note: "}</span>
           {issue.message}
@@ -58,25 +59,22 @@ export function RestoreButton({ kind, id, label, action }: { kind: string; id: s
       <button type="button" onClick={onClick} disabled={pending} className="rounded-md border border-emerald-300 px-2 py-1 text-xs text-emerald-800 disabled:opacity-60">
         {pending ? "Restoring..." : "Restore"}
       </button>
-      {report && typeof document !== "undefined"
-        ? createPortal(
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setReport(null)}>
-              <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
-                <h3 className={`text-base font-semibold ${report.ok ? "text-slate-900" : "text-red-800"}`}>{report.ok ? "Restored" : "Can't restore"}: {label}</h3>
-                <p className="mt-1 text-sm text-slate-600">{report.title}</p>
-                <div className="mt-3">
-                  <RestoreIssueList issues={report.issues} />
-                </div>
-                <div className="mt-4 flex justify-end">
-                  <button type="button" onClick={() => setReport(null)} className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm text-white">
-                    OK
-                  </button>
-                </div>
-              </div>
-            </div>,
-            document.body
-          )
-        : null}
+      {report ? (
+        <Modal
+          title={`${report.ok ? "Restored" : "Can't restore"}: ${label}`}
+          subtitle={report.title}
+          icon={report.ok ? <CheckCircle2 className="size-5" /> : <AlertTriangle className="size-5" />}
+          tone={report.ok ? "default" : "danger"}
+          onClose={() => setReport(null)}
+          footer={
+            <button type="button" data-autofocus onClick={() => setReport(null)} className={modalButton.primary}>
+              OK
+            </button>
+          }
+        >
+          <RestoreIssueList issues={report.issues} />
+        </Modal>
+      ) : null}
     </>
   );
 }
