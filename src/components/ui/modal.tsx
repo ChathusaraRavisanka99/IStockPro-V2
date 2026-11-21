@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
@@ -39,7 +39,10 @@ export function Modal({ title, subtitle, icon, tone = "default", size = "md", on
   const [closing, setClosing] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const idRef = useRef(Symbol("modal"));
-  const titleId = useRef(`modal-title-${Math.random().toString(36).slice(2)}`).current;
+  const titleId = useId();
+  // Portals need document; render only after mount so server and client HTML always match.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const busyRef = useRef(busy);
   busyRef.current = busy;
 
@@ -50,6 +53,7 @@ export function Modal({ title, subtitle, icon, tone = "default", size = "md", on
   }, [onClose]);
 
   useEffect(() => {
+    if (!mounted) return;
     const id = idRef.current;
     const previouslyFocused = document.activeElement as HTMLElement | null;
     openStack.push(id);
@@ -91,9 +95,9 @@ export function Modal({ title, subtitle, icon, tone = "default", size = "md", on
       if (!openStack.length) document.body.style.overflow = previousOverflow;
       previouslyFocused?.focus?.();
     };
-  }, [requestClose]);
+  }, [requestClose, mounted]);
 
-  if (typeof document === "undefined") return null;
+  if (!mounted) return null;
 
   return createPortal(
     <div
