@@ -20,8 +20,11 @@ import { createOrRestorePhoneVariant, deletePhoneVariant, softDeletePhoneModel }
 import { VariantPickerField, type CreateVariantResult } from "@/components/items/variant-picker";
 import { compareSizes } from "@/lib/variant-specs";
 import { formatPhoneName, formatVariantSpecs } from "@/lib/format-item-name";
+import { TabPanels } from "@/components/ui/tab-panels";
+import { GradeBadge, SpecChips, StatusPill } from "@/components/ui/spec-chips";
+import { Boxes, LineChart, Plus, Search, Smartphone, Wallet } from "lucide-react";
 
-type Props = { searchParams: { search?: string; filter?: string; view?: "list" | "grid"; page?: string; pageSize?: string; options?: "all" | "stock" } };
+type Props = { searchParams: { search?: string; filter?: string; view?: "list" | "grid"; page?: string; pageSize?: string; options?: "all" | "stock"; model?: string } };
 
 export default async function PhonesPage({ searchParams }: Props) {
   const session = await getServerSession(authOptions);
@@ -33,6 +36,7 @@ export default async function PhonesPage({ searchParams }: Props) {
   const pageSize = parsePageSize(searchParams.pageSize);
   // Model cards list color/storage/RAM options either for variants with stock, or all.
   const optionsMode = searchParams.options === "all" ? "all" : "stock";
+  const modelQuery = searchParams.model?.trim() || "";
 
   const [models, variants, lots, suppliers] = await Promise.all([
     prisma.phoneModel.findMany({
@@ -62,11 +66,23 @@ export default async function PhonesPage({ searchParams }: Props) {
     prisma.lot.findMany({ where: { deletedAt: null }, orderBy: { purchaseDate: "desc" } }),
     prisma.supplier.findMany({ where: { deletedAt: null }, orderBy: { name: "asc" } }),
   ]);
+  const stockValue = await prisma.phone.aggregate({ _sum: { retailPrice: true, purchasePrice: true }, where: { deletedAt: null, status: "InStock" } });
 
   const phoneWhere = {
     deletedAt: null,
     ...(status ? { status: status as "InStock" | "Reserved" | "Sold" | "Returned" | "Repair" | "WrittenOff" } : {}),
-    ...(search ? { OR: [{ imei: { contains: search } }, { serialNumber: { contains: search } }] } : {}),
+    ...(search
+      ? {
+          OR: [
+            { imei: { contains: search } },
+            { serialNumber: { contains: search, mode: "insensitive" as const } },
+            { phoneVariant: { variantName: { contains: search, mode: "insensitive" as const } } },
+            { phoneVariant: { color: { contains: search, mode: "insensitive" as const } } },
+            { phoneVariant: { phoneModel: { modelName: { contains: search, mode: "insensitive" as const } } } },
+            { phoneVariant: { phoneModel: { brand: { contains: search, mode: "insensitive" as const } } } },
+          ],
+        }
+      : {}),
   };
   const [phones, phoneTotal] = showCost
     ? await prisma.$transaction([prisma.phone.findMany({ where: phoneWhere, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize, include: { phoneVariant: { include: { phoneModel: true } }, lot: true } }), prisma.phone.count({ where: phoneWhere })])
@@ -258,10 +274,24 @@ export default async function PhonesPage({ searchParams }: Props) {
     return `/items/phones${query ? `?${query}` : ""}`;
   };
 
+  const inStockTotal = variants.reduce((sum, variant) => sum + variant._count.phones, 0);
+  const inStockRecord = Object.fromEntries(variants.map((variant) => [variant.id, variant._count.phones]));
+  const visibleModels = modelQuery
+    ? models.filter((model) => `${model.brand} ${model.modelName} ${model.variants.map((variant) => `${variant.variantName} ${variant.color ?? ""} ${variant.storage ?? ""}`).join(" ")}`.toLowerCase().includes(modelQuery.toLowerCase()))
+    : models;
+  const inputClass = "w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
+  const labelClass = "grid min-w-0 gap-1 text-xs font-medium text-slate-600";
+  const stats = [
+    { label: "Models", value: String(models.length), icon: Smartphone },
+    { label: "Variants", value: String(variants.length), icon: Boxes },
+    { label: "Units in stock", value: String(inStockTotal), icon: LineChart },
+    { label: "Stock retail value", value: formatMoney(Number(stockValue._sum.retailPrice ?? 0)), icon: Wallet },
+  ];
+
   return (
     <div>
       <PageHeader
-        title="Items - Phones"
+        title="Phones"
         subtitle="Serialized inventory with IMEI and stock counts"
         help={
           <>
@@ -271,76 +301,39 @@ export default async function PhonesPage({ searchParams }: Props) {
         }
       />
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <Card>
-          <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
-            Add Phone Model
-            <InfoHelp size="sm" title="Add Phone Model">
-              A model is the phone family (brand + model name), e.g. &quot;Apple iPhone 13&quot;. Set its low-stock threshold and warranty period here — these apply to every variant under it.
-            </InfoHelp>
-          </h2>
-          <form action={createModel} className="grid gap-2">
-            <input name="brand" required placeholder="Brand" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
-            <input name="modelName" required placeholder="Model name" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
-            <div className="grid grid-cols-2 gap-2">
-              <label className="grid min-w-0 gap-1 text-sm text-slate-700">
-                Low stock threshold
-                <input name="lowStockThreshold" type="number" min={0} defaultValue={3} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
-              </label>
-              <label className="grid min-w-0 gap-1 text-sm text-slate-700">
-                Warranty (months)
-                <input name="warrantyMonths" type="number" min={0} defaultValue={0} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
-              </label>
-            </div>
-            <button className="rounded-lg bg-slate-900 px-3 py-2 text-white">Create Model</button>
-          </form>
-        </Card>
+      <section className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {stats.map((stat) => (
+          <div key={stat.label} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+              <stat.icon className="size-4" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-xs text-slate-500">{stat.label}</span>
+              <span className="block truncate text-base font-semibold text-slate-900 sm:text-lg">{stat.value}</span>
+            </span>
+          </div>
+        ))}
+      </section>
 
-        <Card>
-          <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
-            Add Variant
-            <InfoHelp size="sm" title="Add Variant">
-              A variant is a specific configuration of a model: storage, RAM and color (all optional), plus any other specs. Leave the name blank and it&apos;s built from those, e.g. &quot;128GB · Red&quot;. Every physical unit you register belongs to one variant.
+      <Card className="mb-4">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h2 className="flex items-center gap-1.5 text-lg font-semibold">
+            Quick add
+            <InfoHelp size="sm" title="Quick add">
+              <p>Phones are tracked at three levels: a <b>model</b> (e.g. Apple iPhone 13), its <b>variants</b> (storage → RAM → color, all optional) and <b>units</b> (one physical phone with its own IMEI).</p>
+              <p>Receiving a batch? Register units on the lot&apos;s page instead — these forms are for one-off additions and setting things up ahead of time.</p>
             </InfoHelp>
           </h2>
-          <form action={createVariant} className="grid gap-2">
-            <SearchableSelect
-              name="phoneModelId"
-              required
-              placeholder="Select model"
-              options={models.map((model) => ({ value: model.id, label: `${model.brand} ${model.modelName}` }))}
-              quickAdd={{ label: "Model", action: createModel, fields: [{ name: "brand", label: "Brand", required: true }, { name: "modelName", label: "Model name", required: true }, { name: "lowStockThreshold", label: "Low stock threshold", type: "number" }, { name: "warrantyMonths", label: "Warranty months", type: "number" }] }}
-            />
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <input name="storage" placeholder="Storage, e.g. 128GB" className="min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
-              <input name="ram" placeholder="RAM, e.g. 6GB" className="min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
-              <input name="color" placeholder="Color" className="min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
-            </div>
-            <input name="variantName" placeholder="Variant name (optional — built from storage/RAM/color)" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
-            <p className="text-xs text-slate-500">Model → storage → RAM → color. Everything after the model is optional.</p>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <input name="screenSize" placeholder="Screen size" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
-              <input name="processor" placeholder="Processor" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
-              <input name="camera" placeholder="Camera" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
-            </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <input name="os" placeholder="OS" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
-              <input name="networkType" placeholder="Network (4G/5G)" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
-              <input name="battery" placeholder="Battery capacity" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
-            </div>
-            <button className="rounded-lg bg-slate-900 px-3 py-2 text-white">Create Variant</button>
-          </form>
-        </Card>
-
-        <Card>
-          <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
-            Add Phone Unit
-            <InfoHelp size="sm" title="Add Phone Unit">
-              Registers one physical phone by IMEI against a variant and a lot. Prefer adding units from the lot&apos;s own page when you&apos;re receiving a batch — use this only for a single one-off addition.
-            </InfoHelp>
-          </h2>
-          <form action={createPhoneUnit} className="grid gap-2">
-            <input name="imei" required placeholder="IMEI" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
+        </div>
+        <TabPanels
+          tabs={[
+            {
+              id: "unit",
+              label: "Phone unit",
+              description: "Register one physical phone by IMEI against a variant and a lot.",
+              content: (
+                <form action={createPhoneUnit} className="grid gap-3 sm:grid-cols-2">
+            <input name="imei" required placeholder="IMEI" className={inputClass} />
             <VariantPickerField
               name="phoneVariantId"
               variants={pickerVariants}
@@ -354,68 +347,132 @@ export default async function PhonesPage({ searchParams }: Props) {
               quickAdd={{ label: "Lot", action: createLotDependency, fields: [{ name: "lotNumber", label: "Lot number", required: true }, { name: "supplierId", label: "Supplier", type: "select", required: true, options: suppliers.map((supplier) => ({ label: supplier.name, value: supplier.id })) }] }}
             />
             <div className="grid grid-cols-1 gap-2">
-              <select name="grade" defaultValue="A" className="rounded-lg border border-slate-300 bg-white px-3 py-2">
+              <select name="grade" defaultValue="A" className={inputClass}>
                 <option value="A">Grade A</option>
                 <option value="B">Grade B</option>
                 <option value="C">Grade C</option>
               </select>
-              <input name="batteryHealth" type="number" min={0} max={100} placeholder="Battery health %" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
+              <input name="batteryHealth" type="number" min={0} max={100} placeholder="Battery health %" className={inputClass} />
             </div>
-            <input name="notes" placeholder="Notes (shown to staff when selecting this unit in a sale)" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
+            <input name="notes" placeholder="Notes (shown to staff when selecting this unit in a sale)" className={inputClass} />
             {showCost ? (
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+                <label className={labelClass}>
                   Purchase price
-                  <input name="purchasePrice" type="number" step="0.01" min={0} defaultValue={0} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+                  <input name="purchasePrice" type="number" step="0.01" min={0} defaultValue={0} className={inputClass} />
                 </label>
-                <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+                <label className={labelClass}>
                   Wholesale price
-                  <input name="wholesalePrice" type="number" step="0.01" min={0} defaultValue={0} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+                  <input name="wholesalePrice" type="number" step="0.01" min={0} defaultValue={0} className={inputClass} />
                 </label>
-                <label className="grid min-w-0 gap-1 text-sm text-slate-700">
+                <label className={labelClass}>
                   Retail price
-                  <input name="retailPrice" type="number" step="0.01" min={0} defaultValue={0} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+                  <input name="retailPrice" type="number" step="0.01" min={0} defaultValue={0} className={inputClass} />
                 </label>
               </div>
             ) : null}
-            <button className="rounded-lg bg-slate-900 px-3 py-2 text-white">Create Unit</button>
+            <button className="inline-flex items-center justify-center gap-1.5 justify-self-start rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"><Plus className="size-4" />Create Unit</button>
           </form>
-        </Card>
-      </div>
+              ),
+            },
+            {
+              id: "variant",
+              label: "Variant",
+              description: "A configuration of a model: storage, RAM and color (all optional). Leave the name blank and it's built from them, e.g. \"128GB · Red\".",
+              content: (
+                <form action={createVariant} className="grid gap-2">
+            <SearchableSelect
+              name="phoneModelId"
+              required
+              placeholder="Select model"
+              options={models.map((model) => ({ value: model.id, label: `${model.brand} ${model.modelName}` }))}
+              quickAdd={{ label: "Model", action: createModel, fields: [{ name: "brand", label: "Brand", required: true }, { name: "modelName", label: "Model name", required: true }, { name: "lowStockThreshold", label: "Low stock threshold", type: "number" }, { name: "warrantyMonths", label: "Warranty months", type: "number" }] }}
+            />
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <input name="storage" placeholder="Storage, e.g. 128GB" className={inputClass} />
+              <input name="ram" placeholder="RAM, e.g. 6GB" className={inputClass} />
+              <input name="color" placeholder="Color" className={inputClass} />
+            </div>
+            <input name="variantName" placeholder="Variant name (optional — built from storage/RAM/color)" className={inputClass} />
+            <p className="text-xs text-slate-500">Model → storage → RAM → color. Everything after the model is optional.</p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <input name="screenSize" placeholder="Screen size" className={inputClass} />
+              <input name="processor" placeholder="Processor" className={inputClass} />
+              <input name="camera" placeholder="Camera" className={inputClass} />
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <input name="os" placeholder="OS" className={inputClass} />
+              <input name="networkType" placeholder="Network (4G/5G)" className={inputClass} />
+              <input name="battery" placeholder="Battery capacity" className={inputClass} />
+            </div>
+            <button className="inline-flex items-center justify-center gap-1.5 justify-self-start rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"><Plus className="size-4" />Create Variant</button>
+          </form>
+              ),
+            },
+            {
+              id: "model",
+              label: "Model",
+              description: "The phone family (brand + model name). Its low-stock threshold and warranty apply to every variant under it.",
+              content: (
+                <form action={createModel} className="grid gap-2">
+            <input name="brand" required placeholder="Brand" className={inputClass} />
+            <input name="modelName" required placeholder="Model name" className={inputClass} />
+            <div className="grid grid-cols-2 gap-2">
+              <label className={labelClass}>
+                Low stock threshold
+                <input name="lowStockThreshold" type="number" min={0} defaultValue={3} className={inputClass} />
+              </label>
+              <label className={labelClass}>
+                Warranty (months)
+                <input name="warrantyMonths" type="number" min={0} defaultValue={0} className={inputClass} />
+              </label>
+            </div>
+            <button className="inline-flex items-center justify-center gap-1.5 justify-self-start rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"><Plus className="size-4" />Create Model</button>
+          </form>
+              ),
+            },
+          ]}
+        />
+      </Card>
 
-      <Card className="mt-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <Card className="mb-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="flex items-center gap-1.5 text-lg font-semibold">
-            Models and In-Stock Counts
-            <InfoHelp size="sm" title="Models and In-Stock Counts">
-              Every model you&apos;ve created, with its color/storage/RAM options (toggle In stock / All), its variants, and how many units of each are currently in stock. Use Edit on a model to change its details, click a variant to drill into its individual units, or Delete a variant you no longer need (only allowed once it has no active units).
+            Models &amp; variants
+            <InfoHelp size="sm" title="Models & variants">
+              <p>Every model with its color, storage and RAM options — switch between what&apos;s <b>in stock</b> now and <b>all</b> options. Each variant shows its live stock.</p>
+              <p>Click a variant to see its units and edit its specs (or move it to another model). Edit/Delete on a card change or remove the whole model.</p>
             </InfoHelp>
           </h2>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <form method="get" className="relative">
+              {Object.entries(searchParams).filter(([key, value]) => value && key !== "model").map(([key, value]) => <input key={key} type="hidden" name={key} value={String(value)} />)}
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
+              <input name="model" defaultValue={modelQuery} placeholder="Filter models, colors…" className="w-48 rounded-lg border border-slate-300 bg-white py-1.5 pl-8 pr-2 text-sm" />
+            </form>
             <div className="flex overflow-hidden rounded-lg border border-slate-300 text-xs">
-              <span className="bg-slate-50 px-2 py-1 text-slate-500">Options</span>
-              <Link href={optionsHref("stock")} className={`px-2 py-1 ${optionsMode === "stock" ? "bg-slate-900 text-white" : "text-slate-700"}`}>In stock</Link>
-              <Link href={optionsHref("all")} className={`px-2 py-1 ${optionsMode === "all" ? "bg-slate-900 text-white" : "text-slate-700"}`}>All</Link>
+              <Link href={optionsHref("stock")} className={`px-2.5 py-1.5 ${optionsMode === "stock" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-50"}`}>In stock</Link>
+              <Link href={optionsHref("all")} className={`px-2.5 py-1.5 ${optionsMode === "all" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-50"}`}>All options</Link>
             </div>
-            <Link href="/items/phones/price-history" className="text-sm text-slate-700 underline">Price history</Link>
-            <Link href="/items/phone-catalog" className="text-sm text-slate-700 underline">View full catalog</Link>
+            <Link href="/items/phone-catalog" className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50">Catalog</Link>
+            <Link href="/items/phones/price-history" className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50">Price history</Link>
           </div>
         </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          {models.map((model) => (
-            <ModelCardEditor key={model.id} model={model} options={optionsFor(model)} optionsMode={optionsMode} updateAction={updateModel} deleteVariantAction={deleteVariant} deleteModelAction={deleteModel} />
+        <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+          {visibleModels.map((model) => (
+            <ModelCardEditor key={model.id} model={model} inStock={inStockRecord} options={optionsFor(model)} optionsMode={optionsMode} updateAction={updateModel} deleteVariantAction={deleteVariant} deleteModelAction={deleteModel} />
           ))}
-          {!models.length ? <p className="text-sm text-slate-600">No models created yet.</p> : null}
+          {!visibleModels.length ? <p className="text-sm text-slate-600">{modelQuery ? "No models match that filter." : "No models yet — add one from Quick add above."}</p> : null}
         </div>
       </Card>
 
-      <ListControls search={search} filter={status} view={view} placeholder="Search by IMEI or serial number" filterLabel="All statuses" filterOptions={["InStock", "Reserved", "Sold", "Returned", "Repair", "WrittenOff"].map((value) => ({ label: value, value }))} />
+      <ListControls search={search} filter={status} view={view} placeholder="Search units by IMEI, model, variant or color" filterLabel="All statuses" filterOptions={["InStock", "Reserved", "Sold", "Returned", "Repair", "WrittenOff"].map((value) => ({ label: value, value }))} />
 
       <Card className="mt-4">
         <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
-          Recent Serialized Units
-          <InfoHelp size="sm" title="Recent Serialized Units">
-            Individual phones by IMEI, filtered and searched with the bar above. Archiving a unit here removes it from active stock without deleting its history.
+          Units
+          <InfoHelp size="sm" title="Units">
+            Individual phones by IMEI, newest first — search and filter with the bar above.{showCost ? " Click a unit for its cost and profit breakdown." : ""} Archiving a unit removes it from active stock (it stays in the Recycle Bin for 30 days).
           </InfoHelp>
         </h2>
         {view === "grid" ? (
@@ -427,15 +484,17 @@ export default async function PhonesPage({ searchParams }: Props) {
               const cardBody = (
                 <>
                   <div className="flex items-start justify-between gap-2">
-                    <p className="font-medium text-slate-900">{phone.phoneVariant.phoneModel.brand} {phone.phoneVariant.phoneModel.modelName}</p>
-                    <span className="rounded-full border border-slate-300 px-2 py-0.5 text-xs text-slate-700">{phone.status}</span>
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold text-slate-900">{phone.phoneVariant.phoneModel.brand} {phone.phoneVariant.phoneModel.modelName}</span>
+                      <span className="block truncate text-sm text-slate-600">{phone.phoneVariant.variantName}</span>
+                    </span>
+                    <StatusPill status={phone.status} />
                   </div>
-                  <p className="text-sm text-slate-700">{phone.phoneVariant.variantName}</p>
-                  {formatVariantSpecs(phone.phoneVariant) ? <p className="text-xs text-slate-500">{formatVariantSpecs(phone.phoneVariant)}</p> : null}
+                  <SpecChips color={phone.phoneVariant.color} storage={phone.phoneVariant.storage} ram={phone.phoneVariant.ram} className="mt-1.5" />
                   <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
                     <div className="flex justify-between gap-2"><dt>IMEI</dt><dd className="text-right text-slate-800">{phone.imei}</dd></div>
                     <div className="flex justify-between gap-2"><dt>Lot</dt><dd className="text-right text-slate-800">{phone.lot.lotNumber}</dd></div>
-                    <div className="flex justify-between gap-2"><dt>Grade</dt><dd className="text-right text-slate-800">{phone.grade || "-"}</dd></div>
+                    <div className="flex items-center justify-between gap-2"><dt>Grade</dt><dd><GradeBadge grade={phone.grade} /></dd></div>
                     {showCost ? <div className="flex justify-between gap-2"><dt>Purchase price</dt><dd className="text-right text-slate-800">{formatMoney(purchasePrice)}</dd></div> : null}
                   </dl>
                   {phone.notes ? <p className="mt-2 text-xs italic text-slate-500">{phone.notes}</p> : null}
@@ -449,7 +508,7 @@ export default async function PhonesPage({ searchParams }: Props) {
               );
               if (!showCost) {
                 return (
-                  <div key={phone.id} className="rounded-xl border border-slate-200 p-3">
+                  <div key={phone.id} className="rounded-xl border border-slate-200 bg-white p-3">
                     {cardBody}
                   </div>
                 );
@@ -457,7 +516,7 @@ export default async function PhonesPage({ searchParams }: Props) {
               return (
                 <CostCard
                   key={phone.id}
-                  className="rounded-xl border border-slate-200 p-3"
+                  className="rounded-xl border border-slate-200 bg-white p-3 transition hover:border-slate-300 hover:shadow-sm"
                   data={{
                     name: `${formatPhoneName(phone.phoneVariant)} - IMEI ${phone.imei}`,
                     unitCost: purchasePrice,
@@ -495,7 +554,7 @@ export default async function PhonesPage({ searchParams }: Props) {
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-300 text-left text-slate-700">
+              <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
                 <th className="px-2 py-2">IMEI</th>
                 <th className="px-2 py-2">Model</th>
                 <th className="px-2 py-2">Variant</th>
@@ -513,18 +572,18 @@ export default async function PhonesPage({ searchParams }: Props) {
                 const totalCost = purchasePrice + Number(costFields.tagCost ?? 0) + Number(costFields.batteryCost ?? 0);
                 const rowCells = (
                   <>
-                    <td className="px-2 py-2">
-                      {phone.imei}
-                      {phone.notes ? <p className="mt-0.5 text-xs italic text-slate-500">{phone.notes}</p> : null}
+                    <td className="px-2 py-2.5">
+                      <span className="font-mono text-xs text-slate-800">{phone.imei}</span>
+                      {phone.notes ? <p className="mt-0.5 max-w-[16rem] truncate text-xs italic text-slate-500" title={phone.notes}>{phone.notes}</p> : null}
                     </td>
-                    <td className="px-2 py-2">{phone.phoneVariant.phoneModel.brand + " " + phone.phoneVariant.phoneModel.modelName}</td>
-                    <td className="px-2 py-2">
-                      {phone.phoneVariant.variantName}
-                      {formatVariantSpecs(phone.phoneVariant) ? <p className="text-xs text-slate-500">{formatVariantSpecs(phone.phoneVariant)}</p> : null}
+                    <td className="px-2 py-2.5 font-medium text-slate-900">{phone.phoneVariant.phoneModel.brand + " " + phone.phoneVariant.phoneModel.modelName}</td>
+                    <td className="px-2 py-2.5">
+                      <span className="text-slate-700">{phone.phoneVariant.variantName}</span>
+                      <SpecChips color={phone.phoneVariant.color} storage={phone.phoneVariant.storage} ram={phone.phoneVariant.ram} className="mt-1 flex" />
                     </td>
-                    <td className="px-2 py-2">{phone.lot.lotNumber}</td>
-                    <td className="px-2 py-2">{phone.grade || "-"}</td>
-                    <td className="px-2 py-2">{phone.status}</td>
+                    <td className="px-2 py-2.5 text-slate-600">{phone.lot.lotNumber}</td>
+                    <td className="px-2 py-2.5"><GradeBadge grade={phone.grade} /></td>
+                    <td className="px-2 py-2.5"><StatusPill status={phone.status} /></td>
                     {showCost ? <td className="px-2 py-2">{formatMoney(purchasePrice)}</td> : null}
                     <NoModalCell className="px-2 py-2"><form action={archivePhone}><input type="hidden" name="id" value={phone.id} /><button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Archive</button></form></NoModalCell>
                   </>
@@ -567,6 +626,13 @@ export default async function PhonesPage({ searchParams }: Props) {
                   </CostRow>
                 );
               })}
+              {!phones.length ? (
+                <tr>
+                  <td className="px-2 py-6 text-center text-slate-500" colSpan={showCost ? 8 : 7}>
+                    No units match these filters.
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>

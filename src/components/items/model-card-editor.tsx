@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEditableRow, type ActionResult } from "@/components/ui/editable-row";
 import { DeleteVariantButton } from "@/components/items/delete-variant-button";
 import { ConfirmActionButton } from "@/components/ui/confirm-action-button";
+import { ColorChip, RamChip, SpecChips, StorageChip } from "@/components/ui/spec-chips";
 
 type Model = {
   id: string;
@@ -16,17 +17,22 @@ type Model = {
 
 type Options = { colors: string[]; storages: string[]; rams: string[] };
 
-function OptionRow({ label, values, tone }: { label: string; values: string[]; tone: string }) {
+function OptionRow({ label, values, kind }: { label: string; values: string[]; kind: "color" | "storage" | "ram" }) {
   return (
     <div className="flex flex-wrap items-center gap-1">
       <span className="w-14 shrink-0 text-xs text-slate-500">{label}</span>
-      {values.length ? values.map((value) => <span key={value} className={`rounded px-1.5 py-0.5 text-xs ${tone}`}>{value}</span>) : <span className="text-xs text-slate-400">-</span>}
+      {values.length ? (
+        values.map((value) => (kind === "color" ? <ColorChip key={value} color={value} /> : kind === "storage" ? <StorageChip key={value} value={value} /> : <RamChip key={value} value={value} />))
+      ) : (
+        <span className="text-xs text-slate-400">-</span>
+      )}
     </div>
   );
 }
 
 export function ModelCardEditor({
   model,
+  inStock,
   options,
   optionsMode,
   updateAction,
@@ -34,6 +40,8 @@ export function ModelCardEditor({
   deleteModelAction,
 }: {
   model: Model;
+  /** Live in-stock units per variant id (independent of the page's list filters). */
+  inStock: Record<string, number>;
   options: Options;
   optionsMode: "stock" | "all";
   updateAction: (formData: FormData) => Promise<ActionResult>;
@@ -41,9 +49,11 @@ export function ModelCardEditor({
   deleteModelAction: (formData: FormData) => Promise<ActionResult>;
 }) {
   const { editing, error, pending, open, cancel, handleSubmit } = useEditableRow(updateAction);
+  const totalInStock = model.variants.reduce((sum, variant) => sum + (inStock[variant.id] ?? 0), 0);
+  const lowStock = totalInStock <= model.lowStockThreshold;
 
   return (
-    <div className="rounded-xl border border-slate-300 bg-white px-4 py-3">
+    <div className="flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md">
       {editing ? (
         <form onSubmit={handleSubmit} className="grid gap-2">
           <input type="hidden" name="id" value={model.id} />
@@ -78,12 +88,19 @@ export function ModelCardEditor({
           </div>
         </form>
       ) : (
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <p className="font-semibold text-slate-900">
-              {model.brand} {model.modelName}
-            </p>
-            <p className="text-xs text-slate-600">Warranty {model.warrantyMonths} months | Threshold {model.lowStockThreshold}</p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{model.brand}</p>
+            <p className="truncate text-lg font-semibold leading-tight text-slate-900">{model.modelName}</p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ${lowStock ? "bg-amber-50 text-amber-900 ring-1 ring-inset ring-amber-200" : "bg-emerald-50 text-emerald-800 ring-1 ring-inset ring-emerald-200"}`}>
+                {lowStock ? "⚠ " : ""}
+                {totalInStock} in stock
+              </span>
+              <span className="text-slate-500">
+                {model.variants.length} variant{model.variants.length === 1 ? "" : "s"} · {model.warrantyMonths ? `${model.warrantyMonths}-month warranty` : "No warranty"} · alert at ≤{model.lowStockThreshold}
+              </span>
+            </div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             <button type="button" onClick={open} className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 transition hover:bg-slate-50">
@@ -105,26 +122,27 @@ export function ModelCardEditor({
           </div>
         </div>
       )}
-      <div className="mt-2 grid gap-1 rounded-lg bg-slate-50 px-2 py-1.5">
-        <p className="text-[11px] font-semibold uppercase text-slate-500">{optionsMode === "stock" ? "Available options (in stock)" : "All options"}</p>
-        <OptionRow label="Color" values={options.colors} tone="bg-rose-50 text-rose-800" />
-        <OptionRow label="Storage" values={options.storages} tone="bg-sky-50 text-sky-800" />
-        <OptionRow label="RAM" values={options.rams} tone="bg-violet-50 text-violet-800" />
+      <div className="mt-3 grid gap-1.5 rounded-xl bg-slate-50 px-3 py-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{optionsMode === "stock" ? "Available now (in stock)" : "All options"}</p>
+        <OptionRow label="Color" values={options.colors} kind="color" />
+        <OptionRow label="Storage" values={options.storages} kind="storage" />
+        <OptionRow label="RAM" values={options.rams} kind="ram" />
       </div>
-      <ul className="mt-2 space-y-1 text-sm text-slate-700">
-        {model.variants.map((variant) => (
-          <li key={variant.id} className="flex items-start justify-between gap-2">
-            <Link href={`/items/phones/variants/${variant.id}`} className="underline hover:text-slate-900">
-              {variant.variantName}
-              {[variant.color, variant.storage, variant.ram ? `${variant.ram} RAM` : null].filter(Boolean).length ? (
-                <span className="text-slate-500"> ({[variant.color, variant.storage, variant.ram ? `${variant.ram} RAM` : null].filter(Boolean).join(" · ")})</span>
-              ) : null}{" "}
-              - In stock: {variant._count.phones}
-            </Link>
-            <DeleteVariantButton variantId={variant.id} variantName={variant.variantName} deleteAction={deleteVariantAction} />
-          </li>
-        ))}
-        {!model.variants.length ? <li>No variants yet.</li> : null}
+      <ul className="mt-3 divide-y divide-slate-100">
+        {model.variants.map((variant) => {
+          const count = inStock[variant.id] ?? 0;
+          return (
+            <li key={variant.id} className="flex items-center justify-between gap-2 py-2">
+              <Link href={`/items/phones/variants/${variant.id}`} className="group min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-slate-900 group-hover:underline">{variant.variantName}</span>
+                <SpecChips color={variant.color} storage={variant.storage} ram={variant.ram} className="mt-1" />
+              </Link>
+              <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${count ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-500"}`}>{count} in stock</span>
+              <DeleteVariantButton variantId={variant.id} variantName={variant.variantName} deleteAction={deleteVariantAction} />
+            </li>
+          );
+        })}
+        {!model.variants.length ? <li className="py-2 text-sm text-slate-500">No variants yet — add one from Quick add above.</li> : null}
       </ul>
     </div>
   );

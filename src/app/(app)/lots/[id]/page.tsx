@@ -859,7 +859,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
                     retailPrice: phone.retailPrice !== null ? Number(phone.retailPrice) : null,
                     tagCost: Number(phone.tagCost),
                     batteryCost: Number(phone.batteryCost),
-                    phoneVariant: { variantName: phone.phoneVariant.variantName, specs: formatVariantSpecs(phone.phoneVariant), phoneModel: { brand: phone.phoneVariant.phoneModel.brand, modelName: phone.phoneVariant.phoneModel.modelName } },
+                    phoneVariant: { variantName: phone.phoneVariant.variantName, specs: formatVariantSpecs(phone.phoneVariant), color: phone.phoneVariant.color, storage: phone.phoneVariant.storage, ram: phone.phoneVariant.ram, phoneModel: { brand: phone.phoneVariant.phoneModel.brand, modelName: phone.phoneVariant.phoneModel.modelName } },
                     expenses: expensesByPhone.get(phone.id) ?? [],
                   }}
                   showCost={showCost}

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { PhoneCatalogFilters } from "@/components/items/phone-catalog-filters";
+import { SpecChips } from "@/components/ui/spec-chips";
 
 type SearchParams = {
   search?: string;
@@ -141,7 +142,10 @@ export default async function PhoneCatalogPage({ searchParams }: { searchParams?
                   model.variants.map((variant) => (
                     <tr key={variant.id} className="border-b border-slate-200">
                       <td className="px-2 py-2">{model.brand} {model.modelName}</td>
-                      <td className="px-2 py-2">{variant.variantName}</td>
+                      <td className="px-2 py-2">
+                        {variant.variantName}
+                        <SpecChips color={variant.color} storage={variant.storage} ram={variant.ram} className="mt-1 flex" />
+                      </td>
                       <td className="px-2 py-2 text-xs text-slate-600">{specsFor(variant).map(([label, value]) => `${label}: ${value}`).join(" · ") || "-"}</td>
                       <td className="px-2 py-2">{inStockCount(variant)}</td>
                       <td className="px-2 py-2"><Link href={`/items/phones/variants/${variant.id}`} className="text-slate-800 underline">View</Link></td>
@@ -181,6 +185,7 @@ export default async function PhoneCatalogPage({ searchParams }: { searchParams?
                       className="block rounded-xl border border-slate-200 p-3 transition hover:border-slate-400 hover:bg-slate-50"
                     >
                       <p className="font-medium text-slate-900">{variant.variantName}</p>
+                      <SpecChips color={variant.color} storage={variant.storage} ram={variant.ram} className="mt-1 flex" />
                       {specs.length ? (
                         <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
                           {specs.map(([label, value]) => (

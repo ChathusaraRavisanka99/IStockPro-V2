@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ScanLine } from "lucide-react";
 import { Modal, modalButton, modalField } from "@/components/ui/modal";
+import { GradeBadge, SpecChips, StatusPill } from "@/components/ui/spec-chips";
 import { formatMoney } from "@/lib/currency";
 import { CostRow } from "@/components/ui/cost-breakdown-modal";
 import { ReauthFields } from "@/components/ui/reauth-fields";
@@ -12,7 +13,7 @@ type PhoneRow = {
   id: string;
   imei: string;
   notes: string | null;
-  phoneVariant: { variantName: string; specs?: string; phoneModel: { brand: string; modelName: string } };
+  phoneVariant: { variantName: string; specs?: string; color?: string | null; storage?: string | null; ram?: string | null; phoneModel: { brand: string; modelName: string } };
   grade: string | null;
   batteryHealth: number | null;
   status: string;
@@ -195,11 +196,11 @@ export function PhoneCostEditor({ phone, showCost, canGrade, requireReauth, user
       <td className="px-2 py-2">{phone.phoneVariant.phoneModel.brand} {phone.phoneVariant.phoneModel.modelName}</td>
       <td className="px-2 py-2">
         {phone.phoneVariant.variantName}
-        {phone.phoneVariant.specs ? <p className="mt-0.5 text-xs text-slate-500">{phone.phoneVariant.specs}</p> : null}
+        <SpecChips color={phone.phoneVariant.color} storage={phone.phoneVariant.storage} ram={phone.phoneVariant.ram} className="mt-1 flex" />
       </td>
-      <td className="px-2 py-2">{phone.grade || "Not Graded"}</td>
+      <td className="px-2 py-2"><GradeBadge grade={phone.grade} /></td>
       <td className="px-2 py-2">{phone.batteryHealth !== null ? `${phone.batteryHealth}%` : "-"}</td>
-      <td className="px-2 py-2">{phone.status}</td>
+      <td className="px-2 py-2"><StatusPill status={phone.status} /></td>
       {showCost ? <td className="px-2 py-2">{formatMoney(purchasePrice)}</td> : null}
       {showCost ? <td className="px-2 py-2">{formatMoney(tagCost)}</td> : null}
       {showCost ? <td className="px-2 py-2">{formatMoney(batteryCost)}</td> : null}
