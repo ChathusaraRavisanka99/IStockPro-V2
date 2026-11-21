@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { createPortal } from "react-dom";
+import { ScanLine } from "lucide-react";
+import { Modal, modalButton, modalField } from "@/components/ui/modal";
 import { formatMoney } from "@/lib/currency";
 import { CostRow } from "@/components/ui/cost-breakdown-modal";
 import { ReauthFields } from "@/components/ui/reauth-fields";
@@ -138,41 +139,48 @@ export function PhoneCostEditor({ phone, showCost, canGrade, requireReauth, user
               </button>
             </div>
           </form>
-          {pendingImeiChange && typeof document !== "undefined"
-            ? createPortal(
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setPendingImeiChange(null)}>
-                  <div role="dialog" aria-modal="true" className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
-                    <h3 className="text-base font-semibold text-slate-900">Confirm IMEI change</h3>
-                    <p className="mt-2 text-sm text-slate-600">
-                      <span className="font-mono">{phone.imei}</span> → <span className="font-mono font-semibold text-slate-900">{newImei}</span>
-                    </p>
-                    <p className="mt-2 text-sm text-slate-600">Re-type the new IMEI to confirm. This changes the unit&apos;s identity everywhere it appears.</p>
-                    <input
-                      autoFocus
-                      value={imeiConfirmInput}
-                      onChange={(event) => setImeiConfirmInput(event.target.value)}
-                      placeholder="New IMEI"
-                      className="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-sm"
-                    />
-                    {imeiConfirmInput && imeiConfirmInput.trim() !== newImei ? <p className="mt-1 text-xs text-red-700">Doesn&apos;t match the new IMEI.</p> : null}
-                    <div className="mt-4 flex justify-end gap-2">
-                      <button type="button" onClick={() => setPendingImeiChange(null)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700">
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        disabled={imeiConfirmInput.trim() !== newImei}
-                        onClick={confirmImeiChange}
-                        className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm text-white disabled:opacity-50"
-                      >
-                        Confirm change
-                      </button>
-                    </div>
-                  </div>
-                </div>,
-                document.body
-              )
-            : null}
+          {pendingImeiChange ? (
+            <Modal
+              title="Confirm IMEI change"
+              subtitle="This changes the unit's identity everywhere it appears"
+              icon={<ScanLine className="size-4" />}
+              size="sm"
+              onClose={() => setPendingImeiChange(null)}
+              footer={
+                <>
+                  <button type="button" onClick={() => setPendingImeiChange(null)} className={modalButton.secondary}>
+                    Cancel
+                  </button>
+                  <button type="button" disabled={imeiConfirmInput.trim() !== newImei} onClick={confirmImeiChange} className={modalButton.primary}>
+                    Confirm change
+                  </button>
+                </>
+              }
+            >
+              <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 rounded-xl bg-slate-50 px-3 py-2.5 text-sm">
+                <span className="text-xs text-slate-500">Current</span>
+                <span className="font-mono text-slate-500 line-through">{phone.imei}</span>
+                <span className="text-xs text-slate-500">New</span>
+                <span className="font-mono font-semibold text-slate-900">{newImei}</span>
+              </div>
+              <label className={`${modalField.label} mt-4`}>
+                Re-type the new IMEI to confirm
+                <input
+                  data-autofocus
+                  value={imeiConfirmInput}
+                  onChange={(event) => setImeiConfirmInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && imeiConfirmInput.trim() === newImei) confirmImeiChange();
+                  }}
+                  inputMode="numeric"
+                  placeholder="New IMEI"
+                  className={`${modalField.input} font-mono`}
+                />
+              </label>
+              {imeiConfirmInput && imeiConfirmInput.trim() !== newImei ? <p className="mt-1.5 text-xs text-red-700">Doesn&apos;t match the new IMEI.</p> : null}
+              {imeiConfirmInput.trim() === newImei ? <p className="mt-1.5 text-xs text-emerald-700">✓ Matches</p> : null}
+            </Modal>
+          ) : null}
         </td>
       </tr>
     );

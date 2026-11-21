@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { formatMoney } from "@/lib/currency";
+import { Modal, modalButton } from "@/components/ui/modal";
 
 export type CostBreakdownData = {
   name: string;
@@ -20,38 +20,59 @@ export type CostBreakdownData = {
   costBreakdown?: { label: string; amount: number }[];
 };
 
+function ProfitTile({ label, price, cost }: { label: string; price: number; cost: number }) {
+  if (price <= 0) {
+    return (
+      <div className="rounded-xl border border-slate-200 px-3 py-2.5">
+        <p className="text-xs text-slate-500">{label}</p>
+        <p className="mt-0.5 text-sm text-slate-400">Price not set</p>
+      </div>
+    );
+  }
+  const profit = price - cost;
+  const percent = (profit / price) * 100;
+  const positive = profit >= 0;
+  return (
+    <div className={`rounded-xl border px-3 py-2.5 ${positive ? "border-emerald-200 bg-emerald-50/60" : "border-red-200 bg-red-50/60"}`}>
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className={`mt-0.5 text-base font-semibold ${positive ? "text-emerald-800" : "text-red-800"}`}>
+        {positive ? "▲" : "▼"} {formatMoney(profit)}
+      </p>
+      <p className="text-xs text-slate-600">
+        {percent.toFixed(1)}% margin · sells at {formatMoney(price)}
+      </p>
+    </div>
+  );
+}
+
 function CostBreakdownDialog({ data, onClose }: { data: CostBreakdownData; onClose: () => void }) {
-  const retailProfit = data.retailPrice - data.totalCost;
-  const retailProfitPercent = data.retailPrice > 0 ? (retailProfit / data.retailPrice) * 100 : 0;
-  const wholesaleProfit = data.wholesalePrice - data.totalCost;
-  const wholesaleProfitPercent = data.wholesalePrice > 0 ? (wholesaleProfit / data.wholesalePrice) * 100 : 0;
   const totalExpenses = (data.expenses ?? []).reduce((sum, expense) => sum + expense.amount, 0);
   const nonZeroCostBreakdown = (data.costBreakdown ?? []).filter((entry) => entry.amount !== 0);
   const showCostBreakdown = data.unitCost !== data.totalCost && nonZeroCostBreakdown.length > 0;
 
-  if (typeof document === "undefined") return null;
+  return (
+    <Modal title={data.name} subtitle="Cost, pricing and profit" onClose={onClose} footer={<button type="button" onClick={onClose} className={modalButton.secondary}>Close</button>}>
+      <div className="grid grid-cols-2 gap-2">
+        <ProfitTile label="Retail profit" price={data.retailPrice} cost={data.totalCost} />
+        <ProfitTile label="Wholesale profit" price={data.wholesalePrice} cost={data.totalCost} />
+      </div>
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-xl bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
-        <div className="mb-3 flex items-start justify-between gap-2">
-          <h3 className="text-sm font-semibold text-slate-900">{data.name}</h3>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700" aria-label="Close">
-            ✕
-          </button>
-        </div>
-
-        {data.details?.length ? (
-          <div className="mb-4 grid gap-1 border-b border-slate-100 pb-4 text-sm text-slate-700">
+      {data.details?.length ? (
+        <section className="mt-4">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Details</p>
+          <dl className="grid grid-cols-1 gap-x-4 gap-y-1.5 rounded-xl bg-slate-50 px-3 py-2.5 text-sm sm:grid-cols-2">
             {data.details.map((row) => (
-              <p key={row.label} className="flex justify-between gap-3">
-                <span className="text-slate-500">{row.label}</span>
-                <span className="text-right font-medium text-slate-900">{row.value}</span>
-              </p>
+              <div key={row.label} className="flex justify-between gap-3 sm:block">
+                <dt className="text-xs text-slate-500">{row.label}</dt>
+                <dd className="text-right font-medium text-slate-900 sm:text-left">{row.value}</dd>
+              </div>
             ))}
-          </div>
-        ) : null}
+          </dl>
+        </section>
+      ) : null}
 
+      <section className="mt-4">
+        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Cost build-up</p>
         <div className="grid gap-1.5 text-sm text-slate-700">
           <p className="flex justify-between"><span>Unit cost</span><span>{formatMoney(data.unitCost)}</span></p>
           {showCostBreakdown
@@ -62,55 +83,36 @@ function CostBreakdownDialog({ data, onClose }: { data: CostBreakdownData; onClo
                 </p>
               ))
             : null}
-          <p className="flex justify-between"><span>Total cost</span><span>{formatMoney(data.totalCost)}</span></p>
-          <p className="flex justify-between"><span>Wholesale price</span><span>{formatMoney(data.wholesalePrice)}</span></p>
+          <p className="flex justify-between border-t border-slate-200 pt-1.5 font-semibold text-slate-900"><span>Total cost</span><span>{formatMoney(data.totalCost)}</span></p>
+          <p className="flex justify-between"><span>Wholesale price</span><span>{data.wholesalePrice > 0 ? formatMoney(data.wholesalePrice) : "Not set"}</span></p>
           <p className="flex justify-between"><span>Retail price</span><span>{formatMoney(data.retailPrice)}</span></p>
-          <div className="mt-2 grid gap-1 border-t border-slate-200 pt-2">
-            <p className="flex justify-between font-medium text-slate-900">
-              <span>Retail profit</span>
-              <span className={retailProfit >= 0 ? "text-green-700" : "text-red-700"}>
-                {formatMoney(retailProfit)} ({retailProfitPercent.toFixed(1)}%)
-              </span>
-            </p>
-            <p className="flex justify-between font-medium text-slate-900">
-              <span>Wholesale profit</span>
-              {data.wholesalePrice > 0 ? (
-                <span className={wholesaleProfit >= 0 ? "text-green-700" : "text-red-700"}>
-                  {formatMoney(wholesaleProfit)} ({wholesaleProfitPercent.toFixed(1)}%)
-                </span>
-              ) : (
-                <span className="text-slate-400">Not set</span>
-              )}
-            </p>
-          </div>
         </div>
+      </section>
 
-        {data.expenses ? (
-          <div className="mt-4 border-t border-slate-200 pt-3">
-            <p className="mb-2 text-xs font-semibold uppercase text-slate-500">Linked Expenses</p>
-            {data.expenses.length ? (
-              <div className="grid gap-1.5 text-sm text-slate-700">
-                {data.expenses.map((expense, i) => (
-                  <p key={i} className="flex justify-between gap-2">
-                    <span>
-                      {expense.label} <span className="text-xs text-slate-500">({expense.date})</span>
-                    </span>
-                    <span>{formatMoney(expense.amount)}</span>
-                  </p>
-                ))}
-                <p className="flex justify-between border-t border-slate-100 pt-1.5 font-medium text-slate-900">
-                  <span>Total expenses</span>
-                  <span>{formatMoney(totalExpenses)}</span>
+      {data.expenses ? (
+        <section className="mt-4">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Linked expenses</p>
+          {data.expenses.length ? (
+            <div className="grid gap-1.5 text-sm text-slate-700">
+              {data.expenses.map((expense, i) => (
+                <p key={i} className="flex justify-between gap-2">
+                  <span>
+                    {expense.label} <span className="text-xs text-slate-500">({expense.date})</span>
+                  </span>
+                  <span>{formatMoney(expense.amount)}</span>
                 </p>
-              </div>
-            ) : (
-              <p className="text-sm text-slate-500">No expenses recorded for this item.</p>
-            )}
-          </div>
-        ) : null}
-      </div>
-    </div>,
-    document.body
+              ))}
+              <p className="flex justify-between border-t border-slate-100 pt-1.5 font-medium text-slate-900">
+                <span>Total expenses</span>
+                <span>{formatMoney(totalExpenses)}</span>
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">No expenses recorded for this item.</p>
+          )}
+        </section>
+      ) : null}
+    </Modal>
   );
 }
 

@@ -146,7 +146,7 @@ export function SearchableSelect({ name, value, defaultValue = "", placeholder =
       ref={popoverRef}
       data-searchable-popover=""
       style={{ position: "fixed", top: popoverStyle.top, left: popoverStyle.left, width: popoverStyle.width, maxHeight: popoverStyle.maxHeight }}
-      className="z-50 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl"
+      className="z-[60] w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl"
     >
       {!adding ? (
         <>

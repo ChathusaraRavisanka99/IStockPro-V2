@@ -1,7 +1,8 @@
 "use client";
 
-import { createPortal } from "react-dom";
+import { Minus, Plus } from "lucide-react";
 import { formatMoney } from "@/lib/currency";
+import { Modal, modalButton } from "@/components/ui/modal";
 
 type Props = {
   name: string;
@@ -20,119 +21,122 @@ type Props = {
   onCancel: () => void;
 };
 
-function profitLabel(price: number, cost: number) {
-  if (price <= 0) return "";
-  const profit = price - cost;
-  return ` · profit ${((profit / price) * 100).toFixed(1)}%`;
+function margin(price: number, cost: number) {
+  if (price <= 0) return null;
+  return ((price - cost) / price) * 100;
+}
+
+function PriceOption({ label, price, cost, active }: { label: string; price: number; cost?: number; active: boolean }) {
+  const pct = cost !== undefined ? margin(price, cost) : null;
+  return (
+    <div className={`rounded-xl border px-3 py-2.5 ${active ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700"}`}>
+      <p className={`text-xs ${active ? "text-slate-300" : "text-slate-500"}`}>
+        {label}
+        {active ? " · applied" : ""}
+      </p>
+      <p className="mt-0.5 text-base font-semibold">{formatMoney(price)}</p>
+      {pct !== null ? <p className={`text-xs ${active ? "text-slate-300" : "text-slate-500"}`}>{pct.toFixed(1)}% margin</p> : null}
+    </div>
+  );
 }
 
 export function ItemAddDialog({ name, details, retailPrice, wholesalePrice, cost, priceMode, quantity, onQuantityChange, remaining, notes, onConfirm, onCancel }: Props) {
-  if (typeof document === "undefined") return null;
   const appliedPrice = priceMode === "Wholesale" && wholesalePrice !== undefined ? wholesalePrice : retailPrice;
+  const qty = Math.max(1, Number(quantity) || 1);
+  const overStock = remaining !== undefined && qty > remaining;
+  const step = (delta: number) => {
+    const next = Math.max(1, qty + delta);
+    onQuantityChange(String(remaining !== undefined ? Math.min(next, Math.max(1, remaining)) : next));
+  };
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
-      <div role="dialog" aria-modal="true" className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-xl bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
-        <div className="mb-3 flex items-start justify-between gap-2">
-          <h3 className="text-sm font-semibold text-slate-900">{name}</h3>
-          <button type="button" onClick={onCancel} className="text-slate-400 hover:text-slate-700" aria-label="Close">
-            ✕
-          </button>
-        </div>
-
-        {details.length ? (
-          <div className="mb-4 grid gap-1 border-b border-slate-100 pb-4 text-sm">
-            {details.map((row) => (
-              <p key={row.label} className="flex justify-between gap-3">
-                <span className="text-slate-500">{row.label}</span>
-                <span className="text-right font-medium text-slate-900">{row.value}</span>
-              </p>
-            ))}
-          </div>
-        ) : null}
-
-        <div className="grid gap-1.5 text-sm text-slate-700">
-          {cost ? (
-            <>
-              <p className="flex justify-between">
-                <span>Unit cost</span>
-                <span>{formatMoney(cost.unitCost)}</span>
-              </p>
-              {(cost.breakdown ?? [])
-                .filter((entry) => entry.amount !== 0)
-                .map((entry) => (
-                  <p key={entry.label} className="flex justify-between pl-3 text-xs text-slate-500">
-                    <span>+ {entry.label}</span>
-                    <span>{formatMoney(entry.amount)}</span>
-                  </p>
-                ))}
-              <p className="flex justify-between font-medium text-slate-900">
-                <span>Total cost</span>
-                <span>{formatMoney(cost.totalCost)}</span>
-              </p>
-              <div className="my-1 border-t border-slate-100" />
-            </>
-          ) : null}
-          <p className="flex justify-between">
-            <span>Retail price</span>
-            <span className={priceMode === "Retail" ? "font-semibold text-slate-900" : ""}>
-              {formatMoney(retailPrice)}
-              {cost ? <span className="text-xs font-normal text-slate-500">{profitLabel(retailPrice, cost.totalCost)}</span> : null}
-            </span>
-          </p>
-          {wholesalePrice !== undefined ? (
-            <p className="flex justify-between">
-              <span>Wholesale price</span>
-              <span className={priceMode === "Wholesale" ? "font-semibold text-slate-900" : ""}>
-                {formatMoney(wholesalePrice)}
-                {cost ? <span className="text-xs font-normal text-slate-500">{profitLabel(wholesalePrice, cost.totalCost)}</span> : null}
-              </span>
-            </p>
-          ) : null}
-          <p className="mt-1 flex justify-between border-t border-slate-200 pt-2 font-medium text-slate-900">
-            <span>Added at ({priceMode.toLowerCase()})</span>
-            <span>{formatMoney(appliedPrice)}</span>
-          </p>
-          {cost ? (
-            <p className="flex justify-between font-medium text-slate-900">
-              <span>Profit at this price</span>
-              <span className={appliedPrice - cost.totalCost >= 0 ? "text-green-700" : "text-red-700"}>
-                {formatMoney(appliedPrice - cost.totalCost)}
-                {appliedPrice > 0 ? ` (${(((appliedPrice - cost.totalCost) / appliedPrice) * 100).toFixed(1)}%)` : ""}
-              </span>
-            </p>
-          ) : null}
-        </div>
-
-        {notes ? (
-          <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            <span className="font-semibold">Note:</span> {notes}
-          </p>
-        ) : null}
-
-        <div className="mt-4 flex items-end gap-3">
-          <label className="grid gap-1 text-sm text-slate-700">
-            Quantity{remaining !== undefined ? <span className="text-xs text-slate-500">{remaining} available</span> : null}
+  return (
+    <Modal
+      title={name}
+      subtitle={remaining !== undefined ? `${remaining} available to add` : undefined}
+      onClose={onCancel}
+      footer={
+        <>
+          <div className="mr-auto flex items-center rounded-lg border border-slate-300 bg-white">
+            <button type="button" onClick={() => step(-1)} aria-label="Decrease quantity" className="p-2 text-slate-600 hover:text-slate-900 disabled:opacity-40" disabled={qty <= 1}>
+              <Minus className="size-4" />
+            </button>
             <input
               type="number"
               min={1}
               max={remaining}
               value={quantity}
+              data-autofocus
+              aria-label="Quantity"
               onChange={(event) => onQuantityChange(event.target.value)}
-              className="w-24 rounded-lg border border-slate-300 bg-white px-3 py-2"
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !overStock) onConfirm();
+              }}
+              className="w-14 border-x border-slate-200 py-1.5 text-center text-sm outline-none"
             />
-          </label>
-          <div className="ml-auto flex gap-2">
-            <button type="button" onClick={onCancel} className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
-              Cancel
-            </button>
-            <button type="button" onClick={onConfirm} className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">
-              Add to cart
+            <button type="button" onClick={() => step(1)} aria-label="Increase quantity" className="p-2 text-slate-600 hover:text-slate-900 disabled:opacity-40" disabled={remaining !== undefined && qty >= remaining}>
+              <Plus className="size-4" />
             </button>
           </div>
-        </div>
+          <button type="button" onClick={onCancel} className={modalButton.secondary}>
+            Cancel
+          </button>
+          <button type="button" onClick={onConfirm} disabled={overStock} className={modalButton.primary}>
+            Add {qty > 1 ? `${qty} · ${formatMoney(appliedPrice * qty)}` : "to cart"}
+          </button>
+        </>
+      }
+    >
+      <div className={`grid gap-2 ${wholesalePrice !== undefined ? "grid-cols-2" : "grid-cols-1"}`}>
+        <PriceOption label="Retail" price={retailPrice} cost={cost?.totalCost} active={priceMode === "Retail"} />
+        {wholesalePrice !== undefined ? <PriceOption label="Wholesale" price={wholesalePrice} cost={cost?.totalCost} active={priceMode === "Wholesale"} /> : null}
       </div>
-    </div>,
-    document.body,
+
+      {notes ? (
+        <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <span className="font-semibold">Note:</span> {notes}
+        </p>
+      ) : null}
+
+      {details.length ? (
+        <dl className="mt-4 grid grid-cols-1 gap-x-4 gap-y-1.5 rounded-xl bg-slate-50 px-3 py-2.5 text-sm sm:grid-cols-2">
+          {details.map((row) => (
+            <div key={row.label} className="flex justify-between gap-3 sm:block">
+              <dt className="text-xs text-slate-500">{row.label}</dt>
+              <dd className="text-right font-medium text-slate-900 sm:text-left">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+
+      {cost ? (
+        <div className="mt-4 grid gap-1.5 text-sm text-slate-700">
+          <p className="flex justify-between">
+            <span>Unit cost</span>
+            <span>{formatMoney(cost.unitCost)}</span>
+          </p>
+          {(cost.breakdown ?? [])
+            .filter((entry) => entry.amount !== 0)
+            .map((entry) => (
+              <p key={entry.label} className="flex justify-between pl-3 text-xs text-slate-500">
+                <span>+ {entry.label}</span>
+                <span>{formatMoney(entry.amount)}</span>
+              </p>
+            ))}
+          <p className="flex justify-between font-medium text-slate-900">
+            <span>Total cost</span>
+            <span>{formatMoney(cost.totalCost)}</span>
+          </p>
+          <p className="flex justify-between border-t border-slate-200 pt-1.5 font-semibold text-slate-900">
+            <span>Profit at {priceMode.toLowerCase()}</span>
+            <span className={appliedPrice - cost.totalCost >= 0 ? "text-emerald-700" : "text-red-700"}>
+              {appliedPrice - cost.totalCost >= 0 ? "▲" : "▼"} {formatMoney(appliedPrice - cost.totalCost)}
+              {appliedPrice > 0 ? ` (${(((appliedPrice - cost.totalCost) / appliedPrice) * 100).toFixed(1)}%)` : ""}
+            </span>
+          </p>
+        </div>
+      ) : null}
+
+      {overStock ? <p className="mt-3 text-xs text-red-700">Only {remaining} available.</p> : null}
+    </Modal>
   );
 }

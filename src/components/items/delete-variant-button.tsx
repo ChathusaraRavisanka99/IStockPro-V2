@@ -2,7 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Trash2 } from "lucide-react";
 import type { ActionResult } from "@/components/ui/editable-row";
+import { Modal, modalButton } from "@/components/ui/modal";
 
 export function DeleteVariantButton({
   variantId,
@@ -18,11 +20,16 @@ export function DeleteVariantButton({
   className?: string;
 }) {
   const router = useRouter();
+  const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  function onClick() {
-    if (!window.confirm(`Delete variant "${variantName}"? Sold units keep their history.`)) return;
+  function close() {
+    setOpen(false);
+    setError(null);
+  }
+
+  function confirm() {
     const formData = new FormData();
     formData.set("id", variantId);
     startTransition(async () => {
@@ -31,23 +38,40 @@ export function DeleteVariantButton({
         setError(result.error);
         return;
       }
-      setError(null);
+      close();
       if (redirectTo) router.push(redirectTo);
       else router.refresh();
     });
   }
 
   return (
-    <span className="inline-flex flex-col">
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={pending}
-        className={className ?? "rounded-md border border-red-200 px-2 py-0.5 text-xs text-red-700 disabled:opacity-60"}
-      >
-        {pending ? "Deleting..." : "Delete"}
+    <>
+      <button type="button" onClick={() => setOpen(true)} className={className ?? "rounded-md border border-red-200 px-2 py-0.5 text-xs text-red-700 transition hover:bg-red-50"}>
+        Delete
       </button>
-      {error ? <span className="mt-1 max-w-xs text-xs text-red-700">{error}</span> : null}
-    </span>
+      {open ? (
+        <Modal
+          title={`Delete variant "${variantName}"?`}
+          icon={<Trash2 className="size-4" />}
+          tone="danger"
+          size="sm"
+          busy={pending}
+          onClose={close}
+          footer={
+            <>
+              <button type="button" onClick={close} disabled={pending} className={modalButton.secondary}>
+                Cancel
+              </button>
+              <button type="button" onClick={confirm} disabled={pending} data-autofocus className={modalButton.danger}>
+                {pending ? "Deleting..." : "Delete variant"}
+              </button>
+            </>
+          }
+        >
+          <p className="text-sm text-slate-700">It moves to the Recycle Bin for 30 days, then is permanently deleted. Sold units keep their history.</p>
+          {error ? <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p> : null}
+        </Modal>
+      ) : null}
+    </>
   );
 }
