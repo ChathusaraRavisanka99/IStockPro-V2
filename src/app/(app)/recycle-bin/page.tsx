@@ -127,7 +127,7 @@ export default async function RecycleBinPage({ searchParams }: { searchParams: {
               {visible.map((row) => {
                 const left = daysLeft(row.deletedAt);
                 return (
-                  <tr key={`${row.kind}-${row.id}`} className="border-b border-slate-200 align-top">
+                  <tr key={`${row.kind}-${row.id}`} id={`${row.kind}-${row.id}`} className="scroll-mt-24 border-b border-slate-200 align-top transition-colors target:bg-amber-50 target:ring-2 target:ring-inset target:ring-amber-300">
                     <td className="whitespace-nowrap px-2 py-2 text-slate-600">{KIND_LABELS[row.kind]}</td>
                     <td className="px-2 py-2">
                       <p className="font-medium text-slate-900">{row.title}</p>
