@@ -33,4 +33,5 @@ export const navItems: NavItem[] = [
   { href: "/reports", label: "Reports" },
   { href: "/recycle-bin", label: "Recycle Bin" },
   { href: "/settings", label: "Settings" },
+  { href: "/help", label: "Help" },
 ];
