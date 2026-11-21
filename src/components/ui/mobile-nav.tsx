@@ -21,6 +21,21 @@ export function MobileNav({ name, role }: Props) {
     setOpen(false);
   }, [pathname]);
 
+  // While the drawer is open: lock page scroll behind it and close on Esc.
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previous;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   return (
     <>
       <div className="glass-panel sticky top-0 z-30 mb-4 flex items-center justify-between rounded-2xl border border-white/90 p-3 lg:hidden">
@@ -39,8 +54,8 @@ export function MobileNav({ name, role }: Props) {
       {open && typeof document !== "undefined"
         ? createPortal(
             <div className="fixed inset-0 z-50 flex lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation menu">
-              <div className="absolute inset-0 bg-slate-950/40" onClick={() => setOpen(false)} />
-              <div className="glass-panel relative flex h-full w-72 max-w-[85vw] flex-col gap-4 overflow-y-auto border-r border-white/90 p-4">
+              <div className="modal-backdrop-in absolute inset-0 bg-slate-950/40" onClick={() => setOpen(false)} />
+              <div className="glass-panel drawer-in relative flex h-full w-72 max-w-[85vw] flex-col gap-4 overflow-y-auto overscroll-contain border-r border-white/90 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]">
                 <div className="flex items-center justify-between">
                   <Link href="/dashboard" className="rounded-xl px-2 py-1 text-lg font-semibold tracking-tight text-slate-950">
                     IStockPro-v2

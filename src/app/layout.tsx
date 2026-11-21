@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { Manrope, Space_Grotesk } from "next/font/google";
 import { Toaster } from "react-hot-toast";
@@ -18,6 +18,15 @@ const spaceGrotesk = Space_Grotesk({
 export const metadata: Metadata = {
   title: "IStockPro-v2",
   description: "Phone resale business management",
+};
+
+// viewport-fit=cover lets layouts use env(safe-area-inset-*) on notched phones; zoom stays
+// enabled for accessibility.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#f5f7fb",
 };
 
 export default function RootLayout({

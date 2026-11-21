@@ -94,7 +94,7 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
           </p>
         }
       />
-      <div className="mb-4 flex items-start justify-between gap-2">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
         <Link href="/items/phone-catalog" className="text-sm text-slate-700 underline">Back to Catalog</Link>
         <DeleteVariantButton
           variantId={variant.id}
