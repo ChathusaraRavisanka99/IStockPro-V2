@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEditableRow, type ActionResult } from "@/components/ui/editable-row";
 import { DeleteVariantButton } from "@/components/items/delete-variant-button";
+import { ConfirmActionButton } from "@/components/ui/confirm-action-button";
 
 type Model = {
   id: string;
@@ -30,12 +31,14 @@ export function ModelCardEditor({
   optionsMode,
   updateAction,
   deleteVariantAction,
+  deleteModelAction,
 }: {
   model: Model;
   options: Options;
   optionsMode: "stock" | "all";
   updateAction: (formData: FormData) => Promise<ActionResult>;
   deleteVariantAction: (formData: FormData) => Promise<ActionResult>;
+  deleteModelAction: (formData: FormData) => Promise<ActionResult>;
 }) {
   const { editing, error, pending, open, cancel, handleSubmit } = useEditableRow(updateAction);
 
@@ -82,9 +85,24 @@ export function ModelCardEditor({
             </p>
             <p className="text-xs text-slate-600">Warranty {model.warrantyMonths} months | Threshold {model.lowStockThreshold}</p>
           </div>
-          <button type="button" onClick={open} className="shrink-0 text-xs text-slate-700 underline">
-            Edit
-          </button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button type="button" onClick={open} className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 transition hover:bg-slate-50">
+              Edit
+            </button>
+            <ConfirmActionButton
+              label="Delete"
+              title={`Delete ${model.brand} ${model.modelName}?`}
+              message={
+                <>
+                  <p>The model and its {model.variants.length} variant{model.variants.length === 1 ? "" : "s"} move to the Recycle Bin for 30 days, then are permanently deleted. Sold units keep their history.</p>
+                  <p className="mt-2 text-xs text-slate-500">Not allowed while any variant still has units in stock — move those variants to another model first (Edit on the variant page).</p>
+                </>
+              }
+              confirmLabel="Delete model"
+              fields={{ id: model.id }}
+              action={deleteModelAction}
+            />
+          </div>
         </div>
       )}
       <div className="mt-2 grid gap-1 rounded-lg bg-slate-50 px-2 py-1.5">

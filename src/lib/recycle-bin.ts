@@ -131,9 +131,15 @@ async function performRestore(kind: RecycleKind, id: string, issues: RestoreIssu
     case "variant":
       await prisma.phoneVariant.update({ where: { id }, data: { deletedAt: null } });
       return undefined;
-    case "model":
-      await prisma.phoneModel.update({ where: { id }, data: { deletedAt: null } });
-      return undefined;
+    case "model": {
+      // Variants deleted together with the model share its timestamp — bring them back too.
+      const model = await prisma.phoneModel.findUniqueOrThrow({ where: { id } });
+      const [, variants] = await prisma.$transaction([
+        prisma.phoneModel.update({ where: { id }, data: { deletedAt: null } }),
+        prisma.phoneVariant.updateMany({ where: { phoneModelId: id, deletedAt: model.deletedAt }, data: { deletedAt: null } }),
+      ]);
+      return variants.count ? `Model restored with ${variants.count} variant(s).` : undefined;
+    }
     case "customer":
       await prisma.customer.update({ where: { id }, data: { deletedAt: null } });
       return undefined;
