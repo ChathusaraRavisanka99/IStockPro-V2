@@ -14,10 +14,12 @@ import { parsePage, parsePageSize } from "@/lib/pagination";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { formatMoney } from "@/lib/currency";
 import { checkReauth } from "@/lib/reauth";
-import { softDeleteLot } from "@/lib/lots";
+import { softDeleteLot, toggleLotBookmark } from "@/lib/lots";
+import { BookmarkButton } from "@/components/items/bookmark-button";
 import { PasswordConfirmDialog } from "@/components/ui/password-confirm-dialog";
 import { LotFxConverter, LotFxAmount, LotFxHeader } from "@/components/items/lot-fx-converter";
 import type { ActionResult } from "@/components/ui/editable-row";
+import { formatPhoneName } from "@/lib/format-item-name";
 
 type Props = {
   searchParams?: {
@@ -28,6 +30,7 @@ type Props = {
     pageSize?: string;
     from?: string;
     to?: string;
+    bookmarked?: string;
   };
 };
 
@@ -35,6 +38,8 @@ export default async function LotsPage({ searchParams }: Props) {
   const session = await getServerSession(authOptions);
   const showCost = canViewCost(session?.user?.role as "admin" | "manager" | "staff" | undefined);
   const username = session?.user?.username;
+  const userId = session?.user?.id ?? "";
+  const bookmarkedOnly = searchParams?.bookmarked === "1";
   const imeiQuery = searchParams?.imei?.trim();
   const search = searchParams?.search?.trim() || "";
   const view = searchParams?.view === "grid" ? "grid" : "list";
@@ -44,6 +49,7 @@ export default async function LotsPage({ searchParams }: Props) {
   const toDate = searchParams?.to?.trim() || "";
   const lotWhere = {
     deletedAt: null,
+    ...(bookmarkedOnly ? { bookmarks: { some: { userId } } } : {}),
     ...(search ? { OR: [{ lotNumber: { contains: search, mode: "insensitive" as const } }, { supplier: { name: { contains: search, mode: "insensitive" as const } } }] } : {}),
     ...(fromDate || toDate
       ? {
@@ -73,14 +79,20 @@ export default async function LotsPage({ searchParams }: Props) {
           },
         },
         accessoryItems: { select: { unitCost: true, quantity: true } },
+        bookmarks: { where: { userId }, select: { userId: true } },
       },
     }),
     prisma.lot.count({ where: lotWhere }),
   ]);
+  const myBookmarks = await prisma.lotBookmark.findMany({
+    where: { userId, lot: { deletedAt: null } },
+    orderBy: { createdAt: "desc" },
+    include: { lot: { select: { id: true, lotNumber: true, status: true } } },
+  });
 
   const imeiMatch = imeiQuery
-    ? await prisma.phone.findUnique({
-        where: { imei: imeiQuery },
+    ? await prisma.phone.findFirst({
+        where: { imei: imeiQuery, deletedAt: null },
         include: {
           lot: { include: { supplier: true } },
           phoneVariant: { include: { phoneModel: true } },
@@ -111,6 +123,17 @@ export default async function LotsPage({ searchParams }: Props) {
 
     revalidatePath("/lots");
     redirect(`/lots/${lot.id}`);
+  }
+
+  async function toggleBookmark(formData: FormData) {
+    "use server";
+    const actor = await getServerSession(authOptions);
+    const lotId = String(formData.get("lotId") || "");
+    if (!actor?.user?.id || !lotId) return;
+    await toggleLotBookmark(actor.user.id, lotId);
+    revalidatePath("/lots");
+    revalidatePath(`/lots/${lotId}`);
+    revalidatePath("/dashboard");
   }
 
   async function deleteLot(formData: FormData): Promise<ActionResult> {
@@ -159,6 +182,7 @@ export default async function LotsPage({ searchParams }: Props) {
           <>
             <p>A lot is one purchased batch of stock. Create it here with just a lot number, supplier, and start date — it begins in the Collection stage.</p>
             <p className="mt-2">Open a lot to add phones and accessories to it; the goods cost builds up automatically from what you enter. From there you move it through Shipped and Cleared, adding shipping/tax/customs charges as they come in.</p>
+            <p className="mt-2">Click ☆ to bookmark a lot — bookmarked lots appear as shortcuts above the list, can be filtered with &quot;Bookmarked only&quot;, and are listed first on the dashboard.</p>
             <p className="mt-2">Use Search IMEI below to trace which lot a specific phone came from, and the From/To dates to filter lots by their start date.</p>
           </>
         }
@@ -221,7 +245,7 @@ export default async function LotsPage({ searchParams }: Props) {
             {imeiMatch ? (
               <p>
                 IMEI <span className="font-semibold">{imeiMatch.imei}</span> belongs to lot <span className="font-semibold">{imeiMatch.lot.lotNumber}</span>
-                {" "}from {imeiMatch.lot.supplier.name} ({imeiMatch.phoneVariant.phoneModel.brand} {imeiMatch.phoneVariant.phoneModel.modelName}).
+                {" "}from {imeiMatch.lot.supplier.name} ({formatPhoneName(imeiMatch.phoneVariant)}).
               </p>
             ) : (
               <p>No lot found for this IMEI.</p>
@@ -229,6 +253,21 @@ export default async function LotsPage({ searchParams }: Props) {
           </div>
         ) : null}
       </Card>
+
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Link
+          href={bookmarkedOnly ? "/lots" : "/lots?bookmarked=1"}
+          className={`rounded-full border px-3 py-1 text-sm ${bookmarkedOnly ? "border-amber-400 bg-amber-50 text-amber-800" : "border-slate-300 text-slate-700"}`}
+        >
+          {bookmarkedOnly ? "★ Showing bookmarked only — show all" : "★ Bookmarked only"}
+        </Link>
+        {myBookmarks.map((bookmark) => (
+          <Link key={bookmark.lot.id} href={`/lots/${bookmark.lot.id}`} className="rounded-full border border-amber-200 bg-amber-50/60 px-3 py-1 text-sm text-slate-800 hover:bg-amber-100">
+            <span className="text-amber-500">★</span> {bookmark.lot.lotNumber}
+            <span className="ml-1 text-xs text-slate-500">{bookmark.lot.status}</span>
+          </Link>
+        ))}
+      </div>
 
       <ListControls search={search} view={view} placeholder="Search lot number or supplier" dateRange={{ from: fromDate, to: toDate }} />
 
@@ -241,7 +280,10 @@ export default async function LotsPage({ searchParams }: Props) {
             const landedPerUnit = units > 0 ? landedTotal / units : 0;
             return (
               <Card key={lot.id}>
-                <p className="font-semibold text-slate-900">{lot.lotNumber}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-semibold text-slate-900">{lot.lotNumber}</p>
+                  <BookmarkButton lotId={lot.id} bookmarked={lot.bookmarks.length > 0} action={toggleBookmark} />
+                </div>
                 <p className="mt-1 text-sm text-slate-700">{lot.supplier.name}</p>
                 <p className="text-sm text-slate-700">{lot.purchaseDate.toISOString().slice(0, 10)}</p>
                 <p className="mt-3 text-sm text-slate-700">{units} unit{units === 1 ? "" : "s"}</p>
@@ -290,7 +332,12 @@ export default async function LotsPage({ searchParams }: Props) {
                 const landedPerUnit = units > 0 ? landedTotal / units : 0;
                 return (
                   <tr key={lot.id} className="border-b border-slate-200">
-                    <td className="px-2 py-2 font-medium">{lot.lotNumber}</td>
+                    <td className="px-2 py-2 font-medium">
+                      <span className="flex items-center gap-1">
+                        <BookmarkButton lotId={lot.id} bookmarked={lot.bookmarks.length > 0} action={toggleBookmark} />
+                        {lot.lotNumber}
+                      </span>
+                    </td>
                     <td className="px-2 py-2">{lot.supplier.name}</td>
                     <td className="px-2 py-2">{lot.purchaseDate.toISOString().slice(0, 10)}</td>
                     <td className="px-2 py-2">{units}</td>
@@ -325,7 +372,7 @@ export default async function LotsPage({ searchParams }: Props) {
       </Card>
       )}
       </LotFxConverterSlot>
-      <Pagination page={page} pageSize={pageSize} total={total} query={{ ...(search ? { search } : {}), ...(imeiQuery ? { imei: imeiQuery } : {}), ...(fromDate ? { from: fromDate } : {}), ...(toDate ? { to: toDate } : {}), view }} />
+      <Pagination page={page} pageSize={pageSize} total={total} query={{ ...(search ? { search } : {}), ...(imeiQuery ? { imei: imeiQuery } : {}), ...(fromDate ? { from: fromDate } : {}), ...(toDate ? { to: toDate } : {}), ...(bookmarkedOnly ? { bookmarked: "1" } : {}), view }} />
     </div>
   );
 }

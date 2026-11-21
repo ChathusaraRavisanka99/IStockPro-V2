@@ -17,8 +17,11 @@ import { CostRow, CostCard } from "@/components/ui/cost-breakdown-modal";
 import { NoModalCell, NoModalDiv } from "@/components/ui/no-modal-cell";
 import type { ActionResult } from "@/components/ui/editable-row";
 import { createOrRestorePhoneVariant, deletePhoneVariant } from "@/lib/phone-variants";
+import { VariantPickerField, type CreateVariantResult } from "@/components/items/variant-picker";
+import { compareSizes } from "@/lib/variant-specs";
+import { formatPhoneName, formatVariantSpecs } from "@/lib/format-item-name";
 
-type Props = { searchParams: { search?: string; filter?: string; view?: "list" | "grid"; page?: string; pageSize?: string } };
+type Props = { searchParams: { search?: string; filter?: string; view?: "list" | "grid"; page?: string; pageSize?: string; options?: "all" | "stock" } };
 
 export default async function PhonesPage({ searchParams }: Props) {
   const session = await getServerSession(authOptions);
@@ -28,6 +31,8 @@ export default async function PhonesPage({ searchParams }: Props) {
   const view = searchParams.view === "grid" ? "grid" : "list";
   const page = parsePage(searchParams.page);
   const pageSize = parsePageSize(searchParams.pageSize);
+  // Model cards list color/storage/RAM options either for variants with stock, or all.
+  const optionsMode = searchParams.options === "all" ? "all" : "stock";
 
   const [models, variants, lots, suppliers] = await Promise.all([
     prisma.phoneModel.findMany({
@@ -52,7 +57,7 @@ export default async function PhonesPage({ searchParams }: Props) {
     prisma.phoneVariant.findMany({
       where: { deletedAt: null, phoneModel: { deletedAt: null } },
       orderBy: [{ phoneModel: { brand: "asc" } }, { variantName: "asc" }],
-      include: { phoneModel: true },
+      include: { phoneModel: true, _count: { select: { phones: { where: { deletedAt: null, status: "InStock" } } } } },
     }),
     prisma.lot.findMany({ where: { deletedAt: null }, orderBy: { purchaseDate: "desc" } }),
     prisma.supplier.findMany({ where: { deletedAt: null }, orderBy: { name: "asc" } }),
@@ -133,11 +138,33 @@ export default async function PhonesPage({ searchParams }: Props) {
     const networkType = String(formData.get("networkType") || "").trim() || null;
     const battery = String(formData.get("battery") || "").trim() || null;
 
-    if (!phoneModelId || !variantName) return;
+    if (!phoneModelId) return;
 
     await createOrRestorePhoneVariant({ phoneModelId, variantName, color, storage, ram, screenSize, processor, camera, os, networkType, battery });
 
     revalidatePath("/items/phones");
+  }
+
+  async function createVariantFromPicker(formData: FormData): Promise<CreateVariantResult> {
+    "use server";
+    const phoneModelId = String(formData.get("phoneModelId") || "");
+    if (!phoneModelId) return { ok: false, error: "Select a model." };
+    const text = (key: string) => String(formData.get(key) || "").trim() || null;
+    const variant = await createOrRestorePhoneVariant({
+      phoneModelId,
+      variantName: String(formData.get("variantName") || ""),
+      color: text("color"),
+      storage: text("storage"),
+      ram: text("ram"),
+      screenSize: null,
+      processor: null,
+      camera: null,
+      os: null,
+      networkType: null,
+      battery: null,
+    });
+    revalidatePath("/items/phones");
+    return { ok: true, id: variant.id };
   }
 
   async function deleteVariant(formData: FormData): Promise<ActionResult> {
@@ -161,6 +188,8 @@ export default async function PhonesPage({ searchParams }: Props) {
     const notes = String(formData.get("notes") || "").trim() || null;
 
     if (!phoneVariantId || !lotId || !imei) return;
+    // Only live units count — an IMEI from a deleted unit may be registered again.
+    if (await prisma.phone.findFirst({ where: { imei, deletedAt: null }, select: { id: true } })) return;
 
     await prisma.phone.create({
       data: {
@@ -195,6 +224,34 @@ export default async function PhonesPage({ searchParams }: Props) {
     await prisma.phone.update({ where: { id }, data: { deletedAt: new Date() } });
     revalidatePath("/items/phones");
   }
+
+  const pickerVariants = variants.map((variant) => ({
+    id: variant.id,
+    phoneModelId: variant.phoneModelId,
+    brand: variant.phoneModel.brand,
+    modelName: variant.phoneModel.modelName,
+    variantName: variant.variantName,
+    color: variant.color,
+    storage: variant.storage,
+    ram: variant.ram,
+    inStock: variant._count.phones,
+  }));
+  const inStockByVariant = new Map(variants.map((variant) => [variant.id, variant._count.phones]));
+  const distinct = (values: (string | null)[], sizes = false) => {
+    const list = Array.from(new Set(values.filter((value): value is string => Boolean(value))));
+    return sizes ? list.sort(compareSizes) : list.sort((a, b) => a.localeCompare(b));
+  };
+  const optionsFor = (model: (typeof models)[number]) => {
+    const pool = optionsMode === "all" ? model.variants : model.variants.filter((variant) => (inStockByVariant.get(variant.id) ?? 0) > 0);
+    return { colors: distinct(pool.map((variant) => variant.color)), storages: distinct(pool.map((variant) => variant.storage), true), rams: distinct(pool.map((variant) => variant.ram), true) };
+  };
+  const optionsHref = (mode: "all" | "stock") => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(searchParams)) if (value && key !== "options") params.set(key, String(value));
+    if (mode === "all") params.set("options", "all");
+    const query = params.toString();
+    return `/items/phones${query ? `?${query}` : ""}`;
+  };
 
   return (
     <div>
@@ -238,7 +295,7 @@ export default async function PhonesPage({ searchParams }: Props) {
           <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
             Add Variant
             <InfoHelp size="sm" title="Add Variant">
-              A variant is a specific configuration of a model — color, storage, RAM, and the rest of its specs. Every physical unit you register belongs to one variant.
+              A variant is a specific configuration of a model: storage, RAM and color (all optional), plus any other specs. Leave the name blank and it&apos;s built from those, e.g. &quot;128GB · Red&quot;. Every physical unit you register belongs to one variant.
             </InfoHelp>
           </h2>
           <form action={createVariant} className="grid gap-2">
@@ -249,12 +306,13 @@ export default async function PhonesPage({ searchParams }: Props) {
               options={models.map((model) => ({ value: model.id, label: `${model.brand} ${model.modelName}` }))}
               quickAdd={{ label: "Model", action: createModel, fields: [{ name: "brand", label: "Brand", required: true }, { name: "modelName", label: "Model name", required: true }, { name: "lowStockThreshold", label: "Low stock threshold", type: "number" }, { name: "warrantyMonths", label: "Warranty months", type: "number" }] }}
             />
-            <input name="variantName" required placeholder="Variant name" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <input name="color" placeholder="Color" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
-              <input name="storage" placeholder="Storage (ROM)" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
-              <input name="ram" placeholder="RAM" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <input name="storage" placeholder="Storage, e.g. 128GB" className="min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+              <input name="ram" placeholder="RAM, e.g. 6GB" className="min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
+              <input name="color" placeholder="Color" className="min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
             </div>
+            <input name="variantName" placeholder="Variant name (optional — built from storage/RAM/color)" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
+            <p className="text-xs text-slate-500">Model → storage → RAM → color. Everything after the model is optional.</p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <input name="screenSize" placeholder="Screen size" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
               <input name="processor" placeholder="Processor" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
@@ -278,7 +336,11 @@ export default async function PhonesPage({ searchParams }: Props) {
           </h2>
           <form action={createPhoneUnit} className="grid gap-2">
             <input name="imei" required placeholder="IMEI" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
-            <SearchableSelect name="phoneVariantId" required placeholder="Select variant" options={variants.map((variant) => ({ value: variant.id, label: `${variant.phoneModel.brand} ${variant.phoneModel.modelName} - ${variant.variantName}` }))} />
+            <VariantPickerField
+              name="phoneVariantId"
+              variants={pickerVariants}
+              create={{ action: createVariantFromPicker, models: models.map((model) => ({ id: model.id, label: `${model.brand} ${model.modelName}` })) }}
+            />
             <SearchableSelect
               name="lotId"
               required
@@ -321,17 +383,22 @@ export default async function PhonesPage({ searchParams }: Props) {
           <h2 className="flex items-center gap-1.5 text-lg font-semibold">
             Models and In-Stock Counts
             <InfoHelp size="sm" title="Models and In-Stock Counts">
-              Every model you&apos;ve created, with its variants and how many units of each are currently in stock. Use Edit on a model to change its details, click a variant to drill into its individual units, or Delete a variant you no longer need (only allowed once it has no active units).
+              Every model you&apos;ve created, with its color/storage/RAM options (toggle In stock / All), its variants, and how many units of each are currently in stock. Use Edit on a model to change its details, click a variant to drill into its individual units, or Delete a variant you no longer need (only allowed once it has no active units).
             </InfoHelp>
           </h2>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex overflow-hidden rounded-lg border border-slate-300 text-xs">
+              <span className="bg-slate-50 px-2 py-1 text-slate-500">Options</span>
+              <Link href={optionsHref("stock")} className={`px-2 py-1 ${optionsMode === "stock" ? "bg-slate-900 text-white" : "text-slate-700"}`}>In stock</Link>
+              <Link href={optionsHref("all")} className={`px-2 py-1 ${optionsMode === "all" ? "bg-slate-900 text-white" : "text-slate-700"}`}>All</Link>
+            </div>
             <Link href="/items/phones/price-history" className="text-sm text-slate-700 underline">Price history</Link>
             <Link href="/items/phone-catalog" className="text-sm text-slate-700 underline">View full catalog</Link>
           </div>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           {models.map((model) => (
-            <ModelCardEditor key={model.id} model={model} updateAction={updateModel} deleteVariantAction={deleteVariant} />
+            <ModelCardEditor key={model.id} model={model} options={optionsFor(model)} optionsMode={optionsMode} updateAction={updateModel} deleteVariantAction={deleteVariant} />
           ))}
           {!models.length ? <p className="text-sm text-slate-600">No models created yet.</p> : null}
         </div>
@@ -359,6 +426,7 @@ export default async function PhonesPage({ searchParams }: Props) {
                     <span className="rounded-full border border-slate-300 px-2 py-0.5 text-xs text-slate-700">{phone.status}</span>
                   </div>
                   <p className="text-sm text-slate-700">{phone.phoneVariant.variantName}</p>
+                  {formatVariantSpecs(phone.phoneVariant) ? <p className="text-xs text-slate-500">{formatVariantSpecs(phone.phoneVariant)}</p> : null}
                   <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
                     <div className="flex justify-between gap-2"><dt>IMEI</dt><dd className="text-right text-slate-800">{phone.imei}</dd></div>
                     <div className="flex justify-between gap-2"><dt>Lot</dt><dd className="text-right text-slate-800">{phone.lot.lotNumber}</dd></div>
@@ -386,7 +454,7 @@ export default async function PhonesPage({ searchParams }: Props) {
                   key={phone.id}
                   className="rounded-xl border border-slate-200 p-3"
                   data={{
-                    name: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName} - ${phone.phoneVariant.variantName} - IMEI ${phone.imei}`,
+                    name: `${formatPhoneName(phone.phoneVariant)} - IMEI ${phone.imei}`,
                     unitCost: purchasePrice,
                     totalCost,
                     wholesalePrice: Number(costFields.wholesalePrice ?? 0),
@@ -398,6 +466,7 @@ export default async function PhonesPage({ searchParams }: Props) {
                     details: [
                       { label: "Model", value: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName}` },
                       { label: "Variant", value: phone.phoneVariant.variantName },
+                      ...(formatVariantSpecs(phone.phoneVariant) ? [{ label: "Specs", value: formatVariantSpecs(phone.phoneVariant) }] : []),
                       { label: "IMEI", value: phone.imei },
                       { label: "Status", value: phone.status },
                       { label: "Grade", value: phone.grade || "Not Graded" },
@@ -444,7 +513,10 @@ export default async function PhonesPage({ searchParams }: Props) {
                       {phone.notes ? <p className="mt-0.5 text-xs italic text-slate-500">{phone.notes}</p> : null}
                     </td>
                     <td className="px-2 py-2">{phone.phoneVariant.phoneModel.brand + " " + phone.phoneVariant.phoneModel.modelName}</td>
-                    <td className="px-2 py-2">{phone.phoneVariant.variantName}</td>
+                    <td className="px-2 py-2">
+                      {phone.phoneVariant.variantName}
+                      {formatVariantSpecs(phone.phoneVariant) ? <p className="text-xs text-slate-500">{formatVariantSpecs(phone.phoneVariant)}</p> : null}
+                    </td>
                     <td className="px-2 py-2">{phone.lot.lotNumber}</td>
                     <td className="px-2 py-2">{phone.grade || "-"}</td>
                     <td className="px-2 py-2">{phone.status}</td>
@@ -460,7 +532,7 @@ export default async function PhonesPage({ searchParams }: Props) {
                     key={phone.id}
                     className="border-b border-slate-200"
                     data={{
-                      name: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName} - ${phone.phoneVariant.variantName} - IMEI ${phone.imei}`,
+                      name: `${formatPhoneName(phone.phoneVariant)} - IMEI ${phone.imei}`,
                       unitCost: purchasePrice,
                       totalCost,
                       wholesalePrice: Number(costFields.wholesalePrice ?? 0),
@@ -472,6 +544,7 @@ export default async function PhonesPage({ searchParams }: Props) {
                       details: [
                         { label: "Model", value: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName}` },
                         { label: "Variant", value: phone.phoneVariant.variantName },
+                      ...(formatVariantSpecs(phone.phoneVariant) ? [{ label: "Specs", value: formatVariantSpecs(phone.phoneVariant) }] : []),
                         { label: "IMEI", value: phone.imei },
                         { label: "Status", value: phone.status },
                         { label: "Grade", value: phone.grade || "Not Graded" },

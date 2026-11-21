@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { buildVariantName, normalizeColor, normalizeRam, normalizeStorage } from "@/lib/variant-specs";
 
 export type VariantSpecInput = {
   phoneModelId: string;
@@ -16,11 +17,24 @@ export type VariantSpecInput = {
 };
 
 /**
+ * Cleans color/storage/RAM (see src/lib/variant-specs.ts) and, when the name is left blank,
+ * derives it from those specs — so a variant can be defined by color/storage/RAM alone.
+ */
+export function normalizeVariantInput<T extends { variantName: string; color: string | null; storage: string | null; ram: string | null }>(input: T): T {
+  const color = normalizeColor(input.color);
+  const storage = normalizeStorage(input.storage);
+  const ram = normalizeRam(input.ram);
+  const variantName = input.variantName.trim() || buildVariantName({ storage, ram, color });
+  return { ...input, color, storage, ram, variantName };
+}
+
+/**
  * Creates a variant, or revives a previously deleted one with the same name under the same
  * model. Deletes are soft (deletedAt) so sold units keep their history, which means the
  * (phoneModelId, variantName) unique key would otherwise block re-creating that name.
  */
-export async function createOrRestorePhoneVariant(input: VariantSpecInput) {
+export async function createOrRestorePhoneVariant(raw: VariantSpecInput) {
+  const input = normalizeVariantInput(raw);
   const existing = await prisma.phoneVariant.findUnique({
     where: { phoneModelId_variantName: { phoneModelId: input.phoneModelId, variantName: input.variantName } },
   });

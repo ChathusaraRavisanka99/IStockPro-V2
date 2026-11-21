@@ -31,5 +31,6 @@ export const navItems: NavItem[] = [
   { href: "/expenses", label: "Expenses" },
   { href: "/tax-payments", label: "Tax Payments" },
   { href: "/reports", label: "Reports" },
+  { href: "/recycle-bin", label: "Recycle Bin" },
   { href: "/settings", label: "Settings" },
 ];

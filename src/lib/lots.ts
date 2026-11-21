@@ -22,3 +22,14 @@ export async function softDeleteLot(id: string): Promise<{ ok: true } | { ok: fa
   ]);
   return { ok: true };
 }
+
+/** Stars/unstars a lot for one user; returns the new state. */
+export async function toggleLotBookmark(userId: string, lotId: string): Promise<boolean> {
+  const key = { userId_lotId: { userId, lotId } };
+  if (await prisma.lotBookmark.findUnique({ where: key })) {
+    await prisma.lotBookmark.delete({ where: key });
+    return false;
+  }
+  await prisma.lotBookmark.create({ data: { userId, lotId } });
+  return true;
+}

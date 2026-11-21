@@ -1,0 +1,326 @@
+"use client";
+
+import { useMemo, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
+import { SearchableSelect, type QuickAdd } from "@/components/ui/searchable-select";
+import { buildVariantName, compareSizes } from "@/lib/variant-specs";
+
+export type VariantPickerOption = {
+  id: string;
+  phoneModelId: string;
+  brand: string;
+  modelName: string;
+  variantName: string;
+  color: string | null;
+  storage: string | null;
+  ram: string | null;
+  /** Live in-stock units; enables the "In stock only" toggle when provided. */
+  inStock?: number;
+  defaultTagCost?: number;
+  defaultBatteryCost?: number;
+};
+
+export type CreateVariantResult = { ok: true; id: string } | { ok: false; error: string };
+
+type Props = {
+  variants: VariantPickerOption[];
+  value: string;
+  onChange: (variant: VariantPickerOption) => void;
+  /** Renders a hidden input so the picker works inside a plain <form>. */
+  name?: string;
+  placeholder?: string;
+  /** Enables "+ Create new variant" as the last option in the list. */
+  create?: {
+    action: (formData: FormData) => Promise<CreateVariantResult>;
+    models: { id: string; label: string }[];
+    modelQuickAdd?: QuickAdd;
+  };
+};
+
+export function variantDisplayLabel(variant: Pick<VariantPickerOption, "brand" | "modelName" | "variantName" | "color" | "storage" | "ram">) {
+  const specs = [variant.color, variant.storage, variant.ram ? `${variant.ram} RAM` : null].filter(Boolean).join(" · ");
+  return `${variant.brand} ${variant.modelName} - ${variant.variantName}${specs && specs !== variant.variantName ? ` (${specs})` : ""}`;
+}
+
+const uniqueSorted = (values: (string | null)[], sizes: boolean) => {
+  const list = Array.from(new Set(values.filter((value): value is string => Boolean(value))));
+  return sizes ? list.sort(compareSizes) : list.sort((a, b) => a.localeCompare(b));
+};
+
+function Chips({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (value: string) => void }) {
+  if (!options.length) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="w-16 shrink-0 text-xs font-medium text-slate-500">{label}</span>
+      {options.map((option) => {
+        const active = option === value;
+        return (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onChange(active ? "" : option)}
+            className={`rounded-full border px-2.5 py-0.5 text-xs transition ${active ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white text-slate-700 hover:border-slate-500"}`}
+          >
+            {option}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Popup variant chooser: free-text search plus hierarchical Model → Storage → RAM → Color
+ * filters (each level only offers values that exist under the levels above), with
+ * "Create new variant" as the last option, pre-filled from the current filters.
+ */
+export function VariantPicker({ variants, value, onChange, name, placeholder = "Select variant", create }: Props) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [modelId, setModelId] = useState("");
+  const [storage, setStorage] = useState("");
+  const [ram, setRam] = useState("");
+  const [color, setColor] = useState("");
+  const [inStockOnly, setInStockOnly] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const [newVariant, setNewVariant] = useState({ phoneModelId: "", variantName: "", storage: "", ram: "", color: "" });
+  // A just-created variant isn't in `variants` until the page refreshes; remember its label.
+  const [createdLabel, setCreatedLabel] = useState<{ id: string; label: string } | null>(null);
+
+  const hasStock = variants.some((variant) => variant.inStock !== undefined);
+  const selected = variants.find((variant) => variant.id === value);
+  const selectedLabel = selected ? variantDisplayLabel(selected) : createdLabel?.id === value ? createdLabel.label : "";
+
+  const models = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const variant of variants) map.set(variant.phoneModelId, `${variant.brand} ${variant.modelName}`);
+    return Array.from(map, ([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label));
+  }, [variants]);
+
+  const terms = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const base = variants.filter((variant) => {
+    if (inStockOnly && !(variant.inStock ?? 0)) return false;
+    if (!terms.length) return true;
+    const haystack = `${variant.brand} ${variant.modelName} ${variant.variantName} ${variant.color ?? ""} ${variant.storage ?? ""} ${variant.ram ?? ""}`.toLowerCase();
+    return terms.every((term) => haystack.includes(term));
+  });
+  // Each level narrows the options offered by the next one.
+  const byModel = modelId ? base.filter((variant) => variant.phoneModelId === modelId) : base;
+  const storageOptions = uniqueSorted(byModel.map((variant) => variant.storage), true);
+  const byStorage = storage ? byModel.filter((variant) => variant.storage === storage) : byModel;
+  const ramOptions = uniqueSorted(byStorage.map((variant) => variant.ram), true);
+  const byRam = ram ? byStorage.filter((variant) => variant.ram === ram) : byStorage;
+  const colorOptions = uniqueSorted(byRam.map((variant) => variant.color), false);
+  const results = (color ? byRam.filter((variant) => variant.color === color) : byRam).sort((a, b) =>
+    `${a.brand} ${a.modelName}`.localeCompare(`${b.brand} ${b.modelName}`) || compareSizes(a.storage ?? "", b.storage ?? "") || (a.color ?? "").localeCompare(b.color ?? "")
+  );
+
+  const groups = new Map<string, VariantPickerOption[]>();
+  for (const variant of results) {
+    const key = `${variant.brand} ${variant.modelName}`;
+    groups.set(key, [...(groups.get(key) ?? []), variant]);
+  }
+
+  function reset() {
+    setSearch("");
+    setModelId("");
+    setStorage("");
+    setRam("");
+    setColor("");
+    setCreating(false);
+    setCreateError(null);
+  }
+
+  function choose(variant: VariantPickerOption) {
+    onChange(variant);
+    setOpen(false);
+    reset();
+  }
+
+  function startCreate() {
+    setNewVariant({ phoneModelId: modelId, variantName: "", storage, ram, color });
+    setCreateError(null);
+    setCreating(true);
+  }
+
+  function submitCreate() {
+    if (!create) return;
+    if (!newVariant.phoneModelId) {
+      setCreateError("Select a model.");
+      return;
+    }
+    const formData = new FormData();
+    Object.entries(newVariant).forEach(([key, val]) => formData.set(key, val));
+    startTransition(async () => {
+      const result = await create.action(formData);
+      if (!result.ok) {
+        setCreateError(result.error);
+        return;
+      }
+      const model = create.models.find((entry) => entry.id === newVariant.phoneModelId);
+      const [brand, ...rest] = (model?.label ?? "").split(" ");
+      const option: VariantPickerOption = {
+        id: result.id,
+        phoneModelId: newVariant.phoneModelId,
+        brand: brand ?? "",
+        modelName: rest.join(" "),
+        variantName: newVariant.variantName.trim() || buildVariantName({ storage: newVariant.storage || null, ram: newVariant.ram || null, color: newVariant.color || null }),
+        color: newVariant.color || null,
+        storage: newVariant.storage || null,
+        ram: newVariant.ram || null,
+      };
+      setCreatedLabel({ id: result.id, label: variantDisplayLabel(option) });
+      choose(option);
+      router.refresh();
+    });
+  }
+
+  const input = "w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
+
+  return (
+    <>
+      {name ? <input type="hidden" name={name} value={value} /> : null}
+      <button type="button" onClick={() => setOpen(true)} className={`${input} text-left ${selectedLabel ? "text-slate-900" : "text-slate-400"}`}>
+        {selectedLabel || placeholder}
+      </button>
+      {open && typeof document !== "undefined"
+        ? createPortal(
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setOpen(false)}>
+              <div role="dialog" aria-modal="true" className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
+                <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-5 py-3">
+                  <h3 className="text-base font-semibold text-slate-900">{creating ? "Create new variant" : "Select variant"}</h3>
+                  <button type="button" onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-700" aria-label="Close">
+                    ✕
+                  </button>
+                </div>
+
+                {creating && create ? (
+                  <div className="grid gap-3 overflow-y-auto px-5 py-4">
+                    <p className="text-xs text-slate-500">Storage, RAM and color are optional. Leave the name blank to build it from them.</p>
+                    <label className="grid gap-1 text-xs text-slate-700">
+                      Model
+                      <SearchableSelect
+                        placeholder="Select model"
+                        value={newVariant.phoneModelId}
+                        options={create.models.map((model) => ({ value: model.id, label: model.label }))}
+                        onChange={(next) => setNewVariant((current) => ({ ...current, phoneModelId: next }))}
+                        quickAdd={create.modelQuickAdd}
+                      />
+                    </label>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <label className="grid gap-1 text-xs text-slate-700">
+                        Storage
+                        <input value={newVariant.storage} onChange={(event) => setNewVariant((current) => ({ ...current, storage: event.target.value }))} placeholder="e.g. 128GB" className={input} />
+                      </label>
+                      <label className="grid gap-1 text-xs text-slate-700">
+                        RAM
+                        <input value={newVariant.ram} onChange={(event) => setNewVariant((current) => ({ ...current, ram: event.target.value }))} placeholder="e.g. 6GB" className={input} />
+                      </label>
+                      <label className="grid gap-1 text-xs text-slate-700">
+                        Color
+                        <input value={newVariant.color} onChange={(event) => setNewVariant((current) => ({ ...current, color: event.target.value }))} placeholder="e.g. Midnight" className={input} />
+                      </label>
+                    </div>
+                    <label className="grid gap-1 text-xs text-slate-700">
+                      Variant name (optional)
+                      <input
+                        value={newVariant.variantName}
+                        onChange={(event) => setNewVariant((current) => ({ ...current, variantName: event.target.value }))}
+                        placeholder={buildVariantName({ storage: newVariant.storage || null, ram: newVariant.ram || null, color: newVariant.color || null })}
+                        className={input}
+                      />
+                    </label>
+                    {createError ? <p className="text-xs text-red-700">{createError}</p> : null}
+                    <div className="flex justify-end gap-2">
+                      <button type="button" onClick={() => setCreating(false)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700">
+                        Back
+                      </button>
+                      <button type="button" disabled={pending} onClick={submitCreate} className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm text-white disabled:opacity-60">
+                        {pending ? "Creating..." : "Create & select"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid gap-2 border-b border-slate-200 px-5 py-3">
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <input autoFocus value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Type to search, e.g. 13 pro 256 blue" className={input} />
+                        <select
+                          value={modelId}
+                          onChange={(event) => {
+                            setModelId(event.target.value);
+                            setStorage("");
+                            setRam("");
+                            setColor("");
+                          }}
+                          className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm sm:w-56"
+                        >
+                          <option value="">All models</option>
+                          {models.map((model) => (
+                            <option key={model.id} value={model.id}>
+                              {model.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <Chips label="Storage" options={storageOptions} value={storage} onChange={(next) => { setStorage(next); setRam(""); setColor(""); }} />
+                      <Chips label="RAM" options={ramOptions} value={ram} onChange={(next) => { setRam(next); setColor(""); }} />
+                      <Chips label="Color" options={colorOptions} value={color} onChange={setColor} />
+                      {hasStock ? (
+                        <label className="flex items-center gap-2 text-xs text-slate-600">
+                          <input type="checkbox" checked={inStockOnly} onChange={(event) => setInStockOnly(event.target.checked)} />
+                          In stock only
+                        </label>
+                      ) : null}
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+                      {Array.from(groups).map(([model, list]) => (
+                        <div key={model} className="mb-2">
+                          <p className="px-3 py-1 text-xs font-semibold uppercase text-slate-500">{model}</p>
+                          {list.map((variant) => (
+                            <button
+                              key={variant.id}
+                              type="button"
+                              onClick={() => choose(variant)}
+                              className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-100 ${variant.id === value ? "bg-slate-100" : ""}`}
+                            >
+                              <span className="min-w-0">
+                                <span className="font-medium text-slate-900">{variant.variantName}</span>
+                                <span className="mt-0.5 flex flex-wrap gap-1">
+                                  {variant.color ? <span className="rounded bg-rose-50 px-1.5 py-0.5 text-xs text-rose-800">{variant.color}</span> : null}
+                                  {variant.storage ? <span className="rounded bg-sky-50 px-1.5 py-0.5 text-xs text-sky-800">{variant.storage}</span> : null}
+                                  {variant.ram ? <span className="rounded bg-violet-50 px-1.5 py-0.5 text-xs text-violet-800">{variant.ram} RAM</span> : null}
+                                </span>
+                              </span>
+                              {variant.inStock !== undefined ? <span className="shrink-0 text-xs text-slate-500">{variant.inStock} in stock</span> : null}
+                            </button>
+                          ))}
+                        </div>
+                      ))}
+                      {!results.length ? <p className="px-3 py-4 text-center text-sm text-slate-500">No variants match.</p> : null}
+                      {create ? (
+                        <button type="button" onClick={startCreate} className="mt-1 w-full rounded-lg border border-dashed border-slate-300 px-3 py-2 text-left text-sm font-medium text-slate-800 hover:bg-slate-50">
+                          + Create new variant{storage || ram || color ? ` (${[storage, ram && `${ram} RAM`, color].filter(Boolean).join(" · ")})` : ""}
+                        </button>
+                      ) : null}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+    </>
+  );
+}
+
+/** Uncontrolled wrapper for plain server-action forms: submits the chosen id under `name`. */
+export function VariantPickerField(props: Omit<Props, "value" | "onChange"> & { name: string; defaultValue?: string }) {
+  const [value, setValue] = useState(props.defaultValue ?? "");
+  return <VariantPicker {...props} value={value} onChange={(variant) => setValue(variant.id)} />;
+}

@@ -7,6 +7,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { parsePage, parsePageSize } from "@/lib/pagination";
 import { ReturnForm } from "@/components/sales/return-form";
 import { formatMoney } from "@/lib/currency";
+import { formatPhoneName } from "@/lib/format-item-name";
 
 export default async function ReturnsPage({ searchParams }: { searchParams: { search?: string; view?: "list" | "grid"; page?: string; pageSize?: string } }) {
   const search = searchParams.search?.trim() || "";
@@ -46,7 +47,7 @@ export default async function ReturnsPage({ searchParams }: { searchParams: { se
         return {
           id: item.id,
           label: item.phone
-            ? `${item.phone.phoneVariant.phoneModel.brand} ${item.phone.phoneVariant.phoneModel.modelName} - IMEI ${item.phone.imei}`
+            ? `${formatPhoneName(item.phone.phoneVariant)} - IMEI ${item.phone.imei}`
             : item.accessory
               ? `${item.accessory.name} (${item.accessory.sku})`
               : "Line item",

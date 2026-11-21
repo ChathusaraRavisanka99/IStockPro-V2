@@ -11,6 +11,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { parsePage, parsePageSize } from "@/lib/pagination";
 import { QuotationForm } from "@/components/quotations/quotation-form";
 import { formatMoney } from "@/lib/currency";
+import { formatPhoneName } from "@/lib/format-item-name";
 
 type CartLine = { key: string; unitPrice: number; quantity: number };
 
@@ -223,7 +224,7 @@ export default async function QuotationsPage({ searchParams }: { searchParams: {
                 .map(([label, value]) => ({ label: label as string, value: value as string }));
               return {
                 value: `variant:${variant.id}`,
-                label: `${variant.phoneModel.brand} ${variant.phoneModel.modelName} - ${variant.variantName}`,
+                label: formatPhoneName(variant),
                 price: priced?.retail ?? 0,
                 wholesalePrice: priced?.wholesale ?? 0,
                 ...(showCost && priced ? { cost: priced.cost } : {}),
