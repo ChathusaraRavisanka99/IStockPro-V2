@@ -18,7 +18,20 @@ type Variant = {
   defaultBatteryCost: unknown;
 };
 
-export function VariantSpecEditor({ variant, showCost, updateAction }: { variant: Variant; showCost: boolean; updateAction: (formData: FormData) => Promise<ActionResult> }) {
+export function VariantSpecEditor({
+  variant,
+  showCost,
+  models,
+  currentModelId,
+  updateAction,
+}: {
+  variant: Variant;
+  showCost: boolean;
+  /** Models the variant can be moved to via Edit. */
+  models: { id: string; label: string }[];
+  currentModelId: string;
+  updateAction: (formData: FormData) => Promise<ActionResult>;
+}) {
   const { editing, error, pending, open, cancel, handleSubmit } = useEditableRow(updateAction);
 
   const specs: [string, string | null][] = [
@@ -46,10 +59,21 @@ export function VariantSpecEditor({ variant, showCost, updateAction }: { variant
       </div>
       {editing ? (
         <form onSubmit={handleSubmit} className="grid gap-2">
+          <label className="grid min-w-0 gap-1 text-xs text-slate-600">
+            Phone model
+            <select name="phoneModelId" defaultValue={currentModelId} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm">
+              {models.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.label}
+                </option>
+              ))}
+            </select>
+            <span className="text-[11px] text-slate-500">Pick another model to move this variant (and all its units) there.</span>
+          </label>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <label className="grid min-w-0 gap-1 text-xs text-slate-600">
               Variant name
-              <input name="variantName" required defaultValue={variant.variantName} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+              <input name="variantName" placeholder="Built from storage/RAM/color if blank" defaultValue={variant.variantName} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
             </label>
             <label className="grid min-w-0 gap-1 text-xs text-slate-600">
               Color

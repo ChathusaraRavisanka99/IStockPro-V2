@@ -16,7 +16,7 @@ import { ModelCardEditor } from "@/components/items/model-card-editor";
 import { CostRow, CostCard } from "@/components/ui/cost-breakdown-modal";
 import { NoModalCell, NoModalDiv } from "@/components/ui/no-modal-cell";
 import type { ActionResult } from "@/components/ui/editable-row";
-import { createOrRestorePhoneVariant, deletePhoneVariant } from "@/lib/phone-variants";
+import { createOrRestorePhoneVariant, deletePhoneVariant, softDeletePhoneModel } from "@/lib/phone-variants";
 import { VariantPickerField, type CreateVariantResult } from "@/components/items/variant-picker";
 import { compareSizes } from "@/lib/variant-specs";
 import { formatPhoneName, formatVariantSpecs } from "@/lib/format-item-name";
@@ -165,6 +165,11 @@ export default async function PhonesPage({ searchParams }: Props) {
     });
     revalidatePath("/items/phones");
     return { ok: true, id: variant.id };
+  }
+
+  async function deleteModel(formData: FormData): Promise<ActionResult> {
+    "use server";
+    return softDeletePhoneModel(String(formData.get("id") || ""));
   }
 
   async function deleteVariant(formData: FormData): Promise<ActionResult> {
@@ -398,7 +403,7 @@ export default async function PhonesPage({ searchParams }: Props) {
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           {models.map((model) => (
-            <ModelCardEditor key={model.id} model={model} options={optionsFor(model)} optionsMode={optionsMode} updateAction={updateModel} deleteVariantAction={deleteVariant} />
+            <ModelCardEditor key={model.id} model={model} options={optionsFor(model)} optionsMode={optionsMode} updateAction={updateModel} deleteVariantAction={deleteVariant} deleteModelAction={deleteModel} />
           ))}
           {!models.length ? <p className="text-sm text-slate-600">No models created yet.</p> : null}
         </div>

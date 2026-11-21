@@ -68,3 +68,49 @@ export async function deletePhoneVariant(id: string): Promise<{ ok: true } | { o
   revalidatePath("/quotations");
   return { ok: true };
 }
+
+/**
+ * Soft-deletes a phone model together with its variants (same timestamp, so restoring the
+ * model from the Recycle Bin brings them back too). Refused while any of its variants still
+ * has live units, so stock never silently disappears.
+ */
+export async function softDeletePhoneModel(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const model = await prisma.phoneModel.findUnique({ where: { id }, select: { deletedAt: true, brand: true, modelName: true } });
+  if (!model || model.deletedAt) return { ok: false, error: "Model not found." };
+  const activeUnits = await prisma.phone.count({
+    where: { deletedAt: null, status: { notIn: ["Sold", "WrittenOff"] }, phoneVariant: { phoneModelId: id } },
+  });
+  if (activeUnits > 0) {
+    return {
+      ok: false,
+      error: `${model.brand} ${model.modelName} still has ${activeUnits} active unit${activeUnits === 1 ? "" : "s"} (in stock, reserved, returned or in repair). Sell, write off, archive them, or move their variants to another model first.`,
+    };
+  }
+  const now = new Date();
+  await prisma.$transaction([
+    prisma.phoneVariant.updateMany({ where: { phoneModelId: id, deletedAt: null }, data: { deletedAt: now } }),
+    prisma.phoneModel.update({ where: { id }, data: { deletedAt: now } }),
+  ]);
+  for (const path of ["/items/phones", "/items/phone-catalog", "/dashboard", "/lots", "/quotations", "/recycle-bin"]) revalidatePath(path);
+  return { ok: true };
+}
+
+/**
+ * Checks that a variant can live under `targetModelId` with `variantName` — the pair must be
+ * unique (deleted variants included, since they still hold the name until purged).
+ */
+export async function checkVariantPlacement(variantId: string, targetModelId: string, variantName: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const target = await prisma.phoneModel.findUnique({ where: { id: targetModelId }, select: { deletedAt: true, brand: true, modelName: true } });
+  if (!target || target.deletedAt) return { ok: false, error: "That model doesn't exist or is deleted." };
+  const clash = await prisma.phoneVariant.findFirst({
+    where: { phoneModelId: targetModelId, variantName, id: { not: variantId } },
+    select: { deletedAt: true },
+  });
+  if (clash) {
+    return {
+      ok: false,
+      error: `${target.brand} ${target.modelName} already has a variant named "${variantName}"${clash.deletedAt ? " (in the Recycle Bin)" : ""}. Rename this variant first${clash.deletedAt ? ", or restore and use that one" : ""}.`,
+    };
+  }
+  return { ok: true };
+}

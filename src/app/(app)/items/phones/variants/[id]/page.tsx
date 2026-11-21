@@ -13,7 +13,7 @@ import { VariantSpecEditor } from "@/components/items/variant-spec-editor";
 import { CostRow } from "@/components/ui/cost-breakdown-modal";
 import { NoModalCell } from "@/components/ui/no-modal-cell";
 import type { ActionResult } from "@/components/ui/editable-row";
-import { deletePhoneVariant } from "@/lib/phone-variants";
+import { checkVariantPlacement, deletePhoneVariant, normalizeVariantInput } from "@/lib/phone-variants";
 import { DeleteVariantButton } from "@/components/items/delete-variant-button";
 
 export default async function PhoneVariantDetailPage({ params }: { params: { id: string } }) {
@@ -29,6 +29,7 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
     },
   });
   if (!variant || variant.deletedAt) notFound();
+  const models = await prisma.phoneModel.findMany({ where: { deletedAt: null }, orderBy: [{ brand: "asc" }, { modelName: "asc" }], select: { id: true, brand: true, modelName: true } });
 
   // Expenses (and the popup they feed) are cost-sensitive — only fetch for roles that
   // can already view cost, matching the Purchase Price column gating below.
@@ -44,16 +45,28 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
   async function updateVariant(formData: FormData): Promise<ActionResult> {
     "use server";
 
-    const variantName = String(formData.get("variantName") || "").trim();
-    if (!variantName) return { ok: false, error: "Variant name is required." };
+    const current = await prisma.phoneVariant.findUnique({ where: { id: params.id }, select: { phoneModelId: true } });
+    if (!current) return { ok: false, error: "Variant not found." };
+    // Specs are cleaned the same way as on create; a blank name is rebuilt from them.
+    const specs = normalizeVariantInput({
+      variantName: String(formData.get("variantName") || ""),
+      color: String(formData.get("color") || "").trim() || null,
+      storage: String(formData.get("storage") || "").trim() || null,
+      ram: String(formData.get("ram") || "").trim() || null,
+    });
+    // Moving to another model (or renaming) must keep (model, name) unique.
+    const phoneModelId = String(formData.get("phoneModelId") || "") || current.phoneModelId;
+    const placement = await checkVariantPlacement(params.id, phoneModelId, specs.variantName);
+    if (!placement.ok) return placement;
 
     await prisma.phoneVariant.update({
       where: { id: params.id },
       data: {
-        variantName,
-        color: String(formData.get("color") || "").trim() || null,
-        storage: String(formData.get("storage") || "").trim() || null,
-        ram: String(formData.get("ram") || "").trim() || null,
+        phoneModelId,
+        variantName: specs.variantName,
+        color: specs.color,
+        storage: specs.storage,
+        ram: specs.ram,
         screenSize: String(formData.get("screenSize") || "").trim() || null,
         processor: String(formData.get("processor") || "").trim() || null,
         camera: String(formData.get("camera") || "").trim() || null,
@@ -66,6 +79,7 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
     });
 
     revalidatePath(`/items/phones/variants/${params.id}`);
+    revalidatePath("/items/phones");
     revalidatePath("/items/phone-catalog");
     revalidatePath("/lots");
     return { ok: true };
@@ -123,6 +137,8 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
               defaultBatteryCost: Number(variant.defaultBatteryCost),
             }}
             showCost={showCost}
+            models={models.map((model) => ({ id: model.id, label: `${model.brand} ${model.modelName}` }))}
+            currentModelId={variant.phoneModelId}
             updateAction={updateVariant}
           />
         </Card>
