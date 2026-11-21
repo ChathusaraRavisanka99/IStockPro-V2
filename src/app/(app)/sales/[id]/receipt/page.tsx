@@ -23,7 +23,7 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
         <Link href="/sales" className="text-sm text-slate-700 underline">Back to Sales</Link>
         <ReceiptActions saleId={sale.id} fileName={sale.invoice?.invoiceNumber || sale.saleNumber} />
       </div>
-      <section className="receipt-paper rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+      <section className="receipt-paper rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-8">
         <div className="flex items-start justify-between border-b border-slate-200 pb-5">
           <div><h1 className="text-2xl font-semibold text-slate-950">IStockPro</h1><p className="text-sm text-slate-600">Sales receipt</p></div>
           <div className="text-right text-sm text-slate-700"><p className="font-semibold text-slate-950">{sale.saleNumber}</p><p>{sale.saleDate.toISOString().slice(0, 10)}</p></div>

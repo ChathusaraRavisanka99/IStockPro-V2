@@ -111,7 +111,7 @@ export function Modal({ title, subtitle, icon, tone = "default", size = "md", on
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl outline-none ring-1 ring-slate-900/5 sm:max-h-[88vh] sm:rounded-2xl ${WIDTHS[size]} ${closing ? "modal-panel-out" : "modal-panel-in"}`}
+        className={`modal-panel-size flex w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl outline-none ring-1 ring-slate-900/5 sm:rounded-2xl ${WIDTHS[size]} ${closing ? "modal-panel-out" : "modal-panel-in"}`}
       >
         <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-slate-200 sm:hidden" aria-hidden="true" />
         <div className={`flex shrink-0 items-start gap-3 border-b px-5 pb-3 pt-3 sm:pt-4 ${tone === "danger" ? "border-red-100" : "border-slate-100"}`}>

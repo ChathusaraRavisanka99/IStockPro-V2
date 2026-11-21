@@ -379,7 +379,7 @@ export default async function PhonesPage({ searchParams }: Props) {
       </div>
 
       <Card className="mt-4">
-        <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="flex items-center gap-1.5 text-lg font-semibold">
             Models and In-Stock Counts
             <InfoHelp size="sm" title="Models and In-Stock Counts">

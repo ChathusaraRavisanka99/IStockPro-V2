@@ -32,9 +32,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <LogoutButton name={session.user.name || session.user.username} role={session.user.role} />
         </div>
       </aside>
-      <main className="p-4 sm:p-6 lg:p-8">
+      <main className="min-w-0 p-3 sm:p-6 lg:p-8">
         <MobileNav name={session.user.name || session.user.username} role={session.user.role} />
-        <div className="glass-panel rounded-3xl border border-white/90 p-4 text-slate-950 shadow-[0_25px_60px_rgba(15,23,42,0.1)] sm:p-6 lg:p-8">
+        <div className="glass-panel rounded-2xl border border-white/90 p-3 text-slate-950 shadow-[0_25px_60px_rgba(15,23,42,0.1)] sm:rounded-3xl sm:p-6 lg:p-8">
           {children}
         </div>
       </main>
