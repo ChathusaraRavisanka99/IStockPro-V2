@@ -9,7 +9,21 @@ export type RecycleKind = "lot" | "phone" | "variant" | "model" | "customer" | "
  * proceed but explains what was left behind (e.g. lot units whose IMEI is now taken).
  * `href` links to the record causing the conflict so the user can resolve it.
  */
-export type RestoreIssue = { level: "block" | "warn"; message: string; href?: string; linkLabel?: string };
+export type RestoreIssue = {
+  level: "block" | "warn";
+  message: string;
+  /** Where to go to fix it — a Recycle Bin row anchor (#kind-id) or a live record's page. */
+  href?: string;
+  linkLabel?: string;
+  /** Tooltip: why the rule exists, and the steps to resolve it. */
+  why?: string;
+  how?: string;
+};
+
+/** Anchor of an item's row on the Recycle Bin page (rows carry id="kind-id"). */
+export function binAnchor(kind: RecycleKind, id: string) {
+  return `/recycle-bin#${kind}-${id}`;
+}
 export type RestoreResult = { ok: true; message?: string; issues?: RestoreIssue[] } | { ok: false; error: string; issues?: RestoreIssue[] };
 
 /** softDeleteLot() appends " [deleted <ms>]" to free the lot number; this strips it again. */
@@ -41,7 +55,9 @@ function imeiIssue(level: RestoreIssue["level"], imei: string, holder: { lotId: 
     level,
     message: `IMEI ${imei} is already used by a live unit in lot ${holder.lotNumber} — only one active unit may have an IMEI.`,
     href: `/lots/${holder.lotId}`,
-    linkLabel: `Open lot ${holder.lotNumber}`,
+    linkLabel: `Go to lot ${holder.lotNumber}`,
+    why: "An IMEI identifies one physical phone, so two active units can't share it — sales, returns and warranty lookups would hit the wrong unit.",
+    how: `Open lot ${holder.lotNumber}, find the unit with IMEI ${imei}, and either archive it (if it was a duplicate entry) or correct its IMEI with Edit. Then come back and restore.`,
   };
 }
 
@@ -55,9 +71,37 @@ export async function checkRestore(kind: RecycleKind, id: string): Promise<Resto
       const phone = await prisma.phone.findUnique({ where: { id }, include: { lot: true, phoneVariant: { include: { phoneModel: true } } } });
       if (!phone?.deletedAt) return [{ level: "block", message: "This unit is no longer in the recycle bin." }];
       const issues: RestoreIssue[] = [];
-      if (phone.lot.deletedAt) issues.push({ level: "block", message: `Its lot ${originalLotNumber(phone.lot.lotNumber)} is deleted — restore the lot first (that also brings back the units deleted with it).` });
-      if (phone.phoneVariant.phoneModel.deletedAt) issues.push({ level: "block", message: `Its model ${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName} is deleted — restore the model first.` });
-      else if (phone.phoneVariant.deletedAt) issues.push({ level: "block", message: `Its variant "${phone.phoneVariant.variantName}" is deleted — restore the variant first.` });
+      if (phone.lot.deletedAt) {
+        const lotNumber = originalLotNumber(phone.lot.lotNumber);
+        issues.push({
+          level: "block",
+          message: `Its lot ${lotNumber} is deleted — restore the lot first.`,
+          href: binAnchor("lot", phone.lot.id),
+          linkLabel: `Go to lot ${lotNumber}`,
+          why: "Every unit must belong to a live lot — the lot holds its purchase cost, supplier and payments.",
+          how: `Click "Go to lot ${lotNumber}" and press Restore on that row. Units deleted together with the lot come back automatically; if this one doesn't, restore it here afterwards.`,
+        });
+      }
+      if (phone.phoneVariant.phoneModel.deletedAt) {
+        const modelName = `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName}`;
+        issues.push({
+          level: "block",
+          message: `Its model ${modelName} is deleted — restore the model first.`,
+          href: binAnchor("model", phone.phoneVariant.phoneModel.id),
+          linkLabel: `Go to model ${modelName}`,
+          why: "A unit is listed under its model and variant; with the model deleted it would be invisible in stock, sales and reports.",
+          how: `Click "Go to model", press Restore on the model row (its variants come back with it), then restore this unit.`,
+        });
+      } else if (phone.phoneVariant.deletedAt) {
+        issues.push({
+          level: "block",
+          message: `Its variant "${phone.phoneVariant.variantName}" is deleted — restore the variant first.`,
+          href: binAnchor("variant", phone.phoneVariant.id),
+          linkLabel: `Go to variant "${phone.phoneVariant.variantName}"`,
+          why: "A unit is listed under its variant (color/storage/RAM); with the variant deleted it would be invisible in stock, sales and reports.",
+          how: `Click "Go to variant", press Restore on that row, then come back and restore this unit.`,
+        });
+      }
       const holder = (await liveImeiHolders([phone.imei], [id])).get(phone.imei);
       if (holder) issues.push(imeiIssue("block", phone.imei, holder));
       return issues;
@@ -71,8 +115,11 @@ export async function checkRestore(kind: RecycleKind, id: string): Promise<Resto
       if (clash) {
         issues.push({
           level: "block",
-          message: `Lot number ${lotNumber} is now used by another lot — lot numbers must be unique. Rename that lot first.`,
-          ...(clash.deletedAt ? {} : { href: `/lots/${clash.id}`, linkLabel: `Open lot ${lotNumber}` }),
+          message: `Lot number ${lotNumber} is now used by another lot — lot numbers must be unique.`,
+          href: clash.deletedAt ? binAnchor("lot", clash.id) : `/lots/${clash.id}`,
+          linkLabel: `Go to lot ${lotNumber}`,
+          why: "Lot numbers identify a purchase batch on documents and in IMEI lookups, so they can't repeat.",
+          how: "Open the other lot and change its lot number (or delete it if it was created by mistake), then come back and restore this one.",
         });
       }
       const units = await prisma.phone.findMany({ where: { lotId: id, deletedAt: lot.deletedAt }, select: { id: true, imei: true } });
@@ -82,13 +129,33 @@ export async function checkRestore(kind: RecycleKind, id: string): Promise<Resto
         if (holder) issues.push({ ...imeiIssue("warn", unit.imei, holder), message: `Unit ${unit.imei} will stay deleted: its IMEI is already used by a live unit in lot ${holder.lotNumber}.` });
       }
       const archivedEarlier = await prisma.phone.count({ where: { lotId: id, deletedAt: { not: null }, NOT: { deletedAt: lot.deletedAt } } });
-      if (archivedEarlier) issues.push({ level: "warn", message: `${archivedEarlier} unit(s) were archived separately before the lot was deleted; they stay in the recycle bin and can be restored on their own.` });
+      if (archivedEarlier) {
+        issues.push({
+          level: "warn",
+          message: `${archivedEarlier} unit(s) were archived separately before the lot was deleted; they stay in the recycle bin.`,
+          href: "/recycle-bin?type=phone",
+          linkLabel: "Show deleted units",
+          why: "Only units deleted together with the lot are brought back with it — ones archived earlier were removed on purpose.",
+          how: "After restoring the lot, open Phone units in the Recycle Bin and restore any of those you still want.",
+        });
+      }
       return issues;
     }
     case "variant": {
       const variant = await prisma.phoneVariant.findUnique({ where: { id }, include: { phoneModel: true } });
       if (!variant?.deletedAt) return [{ level: "block", message: "This variant is no longer in the recycle bin." }];
-      return variant.phoneModel.deletedAt ? [{ level: "block", message: `Its model ${variant.phoneModel.brand} ${variant.phoneModel.modelName} is deleted — restore the model first.` }] : [];
+      if (!variant.phoneModel.deletedAt) return [];
+      const modelName = `${variant.phoneModel.brand} ${variant.phoneModel.modelName}`;
+      return [
+        {
+          level: "block",
+          message: `Its model ${modelName} is deleted — restore the model first.`,
+          href: binAnchor("model", variant.phoneModel.id),
+          linkLabel: `Go to model ${modelName}`,
+          why: "A variant always belongs to a phone model; it can't be active while its model is deleted.",
+          how: "Click \"Go to model\" and press Restore — the variants deleted with it come back automatically. Otherwise restore this variant afterwards, or move it to another model from its Edit page once restored.",
+        },
+      ];
     }
     default:
       return [];
