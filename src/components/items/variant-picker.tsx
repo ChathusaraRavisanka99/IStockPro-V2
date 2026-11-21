@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { Check, ChevronsUpDown, Plus, Search, Smartphone } from "lucide-react";
 import { Modal, modalButton, modalField } from "@/components/ui/modal";
+import { ColorChip, SpecChips } from "@/components/ui/spec-chips";
 import { useRouter } from "next/navigation";
 import { SearchableSelect, type QuickAdd } from "@/components/ui/searchable-select";
 import { buildVariantName, compareSizes } from "@/lib/variant-specs";
@@ -49,7 +50,7 @@ const uniqueSorted = (values: (string | null)[], sizes: boolean) => {
   return sizes ? list.sort(compareSizes) : list.sort((a, b) => a.localeCompare(b));
 };
 
-function Chips({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (value: string) => void }) {
+function Chips({ label, options, value, onChange, colors }: { label: string; options: string[]; value: string; onChange: (value: string) => void; colors?: boolean }) {
   if (!options.length) return null;
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -57,14 +58,21 @@ function Chips({ label, options, value, onChange }: { label: string; options: st
       {options.map((option) => {
         const active = option === value;
         return (
+          colors ? (
+            <button key={option} type="button" onClick={() => onChange(active ? "" : option)} aria-pressed={active} className={`rounded-full transition ${value && !active ? "opacity-40 hover:opacity-100" : ""}`}>
+              <ColorChip color={option} size="sm" active={active} />
+            </button>
+          ) : (
           <button
             key={option}
             type="button"
             onClick={() => onChange(active ? "" : option)}
+            aria-pressed={active}
             className={`rounded-full border px-2.5 py-0.5 text-xs transition ${active ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white text-slate-700 hover:border-slate-500"}`}
           >
             {option}
           </button>
+          )
         );
       })}
     </div>
@@ -308,7 +316,7 @@ export function VariantPicker({ variants, value, onChange, name, placeholder = "
                 </div>
                 <Chips label="Storage" options={storageOptions} value={storage} onChange={(next) => { setStorage(next); setRam(""); setColor(""); }} />
                 <Chips label="RAM" options={ramOptions} value={ram} onChange={(next) => { setRam(next); setColor(""); }} />
-                <Chips label="Color" options={colorOptions} value={color} onChange={setColor} />
+                <Chips label="Color" options={colorOptions} value={color} onChange={setColor} colors />
                 {hasStock ? (
                   <label className="flex items-center gap-2 text-xs text-slate-600">
                     <input type="checkbox" checked={inStockOnly} onChange={(event) => setInStockOnly(event.target.checked)} />
@@ -330,11 +338,7 @@ export function VariantPicker({ variants, value, onChange, name, placeholder = "
                         <span className="min-w-0">
                           <span className="font-medium text-slate-900">{variant.variantName}</span>
                           {search && results[0]?.id === variant.id ? <span className="ml-2 text-[10px] uppercase text-slate-400">Enter ↵</span> : null}
-                          <span className="mt-0.5 flex flex-wrap gap-1">
-                            {variant.color ? <span className="rounded bg-rose-50 px-1.5 py-0.5 text-xs text-rose-800">{variant.color}</span> : null}
-                            {variant.storage ? <span className="rounded bg-sky-50 px-1.5 py-0.5 text-xs text-sky-800">{variant.storage}</span> : null}
-                            {variant.ram ? <span className="rounded bg-violet-50 px-1.5 py-0.5 text-xs text-violet-800">{variant.ram} RAM</span> : null}
-                          </span>
+                          <SpecChips color={variant.color} storage={variant.storage} ram={variant.ram} className="mt-1" />
                         </span>
                         <span className="flex shrink-0 items-center gap-2">
                           {variant.inStock !== undefined ? (

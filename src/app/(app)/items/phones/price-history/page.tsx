@@ -12,6 +12,7 @@ import { parsePage, parsePageSize } from "@/lib/pagination";
 import { formatMoney } from "@/lib/currency";
 import { formatVariantSpecs } from "@/lib/format-item-name";
 import { PRICE_CHANGE_ACTION, PRICE_FIELD_LABELS, type PriceChangeDetails, type PriceField } from "@/lib/price-history";
+import { SpecChips } from "@/components/ui/spec-chips";
 
 type Props = { searchParams: { search?: string; filter?: string; from?: string; to?: string; page?: string; pageSize?: string } };
 
@@ -131,7 +132,7 @@ export default async function PhonePriceHistoryPage({ searchParams }: Props) {
                       {phone ? (
                         <>
                           {phone.phoneVariant.phoneModel.brand} {phone.phoneVariant.phoneModel.modelName} - {phone.phoneVariant.variantName}
-                          {specs ? <p className="text-xs text-slate-500">{specs}</p> : null}
+                          {specs ? <SpecChips color={phone.phoneVariant.color} storage={phone.phoneVariant.storage} ram={phone.phoneVariant.ram} className="mt-1 flex" /> : null}
                           {phone.deletedAt ? <p className="text-xs text-red-700">Archived</p> : null}
                         </>
                       ) : (
