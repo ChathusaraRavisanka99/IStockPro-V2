@@ -121,11 +121,11 @@ async function main() {
     { imei: "990000862471885", variantId: galaxyVariant.id, purchasePrice: 540, wholesalePrice: 630, retailPrice: 699, grade: PhoneGrade.A, batteryHealth: 96, status: "InStock" as const },
   ];
   const phones = await Promise.all(
-    phoneSeeds.map((p) =>
-      prisma.phone.upsert({
-        where: { imei: p.imei },
-        update: {},
-        create: {
+    // imei is only unique among live phones (partial index), so find-or-create by hand.
+    phoneSeeds.map(async (p) =>
+      (await prisma.phone.findFirst({ where: { imei: p.imei, deletedAt: null } })) ??
+      prisma.phone.create({
+        data: {
           imei: p.imei,
           phoneVariantId: p.variantId,
           lotId: lot.id,

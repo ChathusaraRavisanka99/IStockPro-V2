@@ -1,16 +1,15 @@
+type VariantNameParts = { variantName: string; color?: string | null; storage?: string | null; ram?: string | null; phoneModel: { brand: string; modelName: string } };
 type PhoneNameParts = {
   imei: string;
-  phoneVariant: { variantName: string; phoneModel: { brand: string; modelName: string } };
+  phoneVariant: VariantNameParts;
 };
 type AccessoryNameParts = { name: string; sku: string };
 
 /** "Brand Model - Variant - IMEI 123..." for a phone unit, "Name (SKU)" for an accessory. */
 export function formatSaleItemName(item: { phone?: PhoneNameParts | null; accessory?: AccessoryNameParts | null }): string {
   if (item.phone) {
-    const { brand, modelName } = item.phone.phoneVariant.phoneModel;
-    const { variantName } = item.phone.phoneVariant;
     const { imei } = item.phone;
-    return `${brand} ${modelName} - ${variantName}${imei ? ` - IMEI ${imei}` : ""}`;
+    return `${formatPhoneName(item.phone.phoneVariant)}${imei ? ` - IMEI ${imei}` : ""}`;
   }
   if (item.accessory) {
     return `${item.accessory.name} (${item.accessory.sku})`;
@@ -27,4 +26,17 @@ export function formatVariantSpecs(variant: { color?: string | null; storage?: s
   };
   const ram = withUnit(variant.ram);
   return [variant.color?.trim() || "", withUnit(variant.storage), ram ? `${ram} RAM` : ""].filter(Boolean).join(" · ");
+}
+
+/**
+ * "Apple iPhone 13 - 13 Pro (Graphite · 128GB)": model, variant and its color/storage/RAM.
+ * The specs are skipped when the variant name already spells them all out.
+ */
+export function formatPhoneName(variant: VariantNameParts): string {
+  const base = `${variant.phoneModel.brand} ${variant.phoneModel.modelName} - ${variant.variantName}`;
+  const specs = formatVariantSpecs(variant);
+  if (!specs) return base;
+  const name = variant.variantName.toLowerCase();
+  const alreadyNamed = specs.split(" · ").every((part) => name.includes(part.replace(/ RAM$/, "").toLowerCase()));
+  return alreadyNamed ? base : `${base} (${specs})`;
 }

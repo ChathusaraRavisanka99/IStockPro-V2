@@ -3,8 +3,18 @@ import { PageHeader } from "@/components/ui/page-header";
 import { DataTableShell } from "@/components/ui/data-table-shell";
 import { DashboardWidgetLayout } from "@/components/dashboard/dashboard-widget-layout";
 import { formatMoney } from "@/lib/currency";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { canViewCost } from "@/lib/rbac";
+import { LotAnalytics, type LotAnalyticsRow, type LotSort } from "@/components/dashboard/lot-analytics";
 
-export default async function DashboardPage() {
+const LOT_SORTS: LotSort[] = ["recent", "sell-through", "stock", "outstanding", "age"];
+
+export default async function DashboardPage({ searchParams }: { searchParams?: { lotSort?: string } }) {
+  const session = await getServerSession(authOptions);
+  const showCost = canViewCost(session?.user?.role as "admin" | "manager" | "staff" | undefined);
+  const requestedSort = LOT_SORTS.includes(searchParams?.lotSort as LotSort) ? (searchParams?.lotSort as LotSort) : "recent";
+  const lotSort: LotSort = requestedSort === "outstanding" && !showCost ? "recent" : requestedSort;
   const [monthlySalesAgg, pendingInvoices, inStockPhones, phoneModels, accessories, completedSales, returnsCount, inventoryValue] = await Promise.all([
     prisma.sale.aggregate({
       _sum: { totalAmount: true },
@@ -41,6 +51,35 @@ export default async function DashboardPage() {
     prisma.return.count(),
     prisma.phone.aggregate({ _sum: { purchasePrice: true }, where: { deletedAt: null, status: "InStock" } }),
   ]);
+
+  const lotRecords = await prisma.lot.findMany({
+    where: { deletedAt: null },
+    orderBy: { purchaseDate: "desc" },
+    take: 300,
+    include: {
+      supplier: { select: { name: true } },
+      phones: { where: { deletedAt: null }, select: { status: true, purchasePrice: true } },
+      accessoryItems: { select: { unitCost: true, quantity: true } },
+      bookmarks: { where: { userId: session?.user?.id ?? "" }, select: { userId: true } },
+    },
+  });
+  const lotRows: LotAnalyticsRow[] = lotRecords.map((lot) => ({
+    id: lot.id,
+    lotNumber: lot.lotNumber,
+    supplier: lot.supplier.name,
+    status: lot.status,
+    paymentStatus: lot.paymentStatus,
+    bookmarked: lot.bookmarks.length > 0,
+    units: lot.phones.length,
+    inStock: lot.phones.filter((phone) => phone.status === "InStock").length,
+    sold: lot.phones.filter((phone) => phone.status === "Sold").length,
+    totalCost:
+      Number(lot.shippingCost) + Number(lot.taxCost) + Number(lot.customsCost) + Number(lot.otherCost) +
+      lot.phones.reduce((sum, phone) => sum + Number(phone.purchasePrice), 0) +
+      lot.accessoryItems.reduce((sum, item) => sum + Number(item.unitCost) * item.quantity, 0),
+    paid: Number(lot.amountPaid),
+    ageDays: Math.max(0, Math.floor((Date.now() - lot.purchaseDate.getTime()) / 86_400_000)),
+  }));
 
   const lowStockPhoneModels = phoneModels.filter((model) => {
     const inStock = model.variants.reduce((acc, variant) => acc + variant._count.phones, 0);
@@ -84,6 +123,8 @@ export default async function DashboardPage() {
         { id: "inventory-value", title: "Inventory Value", value: formatMoney(Number(inventoryValue._sum.purchasePrice ?? 0)), helper: "Cost of in-stock phones" },
         { id: "accessory-stock", title: "Accessory Stock", value: String(accessories.reduce((sum, item) => sum + item.quantity, 0)), helper: "Units across accessory categories" },
       ]} />
+
+      <LotAnalytics lots={lotRows} showCost={showCost} sort={lotSort} />
 
       <div className="mt-6 grid gap-4 xl:grid-cols-2">
         <DataTableShell title="Top Stock Models" help="The 5 phone models with the most in-stock units right now, highest first.">

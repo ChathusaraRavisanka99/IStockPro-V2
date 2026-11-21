@@ -10,15 +10,30 @@ type Model = {
   modelName: string;
   lowStockThreshold: number;
   warrantyMonths: number;
-  variants: { id: string; variantName: string; _count: { phones: number } }[];
+  variants: { id: string; variantName: string; color: string | null; storage: string | null; ram: string | null; _count: { phones: number } }[];
 };
+
+type Options = { colors: string[]; storages: string[]; rams: string[] };
+
+function OptionRow({ label, values, tone }: { label: string; values: string[]; tone: string }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      <span className="w-14 shrink-0 text-xs text-slate-500">{label}</span>
+      {values.length ? values.map((value) => <span key={value} className={`rounded px-1.5 py-0.5 text-xs ${tone}`}>{value}</span>) : <span className="text-xs text-slate-400">-</span>}
+    </div>
+  );
+}
 
 export function ModelCardEditor({
   model,
+  options,
+  optionsMode,
   updateAction,
   deleteVariantAction,
 }: {
   model: Model;
+  options: Options;
+  optionsMode: "stock" | "all";
   updateAction: (formData: FormData) => Promise<ActionResult>;
   deleteVariantAction: (formData: FormData) => Promise<ActionResult>;
 }) {
@@ -72,11 +87,21 @@ export function ModelCardEditor({
           </button>
         </div>
       )}
+      <div className="mt-2 grid gap-1 rounded-lg bg-slate-50 px-2 py-1.5">
+        <p className="text-[11px] font-semibold uppercase text-slate-500">{optionsMode === "stock" ? "Available options (in stock)" : "All options"}</p>
+        <OptionRow label="Color" values={options.colors} tone="bg-rose-50 text-rose-800" />
+        <OptionRow label="Storage" values={options.storages} tone="bg-sky-50 text-sky-800" />
+        <OptionRow label="RAM" values={options.rams} tone="bg-violet-50 text-violet-800" />
+      </div>
       <ul className="mt-2 space-y-1 text-sm text-slate-700">
         {model.variants.map((variant) => (
           <li key={variant.id} className="flex items-start justify-between gap-2">
             <Link href={`/items/phones/variants/${variant.id}`} className="underline hover:text-slate-900">
-              {variant.variantName} - In stock: {variant._count.phones}
+              {variant.variantName}
+              {[variant.color, variant.storage, variant.ram ? `${variant.ram} RAM` : null].filter(Boolean).length ? (
+                <span className="text-slate-500"> ({[variant.color, variant.storage, variant.ram ? `${variant.ram} RAM` : null].filter(Boolean).join(" · ")})</span>
+              ) : null}{" "}
+              - In stock: {variant._count.phones}
             </Link>
             <DeleteVariantButton variantId={variant.id} variantName={variant.variantName} deleteAction={deleteVariantAction} />
           </li>

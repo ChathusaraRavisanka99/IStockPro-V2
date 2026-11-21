@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { formatPhoneName } from "@/lib/format-item-name";
 
 const AGING_DAYS = 60;
 
@@ -122,7 +123,7 @@ export async function computeReportData(from: Date, to: Date) {
     const key = item.phone ? `phone:${item.phone.phoneVariantId}` : item.accessory ? `accessory:${item.accessory.id}` : null;
     if (!key) continue;
     const label = item.phone
-      ? `${item.phone.phoneVariant.phoneModel.brand} ${item.phone.phoneVariant.phoneModel.modelName} - ${item.phone.phoneVariant.variantName}`
+      ? formatPhoneName(item.phone.phoneVariant)
       : `${item.accessory!.name} (${item.accessory!.sku})`;
     const entry = sellerMap.get(key) ?? { label, qty: 0, revenue: 0 };
     entry.qty += item.quantity;
@@ -200,7 +201,7 @@ export async function computeReportData(from: Date, to: Date) {
       agingCount: agingPhones.length,
       agingDays: AGING_DAYS,
       agingPhones: agingPhones.map((phone) => ({
-        label: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName} - ${phone.imei}`,
+        label: `${formatPhoneName(phone.phoneVariant)} - ${phone.imei}`,
         days: Math.floor((now.getTime() - phone.createdAt.getTime()) / (24 * 60 * 60 * 1000)),
       })),
     },

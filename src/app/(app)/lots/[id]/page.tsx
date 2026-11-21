@@ -21,9 +21,11 @@ import { CostRow } from "@/components/ui/cost-breakdown-modal";
 import { NoModalCell } from "@/components/ui/no-modal-cell";
 import { LotChargeEditor } from "@/components/items/lot-charge-editor";
 import type { ActionResult } from "@/components/ui/editable-row";
+import type { CreateVariantResult } from "@/components/items/variant-picker";
 import { PasswordConfirmDialog } from "@/components/ui/password-confirm-dialog";
 import { formatVariantSpecs } from "@/lib/format-item-name";
-import { softDeleteLot } from "@/lib/lots";
+import { softDeleteLot, toggleLotBookmark } from "@/lib/lots";
+import { BookmarkButton } from "@/components/items/bookmark-button";
 import { priceChangeLogs } from "@/lib/price-history";
 
 function computeGoodsCost(phones: { purchasePrice: unknown }[], accessoryItems: { unitCost: unknown; quantity: number }[]) {
@@ -48,10 +50,11 @@ export default async function LotDetailPage({ params }: { params: { id: string }
     }),
     prisma.phoneVariant.findMany({ where: { deletedAt: null, phoneModel: { deletedAt: null } }, include: { phoneModel: true }, orderBy: { variantName: "asc" } }),
     prisma.phoneModel.findMany({ where: { deletedAt: null }, orderBy: [{ brand: "asc" }, { modelName: "asc" }] }),
-    prisma.phone.findMany({ select: { imei: true } }),
+    prisma.phone.findMany({ where: { deletedAt: null }, select: { imei: true } }),
     prisma.accessory.findMany({ where: { deletedAt: null }, orderBy: [{ category: "asc" }, { name: "asc" }] }),
   ]);
-  if (!lot) notFound();
+  if (!lot || lot.deletedAt) notFound();
+  const bookmarked = Boolean(await prisma.lotBookmark.findUnique({ where: { userId_lotId: { userId: session.user.id, lotId: lot.id } } }));
 
   const [lotSaleItems, lotReturnItems, phoneExpenseRows, accessoryExpenseRows] = await Promise.all([
     prisma.saleItem.findMany({ where: { phone: { lotId: lot.id } }, select: { quantity: true, unitPrice: true, phoneId: true } }),
@@ -126,7 +129,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
     revalidatePath(`/lots/${params.id}`);
   }
 
-  async function createVariantForLot(formData: FormData) {
+  async function createVariantForLot(formData: FormData): Promise<CreateVariantResult> {
     "use server";
 
     const phoneModelId = String(formData.get("phoneModelId") || "");
@@ -141,11 +144,13 @@ export default async function LotDetailPage({ params }: { params: { id: string }
     const networkType = String(formData.get("networkType") || "").trim() || null;
     const battery = String(formData.get("battery") || "").trim() || null;
 
-    if (!phoneModelId || !variantName) return;
+    if (!phoneModelId) return { ok: false, error: "Select a model." };
 
-    await createOrRestorePhoneVariant({ phoneModelId, variantName, color, storage, ram, screenSize, processor, camera, os, networkType, battery });
+    const variant = await createOrRestorePhoneVariant({ phoneModelId, variantName, color, storage, ram, screenSize, processor, camera, os, networkType, battery });
 
     revalidatePath(`/lots/${params.id}`);
+    revalidatePath("/items/phones");
+    return { ok: true, id: variant.id };
   }
 
   async function registerPhonesBatch(formData: FormData) {
@@ -172,7 +177,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
       });
 
       const existing = await tx.phone.findMany({
-        where: { imei: { in: deduped.map((line) => line.imei.trim()) } },
+        where: { imei: { in: deduped.map((line) => line.imei.trim()) }, deletedAt: null },
         select: { imei: true },
       });
       const existingSet = new Set(existing.map((phone) => phone.imei.toLowerCase()));
@@ -388,7 +393,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
     const imei = String(formData.get("imei") ?? existingPhone.imei).trim();
     if (!imei) return { ok: false, error: "IMEI can't be empty." };
     if (imei !== existingPhone.imei) {
-      const clash = await prisma.phone.findFirst({ where: { imei: { equals: imei, mode: "insensitive" }, id: { not: id } }, select: { id: true } });
+      const clash = await prisma.phone.findFirst({ where: { imei: { equals: imei, mode: "insensitive" }, id: { not: id }, deletedAt: null }, select: { id: true } });
       if (clash) return { ok: false, error: `IMEI ${imei} is already registered to another unit.` };
     }
 
@@ -416,6 +421,17 @@ export default async function LotDetailPage({ params }: { params: { id: string }
     revalidatePath("/items/phones");
     revalidatePath("/items/phones/price-history");
     return { ok: true };
+  }
+
+  async function toggleBookmark(formData: FormData) {
+    "use server";
+    const actor = await getServerSession(authOptions);
+    const lotId = String(formData.get("lotId") || "");
+    if (!actor?.user?.id || !lotId) return;
+    await toggleLotBookmark(actor.user.id, lotId);
+    revalidatePath(`/lots/${lotId}`);
+    revalidatePath("/lots");
+    revalidatePath("/dashboard");
   }
 
   async function deleteLot(formData: FormData): Promise<ActionResult> {
@@ -533,6 +549,8 @@ export default async function LotDetailPage({ params }: { params: { id: string }
       />
       <div className="mb-4 flex items-center justify-between gap-2">
         <Link href="/lots" className="text-sm text-slate-700 underline">Back to Lots</Link>
+        <div className="flex items-center gap-2">
+        <BookmarkButton lotId={lot.id} bookmarked={bookmarked} action={toggleBookmark} withLabel />
         <PasswordConfirmDialog
           label="Delete lot"
           title={`Delete lot ${lot.lotNumber}?`}
@@ -544,6 +562,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
           redirectTo="/lots"
           buttonClassName="rounded-md border border-red-200 px-3 py-1 text-sm text-red-700"
         />
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
@@ -772,40 +791,31 @@ export default async function LotDetailPage({ params }: { params: { id: string }
           </InfoHelp>
         </h2>
         <p className="mb-3 text-sm text-slate-600">
-          Pick a product, scan or type each IMEI, and click Add to Batch — the product stays selected so you can keep
-          adding more units of it. Create a brand-new variant on the fly with the + option in the picker.
+          Pick a variant (search, or narrow by model, storage, RAM and color in the popup), scan or type each IMEI, and click
+          Add to Batch — the variant stays selected so you can keep adding more units of it. Create a brand-new variant from
+          the last option in the popup.
           {!canGrade ? " Phones aren't graded yet — grading opens up once this lot is Cleared." : ""}
         </p>
         <LotRegisterForm
-          variants={variants.map((variant) => ({ value: variant.id, label: `${variant.phoneModel.brand} ${variant.phoneModel.modelName} - ${variant.variantName}${formatVariantSpecs(variant) ? ` (${formatVariantSpecs(variant)})` : ""}`, defaultTagCost: Number(variant.defaultTagCost), defaultBatteryCost: Number(variant.defaultBatteryCost) }))}
+          variants={variants.map((variant) => ({
+            id: variant.id,
+            phoneModelId: variant.phoneModelId,
+            brand: variant.phoneModel.brand,
+            modelName: variant.phoneModel.modelName,
+            variantName: variant.variantName,
+            color: variant.color,
+            storage: variant.storage,
+            ram: variant.ram,
+            defaultTagCost: Number(variant.defaultTagCost),
+            defaultBatteryCost: Number(variant.defaultBatteryCost),
+          }))}
           existingImeis={allPhones.map((phone) => phone.imei)}
           showCost={showCost}
           allowGrading={canGrade}
           action={registerPhonesBatch}
-          variantQuickAdd={{
-            label: "Variant",
-            action: createVariantForLot,
-            fields: [
-              {
-                name: "phoneModelId",
-                label: "Model",
-                type: "select",
-                required: true,
-                options: models.map((model) => ({ value: model.id, label: `${model.brand} ${model.modelName}` })),
-                quickAdd: { label: "Model", action: createModelForLot, fields: [{ name: "brand", label: "Brand", required: true }, { name: "modelName", label: "Model name", required: true }] },
-              },
-              { name: "variantName", label: "Variant name", required: true },
-              { name: "color", label: "Color" },
-              { name: "storage", label: "Storage (ROM)" },
-              { name: "ram", label: "RAM" },
-              { name: "screenSize", label: "Screen size" },
-              { name: "processor", label: "Processor" },
-              { name: "camera", label: "Camera" },
-              { name: "os", label: "OS" },
-              { name: "networkType", label: "Network (4G/5G)" },
-              { name: "battery", label: "Battery capacity" },
-            ],
-          }}
+          createVariant={createVariantForLot}
+          models={models.map((model) => ({ id: model.id, label: `${model.brand} ${model.modelName}` }))}
+          modelQuickAdd={{ label: "Model", action: createModelForLot, fields: [{ name: "brand", label: "Brand", required: true }, { name: "modelName", label: "Model name", required: true }] }}
         />
       </Card>
 

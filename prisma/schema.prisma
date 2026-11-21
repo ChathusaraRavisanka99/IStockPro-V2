@@ -90,7 +90,8 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  auditLogs AuditLog[]
+  auditLogs    AuditLog[]
+  lotBookmarks LotBookmark[]
 }
 
 model PhoneModel {
@@ -173,6 +174,19 @@ model Lot {
   phones         Phone[]
   payments       LotPayment[]
   accessoryItems LotAccessoryItem[]
+  bookmarks      LotBookmark[]
+}
+
+/// A user's starred lots, shown first/filterable on the lot list and on the dashboard.
+model LotBookmark {
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  lot       Lot      @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  lotId     String
+  createdAt DateTime @default(now())
+
+  @@id([userId, lotId])
+  @@index([lotId])
 }
 
 model LotAccessoryItem {
@@ -203,7 +217,10 @@ model LotPayment {
 
 model Phone {
   id             String       @id @default(cuid())
-  imei           String       @unique
+  /// Unique among non-deleted phones only — enforced by the partial index
+  /// "Phone_imei_active_key" (raw SQL in migration 20261121000000_imei_partial_unique_lot_bookmarks),
+  /// so an IMEI from a soft-deleted unit can be registered again.
+  imei           String
   serialNumber   String?
   phoneVariant   PhoneVariant @relation(fields: [phoneVariantId], references: [id])
   phoneVariantId String
@@ -228,6 +245,8 @@ model Phone {
   saleItems   SaleItem[]
   returnItems ReturnItem[]
   expenses    Expense[]
+
+  @@index([imei])
 }
 
 model Accessory {

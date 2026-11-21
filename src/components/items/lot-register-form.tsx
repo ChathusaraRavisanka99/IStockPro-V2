@@ -2,11 +2,11 @@
 
 import { useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { SearchableSelect, type QuickAdd } from "@/components/ui/searchable-select";
+import { VariantPicker, variantDisplayLabel, type VariantPickerOption, type CreateVariantResult } from "@/components/items/variant-picker";
+import type { QuickAdd } from "@/components/ui/searchable-select";
 import { FxAmountField } from "@/components/ui/fx-amount-field";
 import { formatMoney } from "@/lib/currency";
 
-type VariantOption = { value: string; label: string; defaultTagCost?: number; defaultBatteryCost?: number };
 
 const GRADES = ["A", "B", "C"] as const;
 
@@ -25,7 +25,7 @@ export type BatchLine = {
 };
 
 type Props = {
-  variants: VariantOption[];
+  variants: VariantPickerOption[];
   existingImeis: string[];
   showCost: boolean;
   /** Grading is a physical-inspection step that only makes sense once a lot has
@@ -33,11 +33,16 @@ type Props = {
    * as "Not Graded" until someone grades them later. */
   allowGrading: boolean;
   action: (formData: FormData) => void | Promise<void>;
-  variantQuickAdd: QuickAdd;
+  createVariant: (formData: FormData) => Promise<CreateVariantResult>;
+  models: { id: string; label: string }[];
+  modelQuickAdd?: QuickAdd;
 };
 
-export function LotRegisterForm({ variants, existingImeis, showCost, allowGrading, action, variantQuickAdd }: Props) {
+export function LotRegisterForm({ variants, existingImeis, showCost, allowGrading, action, createVariant, models, modelQuickAdd }: Props) {
   const [variantId, setVariantId] = useState("");
+  // Kept separately so a variant created from the picker can be used before the page's
+  // variant list refreshes.
+  const [selectedVariant, setSelectedVariant] = useState<VariantPickerOption | null>(null);
   const [imei, setImei] = useState("");
   const [purchasePrice, setPurchasePrice] = useState("0");
   const [wholesalePrice, setWholesalePrice] = useState("0");
@@ -54,9 +59,9 @@ export function LotRegisterForm({ variants, existingImeis, showCost, allowGradin
 
   const existingSet = new Set(existingImeis.map((value) => value.trim().toLowerCase()));
 
-  function selectVariant(value: string) {
-    setVariantId(value);
-    const variant = variants.find((option) => option.value === value);
+  function selectVariant(variant: VariantPickerOption) {
+    setVariantId(variant.id);
+    setSelectedVariant(variant);
     // Pre-fill from this variant's defaults so the user only has to override, not retype.
     if (variant && addTagCost) setTagCost(String(variant.defaultTagCost ?? 0));
     if (variant && addBatteryCost) setBatteryCost(String(variant.defaultBatteryCost ?? 0));
@@ -65,7 +70,7 @@ export function LotRegisterForm({ variants, existingImeis, showCost, allowGradin
   function toggleTagCost(checked: boolean) {
     setAddTagCost(checked);
     if (checked) {
-      const variant = variants.find((option) => option.value === variantId);
+      const variant = variants.find((option) => option.id === variantId) ?? (selectedVariant?.id === variantId ? selectedVariant : undefined);
       setTagCost(String(variant?.defaultTagCost ?? 0));
     }
   }
@@ -73,14 +78,14 @@ export function LotRegisterForm({ variants, existingImeis, showCost, allowGradin
   function toggleBatteryCost(checked: boolean) {
     setAddBatteryCost(checked);
     if (checked) {
-      const variant = variants.find((option) => option.value === variantId);
+      const variant = variants.find((option) => option.id === variantId) ?? (selectedVariant?.id === variantId ? selectedVariant : undefined);
       setBatteryCost(String(variant?.defaultBatteryCost ?? 0));
     }
   }
 
   function addToBatch() {
     const trimmedImei = imei.trim();
-    const variant = variants.find((option) => option.value === variantId);
+    const variant = variants.find((option) => option.id === variantId) ?? (selectedVariant?.id === variantId ? selectedVariant : undefined);
     if (!variant) {
       toast.error("Select a variant first");
       return;
@@ -98,8 +103,8 @@ export function LotRegisterForm({ variants, existingImeis, showCost, allowGradin
     setBatch((current) => [
       ...current,
       {
-        variantId: variant.value,
-        variantLabel: variant.label,
+        variantId: variant.id,
+        variantLabel: variantDisplayLabel(variant),
         imei: trimmedImei,
         purchasePrice: Number(purchasePrice) || 0,
         wholesalePrice: Number(wholesalePrice) || 0,
@@ -130,7 +135,7 @@ export function LotRegisterForm({ variants, existingImeis, showCost, allowGradin
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <label className="grid min-w-0 gap-1 text-sm text-slate-700">
           Phone variant
-          <SearchableSelect placeholder="Select variant" options={variants} onChange={selectVariant} quickAdd={variantQuickAdd} />
+          <VariantPicker variants={variants} value={variantId} onChange={selectVariant} create={{ action: createVariant, models, modelQuickAdd }} />
         </label>
         <label className="grid min-w-0 gap-1 text-sm text-slate-700">
           IMEI

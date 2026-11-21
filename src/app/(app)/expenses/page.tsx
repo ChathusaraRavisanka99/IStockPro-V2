@@ -9,6 +9,7 @@ import { parsePage, parsePageSize } from "@/lib/pagination";
 import { formatMoney } from "@/lib/currency";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { uploadFile, getSignedDownloadUrl, isStorageKey, buildKey } from "@/lib/storage";
+import { formatPhoneName } from "@/lib/format-item-name";
 
 const ACCESSORY_CATEGORY_ROUTES: Record<string, string> = {
   Charger: "/items/chargers",
@@ -111,7 +112,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams: { s
             <SearchableSelect
               name="phoneId"
               placeholder="Select a phone by IMEI"
-              options={phones.map((phone) => ({ value: phone.id, label: `${phone.imei} — ${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName}` }))}
+              options={phones.map((phone) => ({ value: phone.id, label: `${phone.imei} — ${formatPhoneName(phone.phoneVariant)}` }))}
             />
           </label>
           <label className="grid min-w-0 gap-1 text-sm text-slate-700">
@@ -155,7 +156,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams: { s
                   <td className="px-2 py-2">
                     {expense.phone ? (
                       <Link href={`/lots/${expense.phone.lotId}`} className="text-slate-800 underline">
-                        {expense.phone.imei} ({expense.phone.phoneVariant.phoneModel.brand} {expense.phone.phoneVariant.phoneModel.modelName})
+                        {expense.phone.imei} ({formatPhoneName(expense.phone.phoneVariant)})
                       </Link>
                     ) : expense.accessory ? (
                       <Link href={ACCESSORY_CATEGORY_ROUTES[expense.accessory.category] || "/items/other"} className="text-slate-800 underline">
