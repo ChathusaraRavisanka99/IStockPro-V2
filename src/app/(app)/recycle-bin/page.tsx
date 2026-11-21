@@ -5,10 +5,10 @@ import { authOptions } from "@/lib/auth";
 import { canViewCost } from "@/lib/rbac";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
-import { RestoreButton } from "@/components/ui/restore-button";
+import { RestoreButton, RestoreIssueList } from "@/components/ui/restore-button";
 import { formatPhoneName } from "@/lib/format-item-name";
 import { SOFT_DELETE_RETENTION_DAYS } from "@/lib/purge";
-import { daysLeft, originalLotNumber, restoreItem, retentionCutoff, type RecycleKind } from "@/lib/recycle-bin";
+import { checkRestore, daysLeft, originalLotNumber, restoreItem, retentionCutoff, type RecycleKind, type RestoreIssue, type RestoreResult } from "@/lib/recycle-bin";
 
 const KINDS: RecycleKind[] = ["lot", "phone", "variant", "model", "customer", "supplier", "accessory"];
 
@@ -61,13 +61,22 @@ export default async function RecycleBinPage({ searchParams }: { searchParams: {
     ...accessories.map((item) => ({ kind: "accessory" as const, id: item.id, title: item.name, detail: `${item.category} · SKU ${item.sku}`, deletedAt: item.deletedAt! })),
   ].sort((a, b) => b.deletedAt.getTime() - a.deletedAt.getTime());
 
+  // Constraint pre-check, so conflicts show next to each item before anyone clicks Restore.
+  const issuesByRow = new Map<string, RestoreIssue[]>(
+    await Promise.all(
+      rows
+        .filter((row) => row.kind === "lot" || row.kind === "phone" || row.kind === "variant")
+        .map(async (row) => [`${row.kind}-${row.id}`, await checkRestore(row.kind, row.id)] as const)
+    )
+  );
+
   const counts = KINDS.map((kind) => ({ kind, count: rows.filter((row) => row.kind === kind).length }));
   const visible = typeFilter ? rows.filter((row) => row.kind === typeFilter) : rows;
 
-  async function restore(formData: FormData) {
+  async function restore(formData: FormData): Promise<RestoreResult> {
     "use server";
     const actor = await getServerSession(authOptions);
-    if (!canViewCost(actor?.user?.role as "admin" | "manager" | "staff" | undefined)) return { ok: false as const, error: "Not allowed." };
+    if (!canViewCost(actor?.user?.role as "admin" | "manager" | "staff" | undefined)) return { ok: false, error: "Not allowed." };
     const kind = String(formData.get("kind") || "") as RecycleKind;
     const id = String(formData.get("id") || "");
     const result = await restoreItem(kind, id);
@@ -86,7 +95,7 @@ export default async function RecycleBinPage({ searchParams }: { searchParams: {
         help={
           <p>
             Anything deleted or archived in the last {SOFT_DELETE_RETENTION_DAYS} days is listed here. Restore puts it back exactly as it was. Restoring a lot also brings back the units that were
-            deleted with it. A unit can&apos;t come back if its IMEI has since been registered again, or while its lot or variant is still deleted.
+            deleted with it. Anything that would break a rule (an IMEI or lot number now used by another record, or a lot/variant/model that is still deleted) is listed under the item in red before you restore — fix it, or restore the parent first.
           </p>
         }
       />
@@ -123,11 +132,16 @@ export default async function RecycleBinPage({ searchParams }: { searchParams: {
                     <td className="px-2 py-2">
                       <p className="font-medium text-slate-900">{row.title}</p>
                       <p className="text-xs text-slate-500">{row.detail}</p>
+                      {issuesByRow.get(`${row.kind}-${row.id}`)?.length ? (
+                        <div className="mt-1.5 max-w-xl">
+                          <RestoreIssueList issues={issuesByRow.get(`${row.kind}-${row.id}`)!} />
+                        </div>
+                      ) : null}
                     </td>
                     <td className="whitespace-nowrap px-2 py-2">{row.deletedAt.toISOString().slice(0, 16).replace("T", " ")}</td>
                     <td className={`whitespace-nowrap px-2 py-2 ${left <= 3 ? "font-medium text-red-700" : "text-slate-700"}`}>{left} day{left === 1 ? "" : "s"}</td>
                     <td className="px-2 py-2">
-                      <RestoreButton kind={row.kind} id={row.id} action={restore} />
+                      <RestoreButton kind={row.kind} id={row.id} label={row.title} action={restore} />
                     </td>
                   </tr>
                 );
