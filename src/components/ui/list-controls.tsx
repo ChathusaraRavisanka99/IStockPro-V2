@@ -25,6 +25,8 @@ type Props = {
   /** Adds a "From"/"To" date pair to the same search form (e.g. filtering a list by a
    * date field) — submitted and preserved across the List/Grid toggle alongside search. */
   dateRange?: { from?: string; to?: string };
+  /** Extra query values to keep when the form is submitted (e.g. a page-level selection). */
+  preserve?: Record<string, string>;
 };
 
 export function ListControls({
@@ -42,6 +44,7 @@ export function ListControls({
   view = "list",
   showViewToggle = true,
   dateRange,
+  preserve = {},
 }: Props) {
   const query = new URLSearchParams();
   if (search) query.set("search", search);
@@ -58,6 +61,7 @@ export function ListControls({
 
   return (
     <form method="get" className="mb-4 flex flex-col gap-2 rounded-xl border border-slate-200 bg-white/70 p-3 sm:flex-row sm:items-center">
+      {Object.entries(preserve).filter(([, value]) => value).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
       <input
         name="search"
         defaultValue={search}
