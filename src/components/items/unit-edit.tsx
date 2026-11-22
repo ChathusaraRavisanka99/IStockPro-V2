@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Paperclip, Pencil, Plus, Receipt } from "lucide-react";
 import { formatMoney } from "@/lib/currency";
 import type { UnitExpenseRow } from "@/lib/unit-expenses";
+import { ItemComments } from "@/components/items/item-comments";
 import { Modal, modalButton, modalField } from "@/components/ui/modal";
 import { VariantPicker, type CreateVariantResult, type VariantPickerOption } from "@/components/items/variant-picker";
 import { ImeiConflictNotice, type ImeiOwner } from "@/components/items/imei-conflict-notice";
@@ -244,6 +245,7 @@ function UnitEditDialog({ unit, shared, onClose }: { unit: EditableUnit; shared:
         {error ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p> : null}
       </form>
       {shared.expenses ? <UnitExpenses phoneId={unit.id} api={shared.expenses} onChanged={() => (expensesChanged.current = true)} /> : null}
+      <ItemComments entityType="Phone" entityId={unit.id} />
       </>
     </Modal>
   );
