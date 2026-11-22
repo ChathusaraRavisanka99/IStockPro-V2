@@ -28,6 +28,8 @@ import { softDeleteLot, toggleLotBookmark } from "@/lib/lots";
 import { BookmarkButton } from "@/components/items/bookmark-button";
 import { priceChangeLogs } from "@/lib/price-history";
 import { findImeiOwner, liveImeiOwners } from "@/lib/imei";
+import { editPhoneUnit } from "@/lib/phone-units";
+import { UnitEditProvider } from "@/components/items/unit-edit";
 
 function computeGoodsCost(phones: { purchasePrice: unknown }[], accessoryItems: { unitCost: unknown; quantity: number }[]) {
   return phones.reduce((sum, phone) => sum + Number(phone.purchasePrice), 0) + accessoryItems.reduce((sum, item) => sum + Number(item.unitCost) * item.quantity, 0);
@@ -447,6 +449,18 @@ export default async function LotDetailPage({ params }: { params: { id: string }
     return { ok: true };
   }
 
+  async function editUnit(formData: FormData): Promise<ActionResult> {
+    "use server";
+    const actor = await getServerSession(authOptions);
+    const result = await editPhoneUnit(formData, { userId: actor?.user?.id, canEditCost: canViewCost(actor?.user?.role as "admin" | "manager" | "staff" | undefined) });
+    if (result.ok) {
+      revalidatePath(`/lots/${params.id}`);
+      revalidatePath("/items/phones");
+      revalidatePath("/items/phones/price-history");
+    }
+    return result;
+  }
+
   async function checkImei(imei: string, phoneId: string) {
     "use server";
     return findImeiOwner(imei, phoneId);
@@ -829,10 +843,17 @@ export default async function LotDetailPage({ params }: { params: { id: string }
         <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
           Units in This Lot
           <InfoHelp size="sm" title="Units in This Lot">
-            Every phone registered to this lot. Grading only becomes available once the lot is Cleared. Editing a unit&apos;s cost after Collection has ended asks you to re-confirm your password first. Changing an IMEI always asks you to re-type the new number to confirm.
+            Every phone registered to this lot. Grading only becomes available once the lot is Cleared. Editing a unit&apos;s cost after Collection has ended asks you to re-confirm your password first. Edit opens the full unit editor: change its variant (or move it to another model), IMEI, grade, notes and prices.
           </InfoHelp>
         </h2>
         <p className="mb-3 text-sm text-slate-600">Click a row to see its cost and profit breakdown.</p>
+        <UnitEditProvider
+          variants={variants.map((variant) => ({ id: variant.id, phoneModelId: variant.phoneModelId, brand: variant.phoneModel.brand, modelName: variant.phoneModel.modelName, variantName: variant.variantName, color: variant.color, storage: variant.storage, ram: variant.ram }))}
+          username={username}
+          action={editUnit}
+          checkImei={checkImei}
+          createVariant={{ action: createVariantForLot, models: models.map((model) => ({ id: model.id, label: `${model.brand} ${model.modelName}` })) }}
+        >
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
@@ -852,6 +873,19 @@ export default async function LotDetailPage({ params }: { params: { id: string }
             <tbody>
               {lot.phones.map((phone) => (
                 <PhoneCostEditor
+                  editUnit={{
+                    id: phone.id,
+                    imei: phone.imei,
+                    phoneVariantId: phone.phoneVariantId,
+                    lotStatus: lot.status,
+                    lotNumber: lot.lotNumber,
+                    grade: phone.grade,
+                    batteryHealth: phone.batteryHealth,
+                    notes: phone.notes,
+                    ...(showCost
+                      ? { prices: { purchasePrice: Number(phone.purchasePrice), wholesalePrice: Number(phone.wholesalePrice ?? 0), retailPrice: Number(phone.retailPrice ?? 0), tagCost: Number(phone.tagCost), batteryCost: Number(phone.batteryCost) } }
+                      : {}),
+                  }}
                   key={phone.id}
                   phone={{
                     id: phone.id,
@@ -887,6 +921,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
             </tbody>
           </table>
         </div>
+        </UnitEditProvider>
       </Card>
 
       <Card className="mt-4">

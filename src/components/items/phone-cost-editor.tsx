@@ -5,6 +5,7 @@ import { ScanLine } from "lucide-react";
 import { Modal, modalButton, modalField } from "@/components/ui/modal";
 import { GradeBadge, SpecChips, StatusPill } from "@/components/ui/spec-chips";
 import { ImeiConflictNotice, type ImeiOwner } from "@/components/items/imei-conflict-notice";
+import { UnitEditButton, type EditableUnit } from "@/components/items/unit-edit";
 import { formatMoney } from "@/lib/currency";
 import { CostRow } from "@/components/ui/cost-breakdown-modal";
 import { ReauthFields } from "@/components/ui/reauth-fields";
@@ -36,10 +37,13 @@ type Props = {
   updateAction: (formData: FormData) => Promise<ActionResult>;
   /** Looks up the live unit already holding an IMEI (excluding this one). */
   checkImei?: (imei: string, phoneId: string) => Promise<ImeiOwner | null>;
+  /** When set (and a UnitEditProvider is above), Edit opens the full Edit-unit popup —
+   * variant/model, IMEI, grade, notes, prices — instead of the inline cost form. */
+  editUnit?: EditableUnit;
   archiveAction: (formData: FormData) => void | Promise<void>;
 };
 
-export function PhoneCostEditor({ phone, showCost, canGrade, requireReauth, username, updateAction, checkImei, archiveAction }: Props) {
+export function PhoneCostEditor({ phone, showCost, canGrade, requireReauth, username, updateAction, checkImei, editUnit, archiveAction }: Props) {
   const [imeiDraft, setImeiDraft] = useState(phone.imei);
   const [imeiOwner, setImeiOwner] = useState<ImeiOwner | null>(null);
 
@@ -249,7 +253,9 @@ export function PhoneCostEditor({ phone, showCost, canGrade, requireReauth, user
       {showCost ? <td className="px-2 py-2">{formatMoney(batteryCost)}</td> : null}
       <td className="px-2 py-2" onClick={(event) => event.stopPropagation()}>
         <div className="flex flex-wrap gap-2">
-          {showCost ? (
+          {editUnit ? (
+            <UnitEditButton unit={editUnit} />
+          ) : showCost ? (
             <button type="button" onClick={open} className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700">
               Edit
             </button>
