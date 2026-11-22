@@ -14,6 +14,7 @@ import { formatVariantSpecs } from "@/lib/format-item-name";
 import { PRICE_CHANGE_ACTION, PRICE_FIELD_LABELS, type PriceChangeDetails, type PriceField } from "@/lib/price-history";
 import { SpecChips } from "@/components/ui/spec-chips";
 import { PriceTimelineChart, type PricePoint } from "@/components/items/price-timeline-chart";
+import { EntityLink } from "@/components/ui/entity-link";
 
 type Props = { searchParams: { search?: string; filter?: string; from?: string; to?: string; page?: string; pageSize?: string; sel?: string } };
 
@@ -278,7 +279,9 @@ export default async function PhonePriceHistoryPage({ searchParams }: Props) {
                     <td className="px-2 py-2">
                       {phone ? (
                         <>
-                          {phone.phoneVariant.phoneModel.brand} {phone.phoneVariant.phoneModel.modelName} - {phone.phoneVariant.variantName}
+                          <EntityLink kind="phone" id={phone.id}>
+                            {phone.phoneVariant.phoneModel.brand} {phone.phoneVariant.phoneModel.modelName} - {phone.phoneVariant.variantName}
+                          </EntityLink>
                           {specs ? <SpecChips color={phone.phoneVariant.color} storage={phone.phoneVariant.storage} ram={phone.phoneVariant.ram} className="mt-1 flex" /> : null}
                           {phone.deletedAt ? <p className="text-xs text-red-700">Archived</p> : null}
                         </>
@@ -288,7 +291,7 @@ export default async function PhonePriceHistoryPage({ searchParams }: Props) {
                     </td>
                     <td className="px-2 py-2 font-mono text-xs">{phone?.imei ?? "-"}</td>
                     <td className="px-2 py-2">
-                      {phone && !phone.lot.deletedAt ? <Link href={`/lots/${phone.lot.id}`} className="underline">{phone.lot.lotNumber}</Link> : phone?.lot.lotNumber ?? "-"}
+                      {phone ? <EntityLink kind="lot" id={phone.lot.id}>{phone.lot.lotNumber}</EntityLink> : "-"}
                     </td>
                     <td className="px-2 py-2">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${details.field === "retailPrice" ? "bg-sky-100 text-sky-800" : "bg-violet-100 text-violet-800"}`}>{PRICE_FIELD_LABELS[details.field]}</span>

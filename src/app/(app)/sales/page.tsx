@@ -13,6 +13,7 @@ import { SaleForm } from "@/components/sales/sale-form";
 import { formatMoney } from "@/lib/currency";
 import { formatPhoneName, formatVariantSpecs } from "@/lib/format-item-name";
 import { commentsForItems, type ItemCommentRow } from "@/lib/item-comments";
+import { EntityLink } from "@/components/ui/entity-link";
 
 type CartLine = { key: string; unitPrice: number; quantity: number };
 
@@ -218,7 +219,7 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
             <Card key={sale.id}>
               <p className="font-semibold text-slate-900">{sale.saleNumber}</p>
               <p className="mt-1 text-sm text-slate-700">
-                {sale.customer ? <Link href={`/customers/${sale.customer.id}`} className="underline">{sale.customer.name}</Link> : "Walk-in"}
+                {sale.customer ? <EntityLink kind="customer" id={sale.customer.id}>{sale.customer.name}</EntityLink> : "Walk-in"}
               </p>
               <p className="text-sm text-slate-700">{sale.saleDate.toISOString().slice(0, 10)}</p>
               <p className="mt-3 text-lg font-semibold text-slate-900">{formatMoney(Number(sale.totalAmount))}</p>
@@ -256,7 +257,7 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
                   <td className="px-2 py-2">{sale.saleNumber}</td>
                   <td className="px-2 py-2">{sale.saleDate.toISOString().slice(0, 10)}</td>
                   <td className="px-2 py-2">
-                    {sale.customer ? <Link href={`/customers/${sale.customer.id}`} className="text-slate-800 underline">{sale.customer.name}</Link> : "Walk-in"}
+                    {sale.customer ? <EntityLink kind="customer" id={sale.customer.id}>{sale.customer.name}</EntityLink> : "Walk-in"}
                   </td>
                   <td className="px-2 py-2">
                     <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${sale.saleType === "Wholesale" ? "bg-purple-100 text-purple-800" : "bg-slate-100 text-slate-700"}`}>{sale.saleType}</span>

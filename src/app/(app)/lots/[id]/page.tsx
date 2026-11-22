@@ -32,6 +32,7 @@ import { findImeiOwner, liveImeiOwners } from "@/lib/imei";
 import { editPhoneUnit } from "@/lib/phone-units";
 import { createPhoneExpense, expenseCategories, listPhoneExpenses } from "@/lib/unit-expenses";
 import { UnitEditProvider } from "@/components/items/unit-edit";
+import { EntityLink } from "@/components/ui/entity-link";
 
 function computeGoodsCost(phones: { purchasePrice: unknown }[], accessoryItems: { unitCost: unknown; quantity: number }[]) {
   return phones.reduce((sum, phone) => sum + Number(phone.purchasePrice), 0) + accessoryItems.reduce((sum, item) => sum + Number(item.unitCost) * item.quantity, 0);
@@ -716,7 +717,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
         <Card>
           <p className="text-xs font-semibold uppercase text-slate-500">Supplier</p>
-          <p className="mt-2 font-semibold text-slate-900">{lot.supplier.name}</p>
+          <p className="mt-2 font-semibold text-slate-900"><EntityLink kind="supplier" id={lot.supplierId}>{lot.supplier.name}</EntityLink></p>
           <p className="mt-1 text-sm text-slate-700">{lot.supplier.phone || lot.supplier.email || "No contact details"}</p>
         </Card>
         <Card>
@@ -1059,7 +1060,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
                     retailPrice: phone.retailPrice !== null ? Number(phone.retailPrice) : null,
                     tagCost: Number(phone.tagCost),
                     batteryCost: Number(phone.batteryCost),
-                    phoneVariant: { variantName: phone.phoneVariant.variantName, specs: formatVariantSpecs(phone.phoneVariant), color: phone.phoneVariant.color, storage: phone.phoneVariant.storage, ram: phone.phoneVariant.ram, phoneModel: { brand: phone.phoneVariant.phoneModel.brand, modelName: phone.phoneVariant.phoneModel.modelName } },
+                    phoneVariant: { id: phone.phoneVariantId, phoneModelId: phone.phoneVariant.phoneModelId, variantName: phone.phoneVariant.variantName, specs: formatVariantSpecs(phone.phoneVariant), color: phone.phoneVariant.color, storage: phone.phoneVariant.storage, ram: phone.phoneVariant.ram, phoneModel: { brand: phone.phoneVariant.phoneModel.brand, modelName: phone.phoneVariant.phoneModel.modelName } },
                     expenses: expensesByPhone.get(phone.id) ?? [],
                   }}
                   showCost={showCost}

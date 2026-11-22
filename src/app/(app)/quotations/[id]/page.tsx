@@ -9,6 +9,7 @@ import { QuotationRowActions } from "@/components/quotations/quotation-row-actio
 import { SpecChips } from "@/components/ui/spec-chips";
 import { formatMoney } from "@/lib/currency";
 import { quotationLineLabel } from "@/lib/format-item-name";
+import { EntityLink } from "@/components/ui/entity-link";
 
 const STATUS_STYLES: Record<string, string> = {
   Draft: "bg-slate-100 text-slate-700",
@@ -82,7 +83,7 @@ export default async function QuotationDetailPage({ params }: { params: { id: st
           <section className="grid gap-4 border-b border-slate-200 py-5 text-sm sm:grid-cols-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Prepared for</p>
-              <p className="mt-1 font-semibold text-slate-900">{quotation.customer?.name || "Walk-in customer"}</p>
+              <p className="mt-1 font-semibold text-slate-900">{quotation.customer ? <EntityLink kind="customer" id={quotation.customer.id} className="text-left font-semibold text-slate-900 underline decoration-slate-300 decoration-dotted underline-offset-2 print:no-underline">{quotation.customer.name}</EntityLink> : "Walk-in customer"}</p>
               {contactPhone ? <p className="text-slate-600">{contactPhone}</p> : null}
               {contactEmail ? <p className="break-all text-slate-600">{contactEmail}</p> : null}
             </div>

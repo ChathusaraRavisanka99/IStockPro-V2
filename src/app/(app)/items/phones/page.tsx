@@ -27,6 +27,7 @@ import { findImeiOwner } from "@/lib/imei";
 import { createPhoneExpense, expenseCategories, listPhoneExpenses } from "@/lib/unit-expenses";
 import { GradeBadge, SpecChips, StatusPill } from "@/components/ui/spec-chips";
 import { Boxes, LineChart, Plus, Search, Smartphone, Wallet } from "lucide-react";
+import { EntityLink } from "@/components/ui/entity-link";
 
 type Props = { searchParams: { search?: string; filter?: string; view?: "list" | "grid"; page?: string; pageSize?: string; options?: "all" | "stock"; model?: string } };
 
@@ -563,14 +564,14 @@ export default async function PhonesPage({ searchParams }: Props) {
                   <div className="flex items-start justify-between gap-2">
                     <span className="min-w-0">
                       <span className="block truncate font-semibold text-slate-900">{phone.phoneVariant.phoneModel.brand} {phone.phoneVariant.phoneModel.modelName}</span>
-                      <span className="block truncate text-sm text-slate-600">{phone.phoneVariant.variantName}</span>
+                      <span className="block truncate text-sm text-slate-600"><EntityLink kind="variant" id={phone.phoneVariant.id} className="truncate text-left text-slate-600 underline decoration-slate-300 decoration-dotted underline-offset-2 hover:decoration-slate-900">{phone.phoneVariant.variantName}</EntityLink></span>
                     </span>
                     <StatusPill status={phone.status} />
                   </div>
                   <SpecChips color={phone.phoneVariant.color} storage={phone.phoneVariant.storage} ram={phone.phoneVariant.ram} className="mt-1.5 flex" />
                   <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
                     <div className="flex justify-between gap-2"><dt>IMEI</dt><dd className="text-right text-slate-800">{phone.imei}</dd></div>
-                    <div className="flex justify-between gap-2"><dt>Lot</dt><dd className="text-right"><NoModalLink href={`/lots/${phone.lot.id}`}>{phone.lot.lotNumber}</NoModalLink></dd></div>
+                    <div className="flex justify-between gap-2"><dt>Lot</dt><dd className="text-right"><EntityLink kind="lot" id={phone.lot.id}>{phone.lot.lotNumber}</EntityLink></dd></div>
                     <div className="flex items-center justify-between gap-2"><dt>Grade</dt><dd><GradeBadge grade={phone.grade} /></dd></div>
                     {showCost ? <div className="flex justify-between gap-2"><dt>Purchase price</dt><dd className="text-right text-slate-800">{formatMoney(purchasePrice)}</dd></div> : null}
                   </dl>
@@ -654,12 +655,12 @@ export default async function PhonesPage({ searchParams }: Props) {
                       <span className="font-mono text-xs text-slate-800">{phone.imei}</span>
                       {phone.notes ? <p className="mt-0.5 max-w-[16rem] truncate text-xs italic text-slate-500" title={phone.notes}>{phone.notes}</p> : null}
                     </td>
-                    <td className="px-2 py-2.5 font-medium text-slate-900">{phone.phoneVariant.phoneModel.brand + " " + phone.phoneVariant.phoneModel.modelName}</td>
+                    <td className="px-2 py-2.5 font-medium text-slate-900"><EntityLink kind="model" id={phone.phoneVariant.phoneModel.id}>{phone.phoneVariant.phoneModel.brand + " " + phone.phoneVariant.phoneModel.modelName}</EntityLink></td>
                     <td className="px-2 py-2.5">
-                      <span className="text-slate-700">{phone.phoneVariant.variantName}</span>
+                      <EntityLink kind="variant" id={phone.phoneVariant.id} className="text-left text-slate-700 underline decoration-slate-300 decoration-dotted underline-offset-2 hover:decoration-slate-900">{phone.phoneVariant.variantName}</EntityLink>
                       <SpecChips color={phone.phoneVariant.color} storage={phone.phoneVariant.storage} ram={phone.phoneVariant.ram} className="mt-1 flex" />
                     </td>
-                    <td className="px-2 py-2.5"><NoModalLink href={`/lots/${phone.lot.id}`}>{phone.lot.lotNumber}</NoModalLink></td>
+                    <td className="px-2 py-2.5"><EntityLink kind="lot" id={phone.lot.id}>{phone.lot.lotNumber}</EntityLink></td>
                     <td className="px-2 py-2.5"><GradeBadge grade={phone.grade} /></td>
                     <td className="px-2 py-2.5"><StatusPill status={phone.status} /></td>
                     {showCost ? <td className="px-2 py-2">{formatMoney(purchasePrice)}</td> : null}

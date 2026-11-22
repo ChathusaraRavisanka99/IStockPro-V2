@@ -11,6 +11,7 @@ import { InfoHelp } from "@/components/ui/info-help";
 import { formatMoney } from "@/lib/currency";
 import { formatSaleItemName } from "@/lib/format-item-name";
 import { uploadFile, getSignedDownloadUrl, isStorageKey, buildKey } from "@/lib/storage";
+import { EntityLink } from "@/components/ui/entity-link";
 
 export default async function SaleDetailPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -104,7 +105,7 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card>
           <p className="text-xs font-semibold uppercase text-slate-500">Customer</p>
-          <p className="mt-2 font-semibold text-slate-900">{sale.customer?.name || "Walk-in customer"}</p>
+          <p className="mt-2 font-semibold text-slate-900">{sale.customer ? <EntityLink kind="customer" id={sale.customer.id}>{sale.customer.name}</EntityLink> : "Walk-in customer"}</p>
           <p className="mt-1 text-sm text-slate-700">{sale.customer?.phone || sale.customer?.email || "No contact details"}</p>
         </Card>
         <Card>
@@ -225,7 +226,13 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
               {sale.items.map((item) => (
                 <tr key={item.id} className="border-b border-slate-200">
                   <td className="px-2 py-2">
-                    {formatSaleItemName(item)}
+                    {item.phoneId ? (
+                      <EntityLink kind="phone" id={item.phoneId}>{formatSaleItemName(item)}</EntityLink>
+                    ) : item.accessoryId ? (
+                      <EntityLink kind="accessory" id={item.accessoryId}>{formatSaleItemName(item)}</EntityLink>
+                    ) : (
+                      formatSaleItemName(item)
+                    )}
                   </td>
                   <td className="px-2 py-2">{item.quantity}</td>
                   <td className="px-2 py-2">{formatMoney(Number(item.unitPrice))}</td>
