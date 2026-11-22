@@ -490,7 +490,7 @@ export default async function PhonesPage({ searchParams }: Props) {
                     </span>
                     <StatusPill status={phone.status} />
                   </div>
-                  <SpecChips color={phone.phoneVariant.color} storage={phone.phoneVariant.storage} ram={phone.phoneVariant.ram} className="mt-1.5" />
+                  <SpecChips color={phone.phoneVariant.color} storage={phone.phoneVariant.storage} ram={phone.phoneVariant.ram} className="mt-1.5 flex" />
                   <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
                     <div className="flex justify-between gap-2"><dt>IMEI</dt><dd className="text-right text-slate-800">{phone.imei}</dd></div>
                     <div className="flex justify-between gap-2"><dt>Lot</dt><dd className="text-right"><NoModalLink href={`/lots/${phone.lot.id}`}>{phone.lot.lotNumber}</NoModalLink></dd></div>

@@ -135,7 +135,7 @@ export function ModelCardEditor({
             <li key={variant.id} className="flex items-center justify-between gap-2 py-2">
               <Link href={`/items/phones/variants/${variant.id}`} className="group min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium text-slate-900 group-hover:underline">{variant.variantName}</span>
-                <SpecChips color={variant.color} storage={variant.storage} ram={variant.ram} className="mt-1" />
+                <SpecChips color={variant.color} storage={variant.storage} ram={variant.ram} className="mt-1 flex" />
               </Link>
               <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${count ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-500"}`}>{count} in stock</span>
               <DeleteVariantButton variantId={variant.id} variantName={variant.variantName} deleteAction={deleteVariantAction} />

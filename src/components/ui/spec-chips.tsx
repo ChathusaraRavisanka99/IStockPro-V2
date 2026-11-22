@@ -39,8 +39,11 @@ export function RamChip({ value, size = "xs" }: { value: string; size?: Size }) 
 /** Color / storage / RAM of a variant as chips, skipping blanks. */
 export function SpecChips({ color, storage, ram, size = "xs", className = "" }: { color?: string | null; storage?: string | null; ram?: string | null; size?: Size; className?: string }) {
   if (!color && !storage && !ram) return null;
+  // Callers that pass a display class ("flex") get the chips on their own line; otherwise they
+  // sit inline after the text with a small gap so they never touch it.
+  const ownLine = className.split(/\s+/).some((name) => name === "flex" || name === "block" || name === "grid");
   return (
-    <span className={`inline-flex flex-wrap items-center gap-1 ${className}`}>
+    <span className={`${ownLine ? "" : "ml-1.5 inline-flex align-middle"} flex-wrap items-center gap-1 ${className}`}>
       {color ? <ColorChip color={color} size={size} /> : null}
       {storage ? <StorageChip value={storage} size={size} /> : null}
       {ram ? <RamChip value={ram} size={size} /> : null}
