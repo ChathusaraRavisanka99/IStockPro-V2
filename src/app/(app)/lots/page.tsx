@@ -20,6 +20,7 @@ import { EntityDeleteButton } from "@/components/ui/entity-editor";
 import { LotFxConverter, LotFxAmount, LotFxHeader } from "@/components/items/lot-fx-converter";
 import type { ActionResult } from "@/components/ui/editable-row";
 import { formatPhoneName } from "@/lib/format-item-name";
+import { EntityLink } from "@/components/ui/entity-link";
 
 type Props = {
   searchParams?: {
@@ -297,7 +298,7 @@ export default async function LotsPage({ searchParams }: Props) {
                   <p className="font-semibold text-slate-900">{lot.lotNumber}</p>
                   <BookmarkButton lotId={lot.id} bookmarked={lot.bookmarks.length > 0} action={toggleBookmark} />
                 </div>
-                <p className="mt-1 text-sm text-slate-700">{lot.supplier.name}</p>
+                <p className="mt-1 text-sm text-slate-700"><EntityLink kind="supplier" id={lot.supplierId}>{lot.supplier.name}</EntityLink></p>
                 <p className="text-sm text-slate-700">{lot.purchaseDate.toISOString().slice(0, 10)}</p>
                 <p className="mt-3 text-sm text-slate-700">{units} unit{units === 1 ? "" : "s"}</p>
                 {showCost ? (
@@ -351,7 +352,7 @@ export default async function LotsPage({ searchParams }: Props) {
                         {lot.lotNumber}
                       </span>
                     </td>
-                    <td className="px-2 py-2">{lot.supplier.name}</td>
+                    <td className="px-2 py-2"><EntityLink kind="supplier" id={lot.supplierId}>{lot.supplier.name}</EntityLink></td>
                     <td className="px-2 py-2">{lot.purchaseDate.toISOString().slice(0, 10)}</td>
                     <td className="px-2 py-2">{units}</td>
                     <td className="px-2 py-2">

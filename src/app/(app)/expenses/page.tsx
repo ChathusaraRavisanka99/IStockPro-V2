@@ -15,6 +15,7 @@ import { authOptions } from "@/lib/auth";
 import { EntityDeleteButton, EntityEditButton } from "@/components/ui/entity-editor";
 import { auditChange, diffFields, requireReauthWhen } from "@/lib/entity-guard";
 import type { ActionResult } from "@/components/ui/editable-row";
+import { EntityLink } from "@/components/ui/entity-link";
 
 const ACCESSORY_CATEGORY_ROUTES: Record<string, string> = {
   Charger: "/items/chargers",
@@ -206,13 +207,13 @@ export default async function ExpensesPage({ searchParams }: { searchParams: { s
                   <td className="px-2 py-2">{formatMoney(Number(expense.amount))}</td>
                   <td className="px-2 py-2">
                     {expense.phone ? (
-                      <Link href={`/lots/${expense.phone.lotId}`} className="text-slate-800 underline">
+                      <EntityLink kind="phone" id={expense.phone.id}>
                         {expense.phone.imei} ({formatPhoneName(expense.phone.phoneVariant)})
-                      </Link>
+                      </EntityLink>
                     ) : expense.accessory ? (
-                      <Link href={ACCESSORY_CATEGORY_ROUTES[expense.accessory.category] || "/items/other"} className="text-slate-800 underline">
+                      <EntityLink kind="accessory" id={expense.accessory.id}>
                         {expense.accessory.name} ({expense.accessory.sku})
-                      </Link>
+                      </EntityLink>
                     ) : (
                       "-"
                     )}

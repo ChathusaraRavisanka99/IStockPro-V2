@@ -10,12 +10,13 @@ import { formatMoney } from "@/lib/currency";
 import { CostRow } from "@/components/ui/cost-breakdown-modal";
 import { ReauthFields } from "@/components/ui/reauth-fields";
 import { useEditableRow, type ActionResult } from "@/components/ui/editable-row";
+import { EntityLink } from "@/components/ui/entity-link";
 
 type PhoneRow = {
   id: string;
   imei: string;
   notes: string | null;
-  phoneVariant: { variantName: string; specs?: string; color?: string | null; storage?: string | null; ram?: string | null; phoneModel: { brand: string; modelName: string } };
+  phoneVariant: { id?: string; phoneModelId?: string; variantName: string; specs?: string; color?: string | null; storage?: string | null; ram?: string | null; phoneModel: { brand: string; modelName: string } };
   grade: string | null;
   batteryHealth: number | null;
   status: string;
@@ -240,9 +241,15 @@ export function PhoneCostEditor({ phone, showCost, canGrade, requireReauth, user
         {phone.imei}
         {phone.notes ? <p className="mt-0.5 text-xs italic text-slate-500">{phone.notes}</p> : null}
       </td>
-      <td className="px-2 py-2">{phone.phoneVariant.phoneModel.brand} {phone.phoneVariant.phoneModel.modelName}</td>
       <td className="px-2 py-2">
-        {phone.phoneVariant.variantName}
+        {phone.phoneVariant.phoneModelId ? (
+          <EntityLink kind="model" id={phone.phoneVariant.phoneModelId}>{phone.phoneVariant.phoneModel.brand} {phone.phoneVariant.phoneModel.modelName}</EntityLink>
+        ) : (
+          <>{phone.phoneVariant.phoneModel.brand} {phone.phoneVariant.phoneModel.modelName}</>
+        )}
+      </td>
+      <td className="px-2 py-2">
+        {phone.phoneVariant.id ? <EntityLink kind="variant" id={phone.phoneVariant.id}>{phone.phoneVariant.variantName}</EntityLink> : phone.phoneVariant.variantName}
         <SpecChips color={phone.phoneVariant.color} storage={phone.phoneVariant.storage} ram={phone.phoneVariant.ram} className="mt-1 flex" />
       </td>
       <td className="px-2 py-2"><GradeBadge grade={phone.grade} /></td>
