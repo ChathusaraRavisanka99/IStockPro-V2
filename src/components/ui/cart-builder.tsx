@@ -18,6 +18,8 @@ export type CartItemOption = {
   details?: { label: string; value: string }[];
   /** Cost figures shown in that popup — only set for roles allowed to view cost. */
   cost?: { unitCost: number; totalCost: number; breakdown?: { label: string; amount: number }[] };
+  /** Latest internal (seller-only) comments — shown in the add popup, never on documents. */
+  comments?: { id: string; author: string; at: string; text: string }[];
 };
 type ItemOption = CartItemOption;
 
@@ -168,6 +170,7 @@ export function CartBuilder({ items, lines, onChange, fieldName = "cartItems", s
           onQuantityChange={setPickerQty}
           remaining={pickerRemaining}
           notes={showNotes ? pickerItem.notes : null}
+          comments={showNotes ? pickerItem.comments : undefined}
           onConfirm={addToCart}
           onCancel={() => setDialogOpen(false)}
         />

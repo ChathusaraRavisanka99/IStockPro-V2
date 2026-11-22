@@ -1,6 +1,7 @@
 "use client";
 
-import { Minus, Plus } from "lucide-react";
+import { MessageSquare, Minus, Plus } from "lucide-react";
+import { CommentList } from "@/components/items/item-comments";
 import { formatMoney } from "@/lib/currency";
 import { Modal, modalButton } from "@/components/ui/modal";
 
@@ -17,6 +18,8 @@ type Props = {
   /** Units still addable (stock minus what's already in the cart); undefined = unlimited. */
   remaining?: number;
   notes?: string | null;
+  /** Internal seller-only comments (latest first). */
+  comments?: { id: string; author: string; at: string; text: string }[];
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -40,7 +43,7 @@ function PriceOption({ label, price, cost, active }: { label: string; price: num
   );
 }
 
-export function ItemAddDialog({ name, details, retailPrice, wholesalePrice, cost, priceMode, quantity, onQuantityChange, remaining, notes, onConfirm, onCancel }: Props) {
+export function ItemAddDialog({ name, details, retailPrice, wholesalePrice, cost, priceMode, quantity, onQuantityChange, remaining, notes, comments, onConfirm, onCancel }: Props) {
   const appliedPrice = priceMode === "Wholesale" && wholesalePrice !== undefined ? wholesalePrice : retailPrice;
   const qty = Math.max(1, Number(quantity) || 1);
   const overStock = remaining !== undefined && qty > remaining;
@@ -95,6 +98,15 @@ export function ItemAddDialog({ name, details, retailPrice, wholesalePrice, cost
         <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <span className="font-semibold">Note:</span> {notes}
         </p>
+      ) : null}
+
+      {comments?.length ? (
+        <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50/60 p-3">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-sky-900">
+            <MessageSquare className="size-3.5" /> Team comments <span className="font-normal text-sky-700">· internal, not shown to the customer</span>
+          </p>
+          <CommentList rows={comments.map((comment) => ({ ...comment, authorId: null }))} />
+        </div>
       ) : null}
 
       {details.length ? (
