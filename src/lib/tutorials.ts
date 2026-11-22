@@ -161,7 +161,7 @@ export const TUTORIALS: Tutorial[] = [
     summary: "Price quotes for customers that can be converted into a sale.",
     steps: [
       { title: "Create a quotation", body: "Pick a customer, Retail or Wholesale, and add models or specific variants (shown with color and storage). Set a valid-until date." },
-      { title: "Share it", body: "Open the quotation to view or print it for the customer." },
+      { title: "Share it", body: "Open the quotation and use Print for a paper copy or Download PDF to email or WhatsApp it. The PDF button in the list downloads it straight away." },
       { title: "Convert to a sale", body: "When the customer agrees, convert it — the sale is created from the quoted lines." },
     ],
   },
@@ -171,7 +171,8 @@ export const TUTORIALS: Tutorial[] = [
     path: "/quotations",
     summary: "One quotation's lines, totals and validity.",
     steps: [
-      { title: "Review", body: "Check the customer, validity date, line items (with variant specs) and total." },
+      { title: "Review", body: "Check the customer, validity date, line items (model, variant and color/storage) and total." },
+      { title: "Print or download", body: "Print opens a clean printable version (no menus). Download PDF saves a branded PDF you can email or share." },
       { title: "Convert", body: "Convert it to a sale from the Quotations page when the customer accepts." },
     ],
   },

@@ -40,3 +40,21 @@ export function formatPhoneName(variant: VariantNameParts): string {
   const alreadyNamed = specs.split(" · ").every((part) => name.includes(part.replace(/ RAM$/, "").toLowerCase()));
   return alreadyNamed ? base : `${base} (${specs})`;
 }
+
+const GENERIC_QUOTE_DESCRIPTIONS = new Set(["phone variant", "phone model", "quotation item"]);
+
+/**
+ * Customer-facing label for a quotation line: "Apple iPhone 13 - 128GB · Red (Red · 128GB)" for
+ * a variant, "Apple iPhone 13" for a model, else the free-text description. A custom (non-generic)
+ * description is returned as `note` so it can be shown under the label.
+ */
+export function quotationLineLabel(item: {
+  description: string | null;
+  phoneModel?: { brand: string; modelName: string } | null;
+  phoneVariant?: (VariantNameParts & { phoneModel: { brand: string; modelName: string } }) | null;
+}): { label: string; note: string | null } {
+  const custom = item.description && !GENERIC_QUOTE_DESCRIPTIONS.has(item.description.trim().toLowerCase()) ? item.description.trim() : null;
+  if (item.phoneVariant) return { label: formatPhoneName(item.phoneVariant), note: custom };
+  if (item.phoneModel) return { label: `${item.phoneModel.brand} ${item.phoneModel.modelName}`, note: custom };
+  return { label: custom || item.description || "Quotation item", note: null };
+}
