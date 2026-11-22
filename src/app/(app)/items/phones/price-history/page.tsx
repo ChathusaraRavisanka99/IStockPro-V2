@@ -13,8 +13,60 @@ import { formatMoney } from "@/lib/currency";
 import { formatVariantSpecs } from "@/lib/format-item-name";
 import { PRICE_CHANGE_ACTION, PRICE_FIELD_LABELS, type PriceChangeDetails, type PriceField } from "@/lib/price-history";
 import { SpecChips } from "@/components/ui/spec-chips";
+import { PriceTimelineChart, type PricePoint } from "@/components/items/price-timeline-chart";
 
-type Props = { searchParams: { search?: string; filter?: string; from?: string; to?: string; page?: string; pageSize?: string } };
+type Props = { searchParams: { search?: string; filter?: string; from?: string; to?: string; page?: string; pageSize?: string; sel?: string } };
+
+type TimelineUnit = { id: string; createdAt: Date; retailPrice: unknown; wholesalePrice: unknown };
+type TimelineLog = { entityId: string; createdAt: Date; details: unknown };
+
+/**
+ * Average listed price over time for a set of units: each unit's price is reconstructed from
+ * its registration (original price = the first change's old price, else its current price)
+ * plus every logged change, then averaged at each event date across units registered by then.
+ */
+function buildPriceTimeline(units: TimelineUnit[], logs: TimelineLog[]): PricePoint[] {
+  type Change = { at: number; price: number };
+  const series = new Map<string, { start: number; retail: Change[]; wholesale: Change[] }>();
+  for (const unit of units) {
+    const unitLogs = logs.filter((log) => log.entityId === unit.id).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    const build = (field: PriceField, current: unknown): Change[] => {
+      const changes = unitLogs.map((log) => ({ log, details: log.details as PriceChangeDetails })).filter(({ details }) => details?.field === field);
+      const original = changes.length ? changes[0].details.oldPrice : Number(current ?? 0);
+      return [{ at: unit.createdAt.getTime(), price: original }, ...changes.map(({ log, details }) => ({ at: log.createdAt.getTime(), price: details.newPrice }))];
+    };
+    series.set(unit.id, { start: unit.createdAt.getTime(), retail: build("retailPrice", unit.retailPrice), wholesale: build("wholesalePrice", unit.wholesalePrice) });
+  }
+  const priceAt = (changes: Change[], at: number) => {
+    let price: number | null = null;
+    for (const change of changes) if (change.at <= at) price = change.price;
+    return price;
+  };
+  const events = new Map<number, string>();
+  for (const unit of units) events.set(unit.createdAt.getTime(), "unit registered");
+  for (const log of logs) {
+    const details = log.details as PriceChangeDetails;
+    events.set(log.createdAt.getTime(), `${details.field === "retailPrice" ? "retail" : "wholesale"} price changed`);
+  }
+  events.set(Date.now(), "today");
+  const average = (values: (number | null)[]) => {
+    const priced = values.filter((value): value is number => value !== null && value > 0);
+    return priced.length ? Math.round(priced.reduce((sum, value) => sum + value, 0) / priced.length) : null;
+  };
+  return Array.from(events)
+    .sort((a, b) => a[0] - b[0])
+    .map(([at, event]) => {
+      const active = Array.from(series.values()).filter((entry) => entry.start <= at);
+      return {
+        date: new Date(at).toISOString(),
+        retail: average(active.map((entry) => priceAt(entry.retail, at))),
+        wholesale: average(active.map((entry) => priceAt(entry.wholesale, at))),
+        units: active.length,
+        event,
+      };
+    })
+    .filter((point) => point.units > 0);
+}
 
 export default async function PhonePriceHistoryPage({ searchParams }: Props) {
   const session = await getServerSession(authOptions);
@@ -28,6 +80,27 @@ export default async function PhonePriceHistoryPage({ searchParams }: Props) {
   const toDate = searchParams.to?.trim() || "";
   const page = parsePage(searchParams.page);
   const pageSize = parsePageSize(searchParams.pageSize);
+  const sel = searchParams.sel || "";
+  const [selKind, selId] = sel.includes(":") ? sel.split(":") : ["", ""];
+
+  const catalog = await prisma.phoneModel.findMany({
+    where: { deletedAt: null },
+    orderBy: [{ brand: "asc" }, { modelName: "asc" }],
+    select: { id: true, brand: true, modelName: true, variants: { where: { deletedAt: null }, orderBy: { variantName: "asc" }, select: { id: true, variantName: true } } },
+  });
+  const selectedModel = selKind === "m" ? catalog.find((model) => model.id === selId) : selKind === "v" ? catalog.find((model) => model.variants.some((variant) => variant.id === selId)) : undefined;
+  const selectedVariant = selKind === "v" ? selectedModel?.variants.find((variant) => variant.id === selId) : undefined;
+  const selectionLabel = selectedModel ? `${selectedModel.brand} ${selectedModel.modelName}${selectedVariant ? ` — ${selectedVariant.variantName}` : " (all variants)"}` : "";
+  const selectionUnits = selectedModel
+    ? await prisma.phone.findMany({
+        where: { deletedAt: null, ...(selectedVariant ? { phoneVariantId: selectedVariant.id } : { phoneVariant: { phoneModelId: selectedModel.id } }) },
+        select: { id: true, createdAt: true, retailPrice: true, wholesalePrice: true },
+      })
+    : [];
+  const selectionLogs = selectionUnits.length
+    ? await prisma.auditLog.findMany({ where: { action: PRICE_CHANGE_ACTION, entityType: "Phone", entityId: { in: selectionUnits.map((unit) => unit.id) } }, select: { entityId: true, createdAt: true, details: true } })
+    : [];
+  const timeline = selectedModel ? buildPriceTimeline(selectionUnits, showWholesale ? selectionLogs : selectionLogs.filter((log) => (log.details as PriceChangeDetails)?.field === "retailPrice")) : [];
 
   const matchingPhoneIds = search
     ? (
@@ -50,7 +123,15 @@ export default async function PhonePriceHistoryPage({ searchParams }: Props) {
   const where: Prisma.AuditLogWhereInput = {
     action: PRICE_CHANGE_ACTION,
     entityType: "Phone",
-    ...(matchingPhoneIds ? { entityId: { in: matchingPhoneIds } } : {}),
+    ...(matchingPhoneIds || selectedModel
+      ? {
+          entityId: {
+            in: selectedModel
+              ? selectionUnits.map((unit) => unit.id).filter((id) => !matchingPhoneIds || matchingPhoneIds.includes(id))
+              : matchingPhoneIds!,
+          },
+        }
+      : {}),
     ...(field ? { details: { path: ["field"], equals: field } } : {}),
     ...(fromDate || toDate
       ? {
@@ -89,6 +170,71 @@ export default async function PhonePriceHistoryPage({ searchParams }: Props) {
         <Link href="/items/phones" className="text-sm text-slate-700 underline">Back to Phones</Link>
       </div>
 
+      <Card className="mb-4">
+        <form method="get" className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <label className="grid min-w-0 flex-1 gap-1 text-xs font-medium text-slate-600">
+            Show price over time for
+            <select name="sel" defaultValue={sel} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+              <option value="">— Choose a phone model or variant —</option>
+              {catalog.map((model) => (
+                <optgroup key={model.id} label={`${model.brand} ${model.modelName}`}>
+                  <option value={`m:${model.id}`}>All variants of {model.brand} {model.modelName}</option>
+                  {model.variants.map((variant) => (
+                    <option key={variant.id} value={`v:${variant.id}`}>
+                      {model.modelName} — {variant.variantName}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+          <button className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Show</button>
+          {sel ? <Link href="/items/phones/price-history" className="rounded-lg border border-slate-300 px-3 py-2 text-center text-sm text-slate-700">Clear</Link> : null}
+        </form>
+        {selectedModel ? (
+          <div className="mt-4">
+            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-base font-semibold text-slate-900">{selectionLabel}</h2>
+              <p className="text-xs text-slate-500">
+                {selectionUnits.length} unit{selectionUnits.length === 1 ? "" : "s"} · {selectionLogs.length} price change{selectionLogs.length === 1 ? "" : "s"} · average of each unit&apos;s listed price at that time
+              </p>
+            </div>
+            <PriceTimelineChart data={timeline} showWholesale={showWholesale} />
+            {timeline.length ? (
+              <details className="mt-3 rounded-lg border border-slate-200">
+                <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-slate-700">Show these points as a table</summary>
+                <div className="overflow-x-auto border-t border-slate-100">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                        <th className="px-3 py-2">Date</th>
+                        <th className="px-3 py-2">Event</th>
+                        <th className="px-3 py-2 text-right">Units</th>
+                        <th className="px-3 py-2 text-right">Avg retail</th>
+                        {showWholesale ? <th className="px-3 py-2 text-right">Avg wholesale</th> : null}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...timeline].reverse().map((point) => (
+                        <tr key={point.date} className="border-t border-slate-100">
+                          <td className="whitespace-nowrap px-3 py-1.5">{point.date.slice(0, 10)}</td>
+                          <td className="px-3 py-1.5 text-slate-600">{point.event}</td>
+                          <td className="px-3 py-1.5 text-right">{point.units}</td>
+                          <td className="whitespace-nowrap px-3 py-1.5 text-right">{point.retail !== null ? formatMoney(point.retail) : "—"}</td>
+                          {showWholesale ? <td className="whitespace-nowrap px-3 py-1.5 text-right">{point.wholesale !== null ? formatMoney(point.wholesale) : "—"}</td> : null}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            ) : null}
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-slate-500">Pick a model or a specific variant to chart how its prices moved over time; the change log below then shows just that selection.</p>
+        )}
+      </Card>
+
       <ListControls
         search={search}
         filter={field}
@@ -97,6 +243,7 @@ export default async function PhonePriceHistoryPage({ searchParams }: Props) {
         placeholder="Search IMEI, model, variant or lot"
         showViewToggle={false}
         dateRange={{ from: fromDate, to: toDate }}
+        preserve={{ sel }}
       />
 
       <Card>
@@ -173,7 +320,7 @@ export default async function PhonePriceHistoryPage({ searchParams }: Props) {
         page={page}
         pageSize={pageSize}
         total={total}
-        query={{ ...(search ? { search } : {}), ...(field && showWholesale ? { filter: field } : {}), ...(fromDate ? { from: fromDate } : {}), ...(toDate ? { to: toDate } : {}) }}
+        query={{ ...(sel ? { sel } : {}), ...(search ? { search } : {}), ...(field && showWholesale ? { filter: field } : {}), ...(fromDate ? { from: fromDate } : {}), ...(toDate ? { to: toDate } : {}) }}
       />
     </div>
   );
