@@ -189,8 +189,8 @@ export default async function PhonePriceHistoryPage({ searchParams }: Props) {
               ))}
             </select>
           </label>
-          <button className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Show</button>
-          {sel ? <Link href="/items/phones/price-history" className="rounded-lg border border-slate-300 px-3 py-2 text-center text-sm text-slate-700">Clear</Link> : null}
+          <button className="btn btn-md btn-primary">Show</button>
+          {sel ? <Link href="/items/phones/price-history" className="btn btn-md btn-secondary">Clear</Link> : null}
         </form>
         {selectedModel ? (
           <div className="mt-4">
@@ -251,7 +251,7 @@ export default async function PhonePriceHistoryPage({ searchParams }: Props) {
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-300 text-left text-slate-700">
+              <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-2 py-2">Date</th>
                 <th className="px-2 py-2">Phone</th>
                 <th className="px-2 py-2">IMEI</th>

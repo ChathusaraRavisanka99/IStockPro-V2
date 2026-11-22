@@ -76,7 +76,7 @@ export function SaleForm({ customers, customerQuickAdd, items, action }: Props) 
           <span>Total</span>
           <span>{formatMoney(total)}</span>
         </p>
-        <button type="submit" disabled={lines.length === 0} className="rounded-lg bg-slate-900 px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="submit" disabled={lines.length === 0} className="btn btn-md btn-primary">
           Create Sale
         </button>
         {lines.length === 0 ? <p className="text-xs text-slate-500">Add at least one item before creating the sale.</p> : null}

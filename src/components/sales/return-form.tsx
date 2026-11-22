@@ -108,7 +108,7 @@ export function ReturnForm({ sales, action, quickAdd }: Props) {
           Refund amount
           <input name="totalCredit" type="number" step="0.01" min={0} value={amount} onChange={(event) => setAmount(event.target.value)} required className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
         </label>
-        <button className="self-end rounded-lg bg-slate-900 px-3 py-2 text-white">Create Return + Credit Note</button>
+        <button className="btn btn-md btn-primary self-end">Create Return + Credit Note</button>
       </div>
     </form>
   );

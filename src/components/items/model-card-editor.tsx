@@ -78,11 +78,11 @@ export function ModelCardEditor({
             </label>
           </div>
           {error ? <p className="text-xs text-red-700">{error}</p> : null}
-          <div className="flex gap-2">
-            <button type="submit" disabled={pending} className="rounded-md bg-slate-900 px-3 py-1 text-xs text-white disabled:opacity-60">
+          <div className="action-row">
+            <button type="submit" disabled={pending} className="btn btn-xs btn-primary">
               {pending ? "Saving..." : "Save"}
             </button>
-            <button type="button" onClick={cancel} className="rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-700">
+            <button type="button" onClick={cancel} className="btn btn-xs btn-secondary">
               Cancel
             </button>
           </div>
@@ -103,7 +103,7 @@ export function ModelCardEditor({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            <button type="button" onClick={open} className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 transition hover:bg-slate-50">
+            <button type="button" onClick={open} className="btn btn-xs btn-secondary">
               Edit
             </button>
             <ConfirmActionButton

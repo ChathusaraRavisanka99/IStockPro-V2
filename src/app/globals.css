@@ -2,6 +2,68 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---- Shared controls -------------------------------------------------------------------
+   One button system so neighbouring buttons always match in height, radius and weight:
+   .btn + a size (xs 28px · sm 32px · md 40px) + a variant. Layout utilities (col-span,
+   self-*, w-*) can still be added alongside. */
+@layer components {
+  .btn {
+    @apply inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg font-medium leading-none transition-colors
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1
+      disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn svg {
+    @apply size-3.5 shrink-0;
+  }
+  .btn-xs {
+    @apply h-7 px-2.5 text-xs;
+  }
+  .btn-sm {
+    @apply h-8 px-3 text-sm;
+  }
+  .btn-md {
+    @apply h-10 px-4 text-sm;
+  }
+  .btn-md svg {
+    @apply size-4;
+  }
+  .btn-primary {
+    @apply bg-slate-900 text-white hover:bg-slate-800;
+  }
+  .btn-secondary {
+    @apply border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50;
+  }
+  .btn-danger {
+    @apply border border-red-200 bg-white text-red-700 hover:border-red-300 hover:bg-red-50;
+  }
+  .btn-danger-solid {
+    @apply bg-red-600 text-white hover:bg-red-700;
+  }
+  .btn-success {
+    @apply border border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-50;
+  }
+  /* A row of actions (table cells, card footers): wraps evenly on small screens. */
+  .action-row {
+    @apply flex flex-wrap items-center gap-1.5;
+  }
+  .action-row > form {
+    @apply contents;
+  }
+}
+
+/* Form fields: same height as .btn-md and 14px text on desktop, so a field and the button beside
+   it line up. (Touch devices get 16px — see the iOS zoom rule further down.) */
+@layer base {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]),
+  select {
+    min-height: 2.5rem;
+    font-size: 0.875rem;
+  }
+  textarea {
+    font-size: 0.875rem;
+  }
+}
+
 :root {
   --bg-page: 245 247 251;
   --bg-card: 255 255 255;
@@ -193,6 +255,10 @@ label,
   select,
   textarea {
     font-size: 16px !important;
+  }
+  /* 16px fields are 42px tall here — keep form buttons the same height. */
+  .btn-md {
+    height: 2.625rem;
   }
 }
 

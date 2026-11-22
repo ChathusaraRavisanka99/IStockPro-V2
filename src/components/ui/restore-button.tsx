@@ -109,7 +109,7 @@ export function RestoreButton({ kind, id, label, action }: { kind: string; id: s
 
   return (
     <>
-      <button type="button" onClick={onClick} disabled={pending} className="rounded-md border border-emerald-300 px-2 py-1 text-xs text-emerald-800 disabled:opacity-60">
+      <button type="button" onClick={onClick} disabled={pending} className="btn btn-xs btn-success">
         {pending ? "Restoring..." : "Restore"}
       </button>
       {report ? (

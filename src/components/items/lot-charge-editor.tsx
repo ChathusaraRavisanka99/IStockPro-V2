@@ -46,10 +46,10 @@ export function LotChargeEditor({ title, fields, requireReauth, username, action
           {requireReauth ? <ReauthFields username={username} /> : null}
           {error ? <p className="col-span-full text-xs text-red-700">{error}</p> : null}
           <div className="flex items-end gap-2">
-            <button type="submit" disabled={pending} className="rounded-md bg-slate-900 px-3 py-1 text-xs text-white disabled:opacity-60">
+            <button type="submit" disabled={pending} className="btn btn-xs btn-primary">
               {pending ? "Saving..." : "Save"}
             </button>
-            <button type="button" onClick={cancel} className="rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-700">
+            <button type="button" onClick={cancel} className="btn btn-xs btn-secondary">
               Cancel
             </button>
           </div>

@@ -116,7 +116,7 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
           variantName={variant.variantName}
           deleteAction={deleteVariant}
           redirectTo="/items/phones"
-          className="rounded-md border border-red-200 px-3 py-1 text-sm text-red-700 disabled:opacity-60"
+          className="btn btn-sm btn-danger"
         />
       </div>
 
@@ -170,7 +170,7 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-300 text-left text-slate-700">
+              <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-2 py-2">IMEI</th>
                 <th className="px-2 py-2">Grade</th>
                 <th className="px-2 py-2">Battery</th>

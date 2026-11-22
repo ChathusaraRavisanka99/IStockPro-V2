@@ -20,8 +20,8 @@ const STATUS_OPTIONS = ["Draft", "Sent", "Accepted", "Rejected"].map((value) => 
 /** Edit + Delete for a quotation (non-sensitive: nothing moves money or stock until converted). */
 export function QuotationRowActions({ quotation, large, redirectAfterDelete }: { quotation: QuotationLite; large?: boolean; redirectAfterDelete?: string }) {
   const converted = quotation.status === "Converted";
-  const editClass = large ? "inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-50" : undefined;
-  const deleteClass = large ? "inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-sm text-red-700 hover:bg-red-50" : undefined;
+  const editClass = large ? "btn btn-sm btn-secondary" : undefined;
+  const deleteClass = large ? "btn btn-sm btn-danger" : undefined;
   return (
     <>
       <EntityEditButton

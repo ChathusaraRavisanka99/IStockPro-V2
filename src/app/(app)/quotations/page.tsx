@@ -248,14 +248,14 @@ export default async function QuotationsPage({ searchParams }: { searchParams: {
 
       {view === "grid" ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {quotations.map((q) =><Card key={q.id}><p className="font-semibold text-slate-900">{q.quoteNumber}</p><p className="mt-1 text-sm text-slate-700">{q.customer ? <EntityLink kind="customer" id={q.customer.id}>{q.customer.name}</EntityLink> : "Walk-in"}</p><p className="text-sm text-slate-700">Valid until {q.validUntil ? q.validUntil.toISOString().slice(0, 10) : "-"}</p><p className="mt-3 text-lg font-semibold text-slate-900">{formatMoney(Number(q.totalAmount))}</p><p className="text-sm text-slate-700">{q.status}</p><span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${q.saleType === "Wholesale" ? "bg-purple-100 text-purple-800" : "bg-slate-100 text-slate-700"}`}>{q.saleType}</span><div className="mt-3 flex flex-wrap gap-2"><Link href={`/quotations/${q.id}`} className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">View</Link><a href={`/api/quotations/${q.id}/pdf`} download className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">PDF</a><QuotationRowActions large={true} quotation={{ id: q.id, quoteNumber: q.quoteNumber, status: q.status, validUntil: q.validUntil, customerPhone: q.customerPhone, customerEmail: q.customerEmail, notes: q.notes, totalAmount: q.totalAmount, itemCount: q.items.length, convertedSaleNumber: q.convertedSale?.saleNumber ?? null }} />{q.status !== "Converted" ? <form action={convertQuotationToSale}><input type="hidden" name="quotationId" value={q.id} /><button className="rounded-lg bg-slate-900 px-3 py-1 text-sm text-white">Convert</button></form> : q.convertedSale ? <Link href={`/sales/${q.convertedSale.id}`} className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">View Sale {q.convertedSale.saleNumber}</Link> : null}</div></Card>)}
+          {quotations.map((q) =><Card key={q.id}><p className="font-semibold text-slate-900">{q.quoteNumber}</p><p className="mt-1 text-sm text-slate-700">{q.customer ? <EntityLink kind="customer" id={q.customer.id}>{q.customer.name}</EntityLink> : "Walk-in"}</p><p className="text-sm text-slate-700">Valid until {q.validUntil ? q.validUntil.toISOString().slice(0, 10) : "-"}</p><p className="mt-3 text-lg font-semibold text-slate-900">{formatMoney(Number(q.totalAmount))}</p><p className="text-sm text-slate-700">{q.status}</p><span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${q.saleType === "Wholesale" ? "bg-purple-100 text-purple-800" : "bg-slate-100 text-slate-700"}`}>{q.saleType}</span><div className="mt-3 flex flex-wrap gap-2"><Link href={`/quotations/${q.id}`} className="btn btn-sm btn-secondary">View</Link><a href={`/api/quotations/${q.id}/pdf`} download className="btn btn-sm btn-secondary">PDF</a><QuotationRowActions large={true} quotation={{ id: q.id, quoteNumber: q.quoteNumber, status: q.status, validUntil: q.validUntil, customerPhone: q.customerPhone, customerEmail: q.customerEmail, notes: q.notes, totalAmount: q.totalAmount, itemCount: q.items.length, convertedSaleNumber: q.convertedSale?.saleNumber ?? null }} />{q.status !== "Converted" ? <form action={convertQuotationToSale}><input type="hidden" name="quotationId" value={q.id} /><button className="btn btn-sm btn-primary">Convert</button></form> : q.convertedSale ? <Link href={`/sales/${q.convertedSale.id}`} className="btn btn-sm btn-secondary">View Sale {q.convertedSale.saleNumber}</Link> : null}</div></Card>)}
         </div>
       ) : (
       <Card>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-300 text-left text-slate-700">
+              <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-2 py-2">Quote #</th>
                 <th className="px-2 py-2">Customer</th>
                 <th className="px-2 py-2">Type</th>
@@ -279,7 +279,7 @@ export default async function QuotationsPage({ searchParams }: { searchParams: {
                     {q.status !== "Converted" ? (
                       <form action={convertQuotationToSale}>
                         <input type="hidden" name="quotationId" value={q.id} />
-                        <button className="rounded-md bg-slate-900 px-2 py-1 text-xs text-white">Convert</button>
+                        <button className="btn btn-xs btn-primary">Convert</button>
                       </form>
                     ) : q.convertedSale ? (
                       <Link href={`/sales/${q.convertedSale.id}`} className="text-slate-800 underline">

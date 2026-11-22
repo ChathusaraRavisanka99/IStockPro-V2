@@ -133,7 +133,7 @@ export function ItemCommentsButton({ entityType, entityId, title, count }: { ent
           event.stopPropagation();
           setOpen(true);
         }}
-        className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 transition hover:bg-slate-50"
+        className="btn btn-xs btn-secondary"
         title="Internal comments"
       >
         <MessageSquare className="size-3" />

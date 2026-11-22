@@ -72,7 +72,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-300 text-left text-slate-700">
+                <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                   <th className="px-2 py-2">Sale #</th>
                   <th className="px-2 py-2">Date</th>
                   <th className="px-2 py-2">Invoice Total</th>
@@ -112,7 +112,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-300 text-left text-slate-700">
+              <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-2 py-2">Sale #</th>
                 <th className="px-2 py-2">Date</th>
                 <th className="px-2 py-2">Total</th>

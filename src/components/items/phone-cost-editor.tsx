@@ -173,7 +173,7 @@ export function PhoneCostEditor({ phone, showCost, canGrade, requireReauth, user
             {requireReauth ? <ReauthFields username={username} /> : null}
             {error ? <p className="col-span-full text-xs text-red-700">{error}</p> : null}
             <div className="flex items-end gap-2">
-              <button type="submit" disabled={pending || Boolean(imeiOwner)} className="rounded-md bg-slate-900 px-3 py-1 text-xs text-white disabled:opacity-60">
+              <button type="submit" disabled={pending || Boolean(imeiOwner)} className="btn btn-xs btn-primary">
                 {pending ? "Saving..." : "Save"}
               </button>
               <button
@@ -182,7 +182,7 @@ export function PhoneCostEditor({ phone, showCost, canGrade, requireReauth, user
                   setImeiDraft(phone.imei);
                   cancel();
                 }}
-                className="rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-700"
+                className="btn btn-xs btn-secondary"
               >
                 Cancel
               </button>
@@ -263,13 +263,13 @@ export function PhoneCostEditor({ phone, showCost, canGrade, requireReauth, user
           {editUnit ? (
             <UnitEditButton unit={editUnit} />
           ) : showCost ? (
-            <button type="button" onClick={open} className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700">
+            <button type="button" onClick={open} className="btn btn-xs btn-secondary">
               Edit
             </button>
           ) : null}
           <form action={archiveAction}>
             <input type="hidden" name="id" value={phone.id} />
-            <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Archive</button>
+            <button className="btn btn-xs btn-danger">Archive</button>
           </form>
         </div>
       </td>

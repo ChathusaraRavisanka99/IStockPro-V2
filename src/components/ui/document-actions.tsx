@@ -28,10 +28,10 @@ export function DocumentActions({ pdfUrl, fileName, printLabel = "Print" }: { pd
 
   return (
     <div className="flex flex-wrap gap-2 print:hidden">
-      <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50">
+      <button type="button" onClick={() => window.print()} className="btn btn-md btn-secondary">
         <Printer className="size-4" /> {printLabel}
       </button>
-      <button type="button" onClick={download} disabled={downloading} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60">
+      <button type="button" onClick={download} disabled={downloading} className="btn btn-md btn-primary">
         <Download className="size-4" /> {downloading ? "Preparing…" : "Download PDF"}
       </button>
     </div>

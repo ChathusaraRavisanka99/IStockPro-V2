@@ -178,7 +178,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams: { s
             Receipt (optional)
             <input name="receiptFile" type="file" accept="image/*,application/pdf" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
           </label>
-          <button className="rounded-lg bg-slate-900 px-3 py-2 text-white md:col-span-3 xl:col-span-5">Add Expense</button>
+          <button className="btn btn-md btn-primary md:col-span-3 xl:col-span-5">Add Expense</button>
         </form>
       </Card>
 
@@ -188,7 +188,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams: { s
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-300 text-left text-slate-700">
+              <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-2 py-2">Date</th>
                 <th className="px-2 py-2">Category</th>
                 <th className="px-2 py-2">Description</th>

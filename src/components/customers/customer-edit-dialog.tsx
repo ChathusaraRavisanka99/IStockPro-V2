@@ -36,7 +36,7 @@ export function CustomerEditDialog({ customer, action, buttonClassName }: { cust
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={buttonClassName ?? "rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 transition hover:bg-slate-50"}>
+      <button type="button" onClick={() => setOpen(true)} className={buttonClassName ?? "btn btn-xs btn-secondary"}>
         Edit
       </button>
       {open ? (

@@ -90,7 +90,7 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
       <PageHeader
         title={`Sale ${sale.saleNumber}`}
         subtitle="Manage payments and view line items"
-        actions={<Link href={`/sales/${sale.id}/receipt`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800">Print Receipt</Link>}
+        actions={<Link href={`/sales/${sale.id}/receipt`} className="btn btn-md btn-secondary">Print Receipt</Link>}
         help={
           <p>
             This sale&apos;s invoice, payment history, and line items. If it isn&apos;t fully paid, record payments below
@@ -162,7 +162,7 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
                 Payment slip (optional)
                 <input name="proofFile" type="file" accept="image/*,application/pdf" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
               </label>
-              <button className="rounded-lg bg-slate-900 px-3 py-2 text-white md:col-span-2 xl:col-span-4">Record Payment</button>
+              <button className="btn btn-md btn-primary md:col-span-2 xl:col-span-4">Record Payment</button>
             </form>
           ) : (
             <p className="text-sm text-green-700">This invoice is fully paid.</p>
@@ -172,7 +172,7 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
             <div className="mt-4 overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-300 text-left text-slate-700">
+                  <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                     <th className="px-2 py-2">Date</th>
                     <th className="px-2 py-2">Amount</th>
                     <th className="px-2 py-2">Method</th>
@@ -215,7 +215,7 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-300 text-left text-slate-700">
+              <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-2 py-2">Item</th>
                 <th className="px-2 py-2">Qty</th>
                 <th className="px-2 py-2">Unit Price</th>

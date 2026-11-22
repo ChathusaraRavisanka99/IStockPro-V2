@@ -13,5 +13,5 @@ export function ReceiptActions({ saleId, fileName }: { saleId: string; fileName:
     URL.revokeObjectURL(url);
   }
 
-  return <div className="flex gap-2"><button type="button" onClick={downloadInvoice} className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">Download Invoice PDF</button><button type="button" onClick={() => window.print()} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800">Print Receipt</button></div>;
+  return <div className="action-row"><button type="button" onClick={downloadInvoice} className="btn btn-md btn-primary">Download Invoice PDF</button><button type="button" onClick={() => window.print()} className="btn btn-md btn-secondary">Print Receipt</button></div>;
 }

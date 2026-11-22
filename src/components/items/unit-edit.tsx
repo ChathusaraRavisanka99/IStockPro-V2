@@ -66,7 +66,7 @@ export function UnitEditButton({ unit, className }: { unit: EditableUnit; classN
         event.stopPropagation();
         context.open(unit);
       }}
-      className={className ?? "inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 transition hover:bg-slate-50"}
+      className={className ?? "btn btn-xs btn-secondary"}
     >
       <Pencil className="size-3" /> Edit
     </button>
@@ -331,7 +331,7 @@ function UnitExpenses({ phoneId, api, onChanged }: { phoneId: string; api: NonNu
           {rows?.length ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium normal-case text-slate-700">{formatMoney(total)}</span> : null}
         </p>
         {!adding ? (
-          <button type="button" onClick={() => setAdding(true)} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+          <button type="button" onClick={() => setAdding(true)} className="btn btn-xs btn-secondary">
             <Plus className="size-3.5" /> Add expense
           </button>
         ) : null}

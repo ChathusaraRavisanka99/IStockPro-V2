@@ -241,7 +241,7 @@ export function LotRegisterForm({ variants, imeiOwners, showCost, allowGrading, 
         <div className="overflow-x-auto rounded-xl border border-slate-200">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-left text-slate-700">
+              <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-3 py-2">Variant</th>
                 <th className="px-3 py-2">IMEI</th>
                 <th className="px-3 py-2">Grade</th>
@@ -284,7 +284,7 @@ export function LotRegisterForm({ variants, imeiOwners, showCost, allowGrading, 
       <button
         type="submit"
         disabled={!batch.length}
-        className="justify-self-start rounded-lg bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50"
+        className="btn btn-md btn-primary justify-self-start"
       >
         Register {batch.length || ""} Phone{batch.length === 1 ? "" : "s"}
       </button>

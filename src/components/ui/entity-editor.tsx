@@ -130,7 +130,7 @@ export function EntityEditButton({
 
   return (
     <>
-      <button type="button" onClick={start} className={buttonClassName ?? "inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 transition hover:bg-slate-50"}>
+      <button type="button" onClick={start} className={buttonClassName ?? "btn btn-xs btn-secondary"}>
         {label === "Edit" ? <Pencil className="size-3" /> : null}
         {label}
       </button>
@@ -305,7 +305,7 @@ export function EntityDeleteButton({
           setError(null);
           setOpen(true);
         }}
-        className={buttonClassName ?? "inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 transition hover:bg-red-50"}
+        className={buttonClassName ?? "btn btn-xs btn-danger"}
       >
         {label === "Delete" ? <Trash2 className="size-3" /> : null}
         {label}

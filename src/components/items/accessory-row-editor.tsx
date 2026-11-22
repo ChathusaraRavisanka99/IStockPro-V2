@@ -61,10 +61,10 @@ function EditForm({ item, error, pending, onSubmit, cancel }: { item: Accessory;
       </label>
       {error ? <p className="col-span-full text-xs text-red-700">{error}</p> : null}
       <div className="flex items-end gap-2">
-        <button type="submit" disabled={pending} className="rounded-md bg-slate-900 px-3 py-1 text-xs text-white disabled:opacity-60">
+        <button type="submit" disabled={pending} className="btn btn-xs btn-primary">
           {pending ? "Saving..." : "Save"}
         </button>
-        <button type="button" onClick={cancel} className="rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-700">
+        <button type="button" onClick={cancel} className="btn btn-xs btn-secondary">
           Cancel
         </button>
       </div>
@@ -213,14 +213,14 @@ export function AccessoryGridCard({ item, updateAction, archiveAction, username 
       ) : null}
       <p className="mt-3 text-sm text-slate-700">{item.quantity} in stock | {formatMoney(Number(item.retailPrice))}</p>
       {item.notes ? <p className="mt-1 text-xs italic text-slate-500">{item.notes}</p> : null}
-      <div className="mt-3 flex gap-2" onClick={(event) => event.stopPropagation()}>
+      <div className="mt-3 action-row" onClick={(event) => event.stopPropagation()}>
         <EntityEditButton
             title={`Edit ${item.name}`}
             subtitle={`SKU ${item.sku}`}
             hidden={{ id: item.id }}
             action={updateAction}
             username={username}
-            buttonClassName={"inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-50"}
+            buttonClassName={"btn btn-sm btn-secondary"}
             fields={[
               { name: "name", label: "Name", value: item.name, required: true },
               { name: "sku", label: "SKU", value: item.sku, required: true },
@@ -238,7 +238,7 @@ export function AccessoryGridCard({ item, updateAction, archiveAction, username 
             title={`Archive ${item.name}?`}
             fields={{ id: item.id }}
             action={archiveAction}
-            buttonClassName={"inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-sm text-red-700 hover:bg-red-50"}
+            buttonClassName={"btn btn-sm btn-danger"}
             consequences={[
               item.quantity ? `${item.quantity} unit${item.quantity === 1 ? "" : "s"} in stock leave active stock and can no longer be sold.` : "It has no stock left.",
               item.soldQuantity ? `Its sales history (${item.soldQuantity} sold) is kept.` : "It has no sales history.",

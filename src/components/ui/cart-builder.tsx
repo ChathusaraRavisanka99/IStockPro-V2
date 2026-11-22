@@ -153,7 +153,7 @@ export function CartBuilder({ items, lines, onChange, fieldName = "cartItems", s
           aria-label="Quantity to add"
           className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 sm:w-24"
         />
-        <button type="button" onClick={requestAdd} disabled={!pickerKey || pickerRemaining === 0} className="shrink-0 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50">
+        <button type="button" onClick={requestAdd} disabled={!pickerKey || pickerRemaining === 0} className="btn btn-md btn-primary shrink-0">
           Add
         </button>
       </div>
@@ -186,7 +186,7 @@ export function CartBuilder({ items, lines, onChange, fieldName = "cartItems", s
         <div className="overflow-x-auto rounded-xl border border-slate-200">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-left text-slate-700">
+              <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-3 py-2">Item</th>
                 <th className="px-3 py-2">Qty</th>
                 <th className="px-3 py-2">Unit Price</th>

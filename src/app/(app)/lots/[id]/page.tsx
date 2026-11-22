@@ -683,7 +683,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
           action={updateLotDetails}
           username={username}
           label="Edit details"
-          buttonClassName="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-50"
+          buttonClassName="btn btn-sm btn-secondary"
           fields={[
             { name: "lotNumber", label: "Lot number", value: lot.lotNumber, required: true, sensitive: true },
             { name: "supplierId", label: "Supplier", value: lot.supplierId, type: "select", options: supplierOptions.map((supplier) => ({ value: supplier.id, label: supplier.name })), sensitive: true },
@@ -700,7 +700,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
           action={deleteLot}
           confirmLabel="Delete lot"
           redirectTo="/lots"
-          buttonClassName="inline-flex items-center gap-1 rounded-md border border-red-200 px-3 py-1 text-sm text-red-700 hover:bg-red-50"
+          buttonClassName="btn btn-sm btn-danger"
           blockedReason={lotSaleItems.length ? `${lotSaleItems.length} sale line${lotSaleItems.length === 1 ? "" : "s"} already include units from this lot, so it can't be deleted — sales history must keep pointing at it. Archive individual unsold units instead.` : null}
           consequences={[
             `The lot disappears from the lot list, dashboard and reports${lot.status !== "Collection" ? ` (it is currently ${lot.status})` : ""}.`,
@@ -764,7 +764,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
           <form action={moveToShipped} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <FxAmountInput name="shippingCost" label="Shipping cost" />
             <div className="flex items-end">
-              <button className="rounded-lg bg-slate-900 px-3 py-2 text-white">Mark as Shipped</button>
+              <button className="btn btn-md btn-primary">Mark as Shipped</button>
             </div>
           </form>
         </Card>
@@ -783,7 +783,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
             <FxAmountInput name="taxCost" label="Tax cost" />
             <FxAmountInput name="customsCost" label="Customs clearance charges" />
             <FxAmountInput name="otherCost" label="Other charges" />
-            <button className="rounded-lg bg-slate-900 px-3 py-2 text-white md:col-span-2 xl:col-span-3">Mark as Cleared</button>
+            <button className="btn btn-md btn-primary md:col-span-2 xl:col-span-3">Mark as Cleared</button>
           </form>
         </Card>
       ) : null}
@@ -858,14 +858,14 @@ export default async function LotDetailPage({ params }: { params: { id: string }
               Payment slip (optional)
               <input name="proofFile" type="file" accept="image/*,application/pdf" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
             </label>
-            <button className="rounded-lg bg-slate-900 px-3 py-2 text-white md:col-span-2 xl:col-span-4">Record Payment</button>
+            <button className="btn btn-md btn-primary md:col-span-2 xl:col-span-4">Record Payment</button>
           </form>
 
           {lot.payments.length ? (
             <div className="mt-4 overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-300 text-left text-slate-700">
+                  <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                     <th className="px-2 py-2">Date</th>
                     <th className="px-2 py-2">Amount</th>
                     <th className="px-2 py-2">Method</th>
@@ -1018,7 +1018,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-300 text-left text-slate-700">
+              <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-2 py-2">IMEI</th>
                 <th className="px-2 py-2">Model</th>
                 <th className="px-2 py-2">Variant</th>
@@ -1121,13 +1121,13 @@ export default async function LotDetailPage({ params }: { params: { id: string }
             <input name="quantity" type="number" min={1} step="1" required defaultValue={1} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
           </label>
           {showCost ? <FxAmountInput name="unitCost" label="Unit cost" /> : null}
-          <button className="rounded-lg bg-slate-900 px-3 py-2 text-white md:col-span-2 xl:col-span-4">Add to Lot</button>
+          <button className="btn btn-md btn-primary md:col-span-2 xl:col-span-4">Add to Lot</button>
         </form>
 
         <div className="mt-4 overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-300 text-left text-slate-700">
+              <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-2 py-2">Item</th>
                 <th className="px-2 py-2">SKU</th>
                 <th className="px-2 py-2">Quantity</th>
@@ -1150,7 +1150,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
                     <NoModalCell className="px-2 py-2">
                       <form action={removeAccessoryFromLot}>
                         <input type="hidden" name="id" value={item.id} />
-                        <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Remove</button>
+                        <button className="btn btn-xs btn-danger">Remove</button>
                       </form>
                     </NoModalCell>
                   </>

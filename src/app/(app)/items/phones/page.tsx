@@ -441,7 +441,7 @@ export default async function PhonesPage({ searchParams }: Props) {
                 </label>
               </div>
             ) : null}
-            <button className="inline-flex items-center justify-center gap-1.5 justify-self-start rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"><Plus className="size-4" />Create Unit</button>
+            <button className="btn btn-md btn-primary justify-self-start"><Plus className="size-4" />Create Unit</button>
           </form>
               ),
             },
@@ -475,7 +475,7 @@ export default async function PhonesPage({ searchParams }: Props) {
               <input name="networkType" placeholder="Network (4G/5G)" className={inputClass} />
               <input name="battery" placeholder="Battery capacity" className={inputClass} />
             </div>
-            <button className="inline-flex items-center justify-center gap-1.5 justify-self-start rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"><Plus className="size-4" />Create Variant</button>
+            <button className="btn btn-md btn-primary justify-self-start"><Plus className="size-4" />Create Variant</button>
           </form>
               ),
             },
@@ -497,7 +497,7 @@ export default async function PhonesPage({ searchParams }: Props) {
                 <input name="warrantyMonths" type="number" min={0} defaultValue={0} className={inputClass} />
               </label>
             </div>
-            <button className="inline-flex items-center justify-center gap-1.5 justify-self-start rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"><Plus className="size-4" />Create Model</button>
+            <button className="btn btn-md btn-primary justify-self-start"><Plus className="size-4" />Create Model</button>
           </form>
               ),
             },
@@ -524,8 +524,8 @@ export default async function PhonesPage({ searchParams }: Props) {
               <Link href={optionsHref("stock")} className={`px-2.5 py-1.5 ${optionsMode === "stock" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-50"}`}>In stock</Link>
               <Link href={optionsHref("all")} className={`px-2.5 py-1.5 ${optionsMode === "all" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-50"}`}>All options</Link>
             </div>
-            <Link href="/items/phone-catalog" className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50">Catalog</Link>
-            <Link href="/items/phones/price-history" className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50">Price history</Link>
+            <Link href="/items/phone-catalog" className="btn btn-xs btn-secondary">Catalog</Link>
+            <Link href="/items/phones/price-history" className="btn btn-xs btn-secondary">Price history</Link>
           </div>
         </div>
         <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
@@ -580,7 +580,7 @@ export default async function PhonesPage({ searchParams }: Props) {
                     <UnitEditButton unit={editableUnit(phone)} />
                     <form action={archivePhone}>
                       <input type="hidden" name="id" value={phone.id} />
-                      <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Archive</button>
+                      <button className="btn btn-xs btn-danger">Archive</button>
                     </form>
                   </NoModalDiv>
                 </>
@@ -667,7 +667,7 @@ export default async function PhonesPage({ searchParams }: Props) {
                     <NoModalCell className="px-2 py-2">
                       <div className="flex flex-wrap gap-1.5">
                         <UnitEditButton unit={editableUnit(phone)} />
-                        <form action={archivePhone}><input type="hidden" name="id" value={phone.id} /><button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Archive</button></form>
+                        <form action={archivePhone}><input type="hidden" name="id" value={phone.id} /><button className="btn btn-xs btn-danger">Archive</button></form>
                       </div>
                     </NoModalCell>
                   </>

@@ -108,7 +108,7 @@ export default async function CustomersPage({ searchParams }: Props) {
           <input name="phone" placeholder="Phone" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
           <input name="email" placeholder="Email" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
           <input name="address" placeholder="Address" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
-          <button className="rounded-lg bg-slate-900 px-3 py-2 text-white md:col-span-4">Add Customer</button>
+          <button className="btn btn-md btn-primary md:col-span-4">Add Customer</button>
         </form>
       </Card>
 
@@ -124,15 +124,15 @@ export default async function CustomersPage({ searchParams }: Props) {
                 <p className="mt-1 text-sm text-slate-700">{customer.phone || "No phone"}</p>
                 <p className="text-sm text-slate-700">{customer.email || "No email"}</p>
                 <p className="mt-3 text-sm text-slate-700">{customer.sales.length} sales | {formatMoney(lifetimeValue)}</p>
-                <div className="mt-3 flex gap-2">
-                  <CustomerEditDialog customer={{ id: customer.id, name: customer.name, phone: customer.phone, email: customer.email, address: customer.address }} action={updateCustomer} buttonClassName="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-700" />
+                <div className="mt-3 action-row">
+                  <CustomerEditDialog customer={{ id: customer.id, name: customer.name, phone: customer.phone, email: customer.email, address: customer.address }} action={updateCustomer} buttonClassName="btn btn-sm btn-secondary" />
                   <EntityDeleteButton
                     title={`Delete ${customer.name}?`}
                     sensitive
                     username={username}
                     fields={{ id: customer.id }}
                     action={deleteCustomer}
-                    buttonClassName="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-sm text-red-700 hover:bg-red-50"
+                    buttonClassName="btn btn-sm btn-danger"
                     consequences={[
                       "The customer disappears from this list and from the customer picker on sales and quotations.",
                       customer.sales.length ? `Their ${customer.sales.length} sale${customer.sales.length === 1 ? "" : "s"} (${formatMoney(customer.sales.reduce((acc, sale) => acc + Number(sale.totalAmount), 0))}) are kept and still show their name.` : "They have no sales, so nothing else changes.",
@@ -149,7 +149,7 @@ export default async function CustomersPage({ searchParams }: Props) {
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-300 text-left text-slate-700">
+              <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-2 py-2">Name</th>
                 <th className="px-2 py-2">Phone</th>
                 <th className="px-2 py-2">Sales</th>
@@ -167,7 +167,7 @@ export default async function CustomersPage({ searchParams }: Props) {
                     <td className="px-2 py-2">{customer.sales.length}</td>
                     <td className="px-2 py-2">{formatMoney(lifetimeValue)}</td>
                     <td className="px-2 py-2">
-                      <div className="flex gap-2">
+                      <div className="action-row">
                   <CustomerEditDialog customer={{ id: customer.id, name: customer.name, phone: customer.phone, email: customer.email, address: customer.address }} action={updateCustomer} />
                   <EntityDeleteButton
                     title={`Delete ${customer.name}?`}

@@ -71,8 +71,8 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
             To
             <input type="date" name="to" defaultValue={toDateInputValue(to)} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
           </label>
-          <button type="submit" className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">Apply Range</button>
-          <a href={`/api/reports/export?${exportQuery}`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-800">Download Report</a>
+          <button type="submit" className="btn btn-md btn-primary">Apply Range</button>
+          <a href={`/api/reports/export?${exportQuery}`} className="btn btn-md btn-secondary">Download Report</a>
         </form>
       </Card>
 
@@ -167,7 +167,7 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
           <div className="mt-4 overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-300 text-left text-slate-700">
+                <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                   <th className="px-2 py-2">Item</th>
                   <th className="px-2 py-2">Quantity Sold</th>
                   <th className="px-2 py-2">Total Sales</th>
@@ -251,7 +251,7 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
           <div className="mt-4 overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-300 text-left text-slate-700">
+                <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                   <th className="px-2 py-2">Category</th>
                   <th className="px-2 py-2">Units</th>
                   <th className="px-2 py-2">Cost Value</th>

@@ -89,7 +89,7 @@ export function ListControls({
           </label>
         </div>
       ) : null}
-      <button className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">Apply</button>
+      <button className="btn btn-md btn-primary">Apply</button>
       {showViewToggle ? (
         <div className="flex shrink-0 rounded-lg border border-slate-300 bg-white p-1 text-sm">
           <Link href={`?${listQuery.toString()}`} className={`flex-1 rounded-md px-4 py-2 text-center transition sm:flex-none sm:px-3 sm:py-1 ${view === "list" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"}`}>

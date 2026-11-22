@@ -100,7 +100,7 @@ export default async function SuppliersPage({ searchParams }: Props) {
             { name: "email", label: "Email", value: supplier.email ?? "", type: "email" },
             { name: "address", label: "Address", value: supplier.address ?? "", type: "textarea" },
           ]}
-          buttonClassName={large ? "inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-50" : undefined}
+          buttonClassName={large ? "btn btn-sm btn-secondary" : undefined}
         />
         <EntityDeleteButton
           title={`Delete supplier ${supplier.name}?`}
@@ -113,7 +113,7 @@ export default async function SuppliersPage({ searchParams }: Props) {
               : "It has no lots, so nothing else changes.",
             "It stays in the Recycle Bin for 30 days and can be restored; after that it's removed permanently (unless lots still reference it).",
           ]}
-          buttonClassName={large ? "inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-sm text-red-700 hover:bg-red-50" : undefined}
+          buttonClassName={large ? "btn btn-sm btn-danger" : undefined}
         />
       </div>
     );
@@ -138,7 +138,7 @@ export default async function SuppliersPage({ searchParams }: Props) {
           <input name="phone" placeholder="Phone" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
           <input name="email" placeholder="Email" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
           <input name="address" placeholder="Address" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
-          <button className="rounded-lg bg-slate-900 px-3 py-2 text-white md:col-span-4">Add Supplier</button>
+          <button className="btn btn-md btn-primary md:col-span-4">Add Supplier</button>
         </form>
       </Card>
 
@@ -156,7 +156,7 @@ export default async function SuppliersPage({ searchParams }: Props) {
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-300 text-left text-slate-700">
+              <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-2 py-2">Supplier</th>
                 <th className="px-2 py-2">Contact</th>
                 <th className="px-2 py-2">Lots</th>

@@ -148,7 +148,7 @@ export default async function TaxPaymentsPage({ searchParams }: { searchParams: 
             Note
             <input name="note" placeholder="Note" className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
           </label>
-          <button className="rounded-lg bg-slate-900 px-3 py-2 text-white md:col-span-5">Add Tax Payment</button>
+          <button className="btn btn-md btn-primary md:col-span-5">Add Tax Payment</button>
         </form>
       </Card>
 
@@ -158,7 +158,7 @@ export default async function TaxPaymentsPage({ searchParams }: { searchParams: 
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-300 text-left text-slate-700">
+              <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-2 py-2">Paid Date</th>
                 <th className="px-2 py-2">Period</th>
                 <th className="px-2 py-2">Amount</th>
