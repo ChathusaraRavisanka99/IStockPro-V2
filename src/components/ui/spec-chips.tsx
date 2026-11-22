@@ -43,7 +43,7 @@ export function SpecChips({ color, storage, ram, size = "xs", className = "" }: 
   // sit inline after the text with a small gap so they never touch it.
   const ownLine = className.split(/\s+/).some((name) => name === "flex" || name === "block" || name === "grid");
   return (
-    <span className={`${ownLine ? "" : "ml-1.5 inline-flex align-middle"} flex-wrap items-center gap-1 ${className}`}>
+    <span className={`${ownLine ? "" : "ml-1.5 inline-flex align-middle"} flex-wrap items-center gap-1.5 ${className}`}>
       {color ? <ColorChip color={color} size={size} /> : null}
       {storage ? <StorageChip value={storage} size={size} /> : null}
       {ram ? <RamChip value={ram} size={size} /> : null}
