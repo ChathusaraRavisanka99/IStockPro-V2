@@ -318,7 +318,7 @@ export function VariantPicker({ variants, value, onChange, name, placeholder = "
                             </span>
                             <SpecChips color={variant.color} storage={variant.storage} ram={variant.ram} className="flex" />
                           </span>
-                          <span className="shrink-0 rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white">{exact ? "Use this" : "Select"}</span>
+                          <span className="btn btn-xs btn-primary shrink-0">{exact ? "Use this" : "Select"}</span>
                         </button>
                       </li>
                     ))}

@@ -228,9 +228,9 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
                 <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${invoiceStatusColor(sale.invoice?.status)}`}>{sale.invoice?.status || "-"}</span>
                 <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${sale.saleType === "Wholesale" ? "bg-purple-100 text-purple-800" : "bg-slate-100 text-slate-700"}`}>{sale.saleType}</span>
               </div>
-              <div className="mt-3 flex gap-2">
-                <Link href={`/sales/${sale.id}`} className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">Manage</Link>
-                <Link href={`/sales/${sale.id}/receipt`} className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">Receipt</Link>
+              <div className="mt-3 action-row">
+                <Link href={`/sales/${sale.id}`} className="btn btn-sm btn-secondary">Manage</Link>
+                <Link href={`/sales/${sale.id}/receipt`} className="btn btn-sm btn-secondary">Receipt</Link>
               </div>
             </Card>
           ))}
@@ -240,7 +240,7 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-300 text-left text-slate-700">
+              <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-2 py-2">Sale #</th>
                 <th className="px-2 py-2">Date</th>
                 <th className="px-2 py-2">Customer</th>

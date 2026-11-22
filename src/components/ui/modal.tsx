@@ -151,9 +151,9 @@ export function Modal({ title, subtitle, icon, tone = "default", size = "md", on
 
 /** Consistent popup buttons. */
 export const modalButton = {
-  secondary: "rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50",
-  primary: "rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50",
-  danger: "rounded-lg bg-red-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-50",
+  secondary: "btn btn-md btn-secondary",
+  primary: "btn btn-md btn-primary",
+  danger: "btn btn-md btn-danger-solid",
 };
 
 /** Label/input styling shared by popup forms. */

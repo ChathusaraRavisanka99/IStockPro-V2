@@ -218,7 +218,7 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-300 text-left text-slate-700">
+                <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                   <th className="px-2 py-2">Username</th>
                   <th className="px-2 py-2">Name</th>
                   <th className="px-2 py-2">Role</th>
@@ -245,14 +245,14 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
                               <input type="checkbox" name="isActive" value="true" defaultChecked={user.isActive} className="size-4" />
                               Active
                             </label>
-                            <button type="submit" className="rounded-md bg-slate-900 px-2 py-1 text-xs text-white">Save</button>
+                            <button type="submit" className="btn btn-xs btn-primary">Save</button>
                           </form>
                         </td>
                         <td className="px-2 py-2">
                           <form action={resetUserPassword} className="flex items-center gap-2">
                             <input type="hidden" name="id" value={user.id} />
                             <input name="newPassword" type="password" placeholder="New password" minLength={8} required className="w-32 min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs" />
-                            <button type="submit" className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800">Reset</button>
+                            <button type="submit" className="btn btn-xs btn-secondary">Reset</button>
                           </form>
                         </td>
                       </>
@@ -286,7 +286,7 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
                   <option value="manager">Manager</option>
                   <option value="admin">Admin</option>
                 </select>
-                <button type="submit" className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white md:col-span-3 xl:col-span-5">Create User</button>
+                <button type="submit" className="btn btn-md btn-primary md:col-span-3 xl:col-span-5">Create User</button>
               </form>
             </div>
           ) : null}
@@ -319,7 +319,7 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
               Confirm new password
               <input name="confirmPassword" type="password" required minLength={8} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
             </label>
-            <button type="submit" className="w-fit rounded-lg bg-slate-900 px-4 py-2 text-sm text-white md:col-span-3">Change Password</button>
+            <button type="submit" className="btn btn-md btn-primary md:col-span-3">Change Password</button>
           </form>
         </Card>
 
@@ -339,7 +339,7 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
           </p>
           {isAdmin ? (
             <div className="grid gap-3">
-              <a href="/api/backup/export" className="inline-block w-fit rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">
+              <a href="/api/backup/export" className="btn btn-md btn-primary">
                 Download Backup
               </a>
               <form action={importBackupAction} className="grid gap-2">
@@ -347,7 +347,7 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
                   Import from file
                   <input type="file" name="backupFile" accept="application/json" required className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
                 </label>
-                <button type="submit" className="w-fit rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-800">
+                <button type="submit" className="btn btn-md btn-secondary">
                   Import Backup
                 </button>
               </form>
@@ -389,7 +389,7 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-300 text-left text-slate-700">
+              <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-2 py-2">When</th>
                 <th className="px-2 py-2">Action</th>
                 <th className="px-2 py-2">Entity</th>

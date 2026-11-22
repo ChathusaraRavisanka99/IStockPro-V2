@@ -83,7 +83,7 @@ export function DashboardWidgetLayout({ widgets }: { widgets: DashboardWidget[] 
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Key numbers</h2>
         <div className="flex gap-2">
           {editing ? (
-            <button type="button" onClick={() => save(defaultOrder, [])} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700">
+            <button type="button" onClick={() => save(defaultOrder, [])} className="btn btn-xs btn-secondary">
               Reset
             </button>
           ) : null}

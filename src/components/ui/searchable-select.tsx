@@ -165,7 +165,7 @@ export function SearchableSelect({ name, value, defaultValue = "", placeholder =
         <div>
           <div className="mb-2 flex items-center justify-between">
             <p className="text-sm font-semibold text-slate-900">Add {quickAdd?.label}</p>
-            <button type="button" onClick={() => setAdding(false)} className="rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-700">Back</button>
+            <button type="button" onClick={() => setAdding(false)} className="btn btn-xs btn-secondary">Back</button>
           </div>
           <div className="grid gap-2">
             {quickAdd?.fields.map((field) => {
@@ -196,7 +196,7 @@ export function SearchableSelect({ name, value, defaultValue = "", placeholder =
             {addTouched && quickAdd?.fields.some((field) => field.required && !addValues[field.name]?.trim()) ? (
               <p className="text-xs text-red-600">Please fill in the required fields.</p>
             ) : null}
-            <button type="button" disabled={submitting} onClick={submitQuickAdd} className="mt-1 rounded-lg bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-60">
+            <button type="button" disabled={submitting} onClick={submitQuickAdd} className="btn btn-md btn-primary mt-1">
               {submitting ? "Creating..." : "Create"}
             </button>
           </div>

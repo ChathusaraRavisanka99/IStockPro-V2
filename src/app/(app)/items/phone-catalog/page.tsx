@@ -179,8 +179,8 @@ export default async function PhoneCatalogPage({ searchParams = {} }: { searchPa
             <input type="checkbox" name="inStock" value="1" defaultChecked={inStockOnly} /> In stock only
           </label>
           <div className="flex gap-2">
-            <button className="flex-1 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white">Apply</button>
-            {hasFilters ? <Link href={`/items/phone-catalog?${tab !== "variants" ? `tab=${tab}&` : ""}view=${view}`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700">Clear</Link> : null}
+            <button className="btn btn-md btn-primary flex-1">Apply</button>
+            {hasFilters ? <Link href={`/items/phone-catalog?${tab !== "variants" ? `tab=${tab}&` : ""}view=${view}`} className="btn btn-md btn-secondary">Clear</Link> : null}
           </div>
         </form>
       ) : null}
@@ -327,7 +327,7 @@ export default async function PhoneCatalogPage({ searchParams = {} }: { searchPa
                       <span className="block text-[11px] text-slate-400">Retail (in stock)</span>
                       <span className="block truncate text-sm font-semibold text-slate-900">{priceRange(mins.length ? Math.min(...mins) : null, maxs.length ? Math.max(...maxs) : null)}</span>
                     </span>
-                    <Link href={tabHref("variants", { search: model.modelName })} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                    <Link href={tabHref("variants", { search: model.modelName })} className="btn btn-xs btn-secondary shrink-0">
                       Variants <ArrowRight className="size-3.5" />
                     </Link>
                   </div>

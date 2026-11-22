@@ -235,7 +235,7 @@ export async function AccessoryCategoryPage({
             </label>
           ) : null}
           <input name="notes" placeholder="Notes (shown to staff when selecting this item in a sale)" className="rounded-lg border border-slate-300 bg-white px-3 py-2 md:col-span-2 xl:col-span-3" />
-          <button className="rounded-lg bg-slate-900 px-3 py-2 text-white md:col-span-3 xl:col-span-4">Add</button>
+          <button className="btn btn-md btn-primary md:col-span-3 xl:col-span-4">Add</button>
         </form>
       </Card>
 
@@ -254,7 +254,7 @@ export async function AccessoryCategoryPage({
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-300 text-left text-slate-700">
+              <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-2 py-2">Name</th>
                 <th className="px-2 py-2">SKU</th>
                 <th className="px-2 py-2">Specs</th>

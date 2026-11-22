@@ -121,7 +121,7 @@ export function PageTutorial() {
           setOpen(true);
           markSeen();
         }}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 print:hidden"
+        className="btn btn-xs btn-secondary print:hidden"
       >
         <GraduationCap className="size-3.5" />
         How to use this page

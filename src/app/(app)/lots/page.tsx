@@ -229,7 +229,7 @@ export default async function LotsPage({ searchParams }: Props) {
             <input name="purchaseDate" type="date" required className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
           </label>
           <div className="flex items-end">
-            <button className="rounded-lg bg-slate-900 px-3 py-2 text-white">Create</button>
+            <button className="btn btn-md btn-primary">Create</button>
           </div>
         </form>
         <p className="mt-2 text-xs text-slate-500">
@@ -252,7 +252,7 @@ export default async function LotsPage({ searchParams }: Props) {
             placeholder="Search IMEI"
             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
           />
-          <button className="rounded-lg bg-slate-900 px-4 py-2 text-white">Search</button>
+          <button className="btn btn-md btn-primary">Search</button>
         </form>
         {imeiQuery ? (
           <div className="mt-3 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
@@ -313,7 +313,7 @@ export default async function LotsPage({ searchParams }: Props) {
                   <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${lot.paymentStatus === "Paid" ? "bg-green-100 text-green-800" : lot.paymentStatus === "Partial" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"}`}>{lot.paymentStatus}</span>
                 </div>
                 <div className="mt-3 flex items-center gap-2">
-                  <Link href={`/lots/${lot.id}`} className="inline-block rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-800">View</Link>
+                  <Link href={`/lots/${lot.id}`} className="btn btn-sm btn-secondary">View</Link>
                   {deleteButton(lot)}
                 </div>
               </Card>
@@ -326,7 +326,7 @@ export default async function LotsPage({ searchParams }: Props) {
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-300 text-left text-slate-700">
+              <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-2 py-2">Lot</th>
                 <th className="px-2 py-2">Supplier</th>
                 <th className="px-2 py-2">Start Date</th>

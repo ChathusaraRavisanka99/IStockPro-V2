@@ -55,7 +55,7 @@ export function ConfirmActionButton({
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={className ?? "rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 transition hover:bg-red-50"}>
+      <button type="button" onClick={() => setOpen(true)} className={className ?? "btn btn-xs btn-danger"}>
         {label}
       </button>
       {open ? (

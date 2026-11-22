@@ -115,7 +115,7 @@ export default async function RecycleBinPage({ searchParams }: { searchParams: {
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-300 text-left text-slate-700">
+              <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-2 py-2">Type</th>
                 <th className="px-2 py-2">Item</th>
                 <th className="px-2 py-2">Deleted</th>
