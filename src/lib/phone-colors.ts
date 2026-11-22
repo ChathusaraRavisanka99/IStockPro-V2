@@ -76,7 +76,25 @@ export function resolvePhoneColor(name: string | null | undefined): string | nul
     if (NAMED[tail]) return NAMED[tail];
   }
   for (const word of words) if (NAMED[word]) return NAMED[word];
+  // Tolerate a one-letter typo in longer names ("Graphie" → graphite).
+  if (key.length >= 5) {
+    for (const [name, hex] of Object.entries(NAMED)) if (Math.abs(name.length - key.length) <= 1 && editDistance(name, key) <= 1) return hex;
+  }
   return null;
+}
+
+function editDistance(a: string, b: string): number {
+  const row = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = row[0];
+    row[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const temp = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = temp;
+    }
+  }
+  return row[b.length];
 }
 
 /** Relative luminance check so chip text stays readable on the swatch. */

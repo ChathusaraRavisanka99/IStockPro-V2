@@ -14,7 +14,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { formatMoney } from "@/lib/currency";
 import { ModelCardEditor } from "@/components/items/model-card-editor";
 import { CostRow, CostCard } from "@/components/ui/cost-breakdown-modal";
-import { NoModalCell, NoModalDiv } from "@/components/ui/no-modal-cell";
+import { NoModalCell, NoModalDiv, NoModalLink } from "@/components/ui/no-modal-cell";
 import type { ActionResult } from "@/components/ui/editable-row";
 import { createOrRestorePhoneVariant, deletePhoneVariant, softDeletePhoneModel } from "@/lib/phone-variants";
 import { VariantPickerField, type CreateVariantResult } from "@/components/items/variant-picker";
@@ -493,7 +493,7 @@ export default async function PhonesPage({ searchParams }: Props) {
                   <SpecChips color={phone.phoneVariant.color} storage={phone.phoneVariant.storage} ram={phone.phoneVariant.ram} className="mt-1.5" />
                   <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
                     <div className="flex justify-between gap-2"><dt>IMEI</dt><dd className="text-right text-slate-800">{phone.imei}</dd></div>
-                    <div className="flex justify-between gap-2"><dt>Lot</dt><dd className="text-right text-slate-800">{phone.lot.lotNumber}</dd></div>
+                    <div className="flex justify-between gap-2"><dt>Lot</dt><dd className="text-right"><NoModalLink href={`/lots/${phone.lot.id}`}>{phone.lot.lotNumber}</NoModalLink></dd></div>
                     <div className="flex items-center justify-between gap-2"><dt>Grade</dt><dd><GradeBadge grade={phone.grade} /></dd></div>
                     {showCost ? <div className="flex justify-between gap-2"><dt>Purchase price</dt><dd className="text-right text-slate-800">{formatMoney(purchasePrice)}</dd></div> : null}
                   </dl>
@@ -534,7 +534,7 @@ export default async function PhonesPage({ searchParams }: Props) {
                       { label: "IMEI", value: phone.imei },
                       { label: "Status", value: phone.status },
                       { label: "Grade", value: phone.grade || "Not Graded" },
-                      { label: "Lot", value: phone.lot.lotNumber },
+                      { label: "Lot", value: phone.lot.lotNumber, href: `/lots/${phone.lot.id}` },
                       ...(phone.notes ? [{ label: "Notes", value: phone.notes }] : []),
                     ],
                     expenses: (expensesByPhone.get(phone.id) ?? []).map((expense) => ({
@@ -581,7 +581,7 @@ export default async function PhonesPage({ searchParams }: Props) {
                       <span className="text-slate-700">{phone.phoneVariant.variantName}</span>
                       <SpecChips color={phone.phoneVariant.color} storage={phone.phoneVariant.storage} ram={phone.phoneVariant.ram} className="mt-1 flex" />
                     </td>
-                    <td className="px-2 py-2.5 text-slate-600">{phone.lot.lotNumber}</td>
+                    <td className="px-2 py-2.5"><NoModalLink href={`/lots/${phone.lot.id}`}>{phone.lot.lotNumber}</NoModalLink></td>
                     <td className="px-2 py-2.5"><GradeBadge grade={phone.grade} /></td>
                     <td className="px-2 py-2.5"><StatusPill status={phone.status} /></td>
                     {showCost ? <td className="px-2 py-2">{formatMoney(purchasePrice)}</td> : null}
@@ -612,7 +612,7 @@ export default async function PhonesPage({ searchParams }: Props) {
                         { label: "IMEI", value: phone.imei },
                         { label: "Status", value: phone.status },
                         { label: "Grade", value: phone.grade || "Not Graded" },
-                        { label: "Lot", value: phone.lot.lotNumber },
+                        { label: "Lot", value: phone.lot.lotNumber, href: `/lots/${phone.lot.id}` },
                         ...(phone.notes ? [{ label: "Notes", value: phone.notes }] : []),
                       ],
                       expenses: (expensesByPhone.get(phone.id) ?? []).map((expense) => ({

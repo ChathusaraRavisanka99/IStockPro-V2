@@ -6,7 +6,7 @@ import { Modal, modalButton, modalField } from "@/components/ui/modal";
 import { ColorChip, SpecChips } from "@/components/ui/spec-chips";
 import { useRouter } from "next/navigation";
 import { SearchableSelect, type QuickAdd } from "@/components/ui/searchable-select";
-import { buildVariantName, compareSizes } from "@/lib/variant-specs";
+import { buildVariantName, compareSizes, normalizeColor, normalizeRam, normalizeStorage } from "@/lib/variant-specs";
 
 export type VariantPickerOption = {
   id: string;
@@ -53,8 +53,9 @@ const uniqueSorted = (values: (string | null)[], sizes: boolean) => {
 function Chips({ label, options, value, onChange, colors }: { label: string; options: string[]; value: string; onChange: (value: string) => void; colors?: boolean }) {
   if (!options.length) return null;
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="w-16 shrink-0 text-xs font-medium text-slate-500">{label}</span>
+    <div className="grid grid-cols-[3.75rem_1fr] items-start gap-2">
+      <span className="pt-1 text-xs font-medium text-slate-500">{label}</span>
+      <div className="flex flex-wrap gap-1.5">
       {options.map((option) => {
         const active = option === value;
         return (
@@ -75,6 +76,7 @@ function Chips({ label, options, value, onChange, colors }: { label: string; opt
           )
         );
       })}
+      </div>
     </div>
   );
 }
@@ -129,10 +131,7 @@ export function VariantPicker({ variants, value, onChange, name, placeholder = "
   );
 
   const groups = new Map<string, VariantPickerOption[]>();
-  for (const variant of results) {
-    const key = `${variant.brand} ${variant.modelName}`;
-    groups.set(key, [...(groups.get(key) ?? []), variant]);
-  }
+  for (const variant of results) groups.set(variant.phoneModelId, [...(groups.get(variant.phoneModelId) ?? []), variant]);
 
   function reset() {
     setSearch("");
@@ -188,6 +187,33 @@ export function VariantPicker({ variants, value, onChange, name, placeholder = "
     });
   }
 
+  // Create form: preview with the same cleanup the server applies, and surface existing
+  // variants that match what's being typed so the user can pick one instead of duplicating.
+  const draft = { storage: normalizeStorage(newVariant.storage), ram: normalizeRam(newVariant.ram), color: normalizeColor(newVariant.color) };
+  const draftName = newVariant.variantName.trim() || buildVariantName(draft);
+  const typedAny = Boolean(draft.storage || draft.ram || draft.color || newVariant.variantName.trim());
+  const sameText = (a: string | null, b: string | null) => (a ?? "").toLowerCase() === (b ?? "").toLowerCase();
+  const similar = creating
+    ? variants
+        .filter((variant) => !newVariant.phoneModelId || variant.phoneModelId === newVariant.phoneModelId)
+        .map((variant) => {
+          const colorTyped = (newVariant.color.trim()).toLowerCase();
+          const colorHit = colorTyped ? (variant.color ?? "").toLowerCase().includes(colorTyped) || colorTyped.includes((variant.color ?? "~").toLowerCase()) : false;
+          const storageHit = Boolean(draft.storage) && sameText(variant.storage, draft.storage);
+          const ramHit = Boolean(draft.ram) && sameText(variant.ram, draft.ram);
+          const nameHit = Boolean(newVariant.variantName.trim()) && variant.variantName.toLowerCase().includes(newVariant.variantName.trim().toLowerCase());
+          const exact =
+            variant.phoneModelId === newVariant.phoneModelId &&
+            (sameText(variant.variantName, draftName) || (typedAny && sameText(variant.storage, draft.storage) && sameText(variant.ram, draft.ram) && sameText(variant.color, draft.color)));
+          const score = (exact ? 10 : 0) + (colorHit ? 3 : 0) + (storageHit ? 2 : 0) + (ramHit ? 1 : 0) + (nameHit ? 2 : 0);
+          return { variant, score, exact };
+        })
+        .filter((entry) => (typedAny ? entry.score > 0 : Boolean(newVariant.phoneModelId)))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 8)
+    : [];
+  const exactMatch = similar.find((entry) => entry.exact);
+
   const input = "w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
 
   return (
@@ -215,8 +241,8 @@ export function VariantPicker({ variants, value, onChange, name, placeholder = "
                 <button type="button" onClick={() => setCreating(false)} disabled={pending} className={modalButton.secondary}>
                   Back to list
                 </button>
-                <button type="button" disabled={pending} onClick={submitCreate} className={modalButton.primary}>
-                  {pending ? "Creating..." : "Create & select"}
+                <button type="button" disabled={pending} onClick={exactMatch ? () => choose(exactMatch.variant) : submitCreate} className={modalButton.primary}>
+                  {pending ? "Creating..." : exactMatch ? "Use existing variant" : "Create & select"}
                 </button>
               </>
             ) : search || modelId || storage || ram || color || inStockOnly ? (
@@ -269,11 +295,36 @@ export function VariantPicker({ variants, value, onChange, name, placeholder = "
                 />
               </label>
               <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                Will be saved as{" "}
-                <span className="font-medium text-slate-900">
-                  {newVariant.variantName.trim() || buildVariantName({ storage: newVariant.storage || null, ram: newVariant.ram || null, color: newVariant.color || null })}
-                </span>
+                Will be saved as <span className="font-medium text-slate-900">{draftName}</span>
+                {draft.storage || draft.ram || draft.color ? <SpecChips color={draft.color} storage={draft.storage} ram={draft.ram} className="ml-2 align-middle" /> : null}
               </p>
+              {similar.length ? (
+                <div className={`rounded-xl border p-3 ${exactMatch ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"}`}>
+                  <p className={`text-xs font-semibold ${exactMatch ? "text-amber-900" : "text-slate-700"}`}>
+                    {exactMatch ? "⚠ This variant already exists — select it instead of creating a duplicate:" : typedAny ? "Similar variants already exist — select one if it's what you need:" : "Existing variants of this model:"}
+                  </p>
+                  <ul className="mt-2 grid gap-1.5">
+                    {similar.map(({ variant, exact }) => (
+                      <li key={variant.id}>
+                        <button
+                          type="button"
+                          onClick={() => choose(variant)}
+                          className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm transition hover:border-slate-400 hover:bg-slate-50 ${exact ? "border-amber-300 bg-white" : "border-slate-200"}`}
+                        >
+                          <span className="flex min-w-0 flex-col gap-1">
+                            <span className="truncate font-medium text-slate-900">
+                              {variant.variantName}
+                              {!newVariant.phoneModelId ? <span className="ml-1.5 text-xs font-normal text-slate-500">{variant.brand} {variant.modelName}</span> : null}
+                            </span>
+                            <SpecChips color={variant.color} storage={variant.storage} ram={variant.ram} className="flex" />
+                          </span>
+                          <span className="shrink-0 rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white">{exact ? "Use this" : "Select"}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               {createError ? <p className="text-xs text-red-700">{createError}</p> : null}
             </div>
           ) : (
@@ -325,9 +376,14 @@ export function VariantPicker({ variants, value, onChange, name, placeholder = "
                 ) : null}
               </div>
               <div className="px-2 py-2">
-                {Array.from(groups).map(([model, list]) => (
-                  <div key={model} className="mb-2">
-                    <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{model}</p>
+                {Array.from(groups).map(([modelKey, list]) => (
+                  <div key={modelKey} className="mb-2">
+                    <p className="flex items-baseline justify-between gap-2 px-3 py-1.5 text-sm font-semibold text-slate-800">
+                      <span className="truncate">
+                        <span className="text-slate-500">{list[0].brand}</span> {list[0].modelName}
+                      </span>
+                      <span className="shrink-0 text-xs font-normal text-slate-400">{list.length} variant{list.length === 1 ? "" : "s"}</span>
+                    </p>
                     {list.map((variant) => (
                       <button
                         key={variant.id}
@@ -335,10 +391,12 @@ export function VariantPicker({ variants, value, onChange, name, placeholder = "
                         onClick={() => choose(variant)}
                         className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition hover:bg-slate-100 ${variant.id === value ? "bg-slate-100 ring-1 ring-slate-300" : ""}`}
                       >
-                        <span className="min-w-0">
-                          <span className="font-medium text-slate-900">{variant.variantName}</span>
-                          {search && results[0]?.id === variant.id ? <span className="ml-2 text-[10px] uppercase text-slate-400">Enter ↵</span> : null}
-                          <SpecChips color={variant.color} storage={variant.storage} ram={variant.ram} className="mt-1" />
+                        <span className="flex min-w-0 flex-1 flex-col gap-1">
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span className="truncate font-medium text-slate-900">{variant.variantName}</span>
+                            {search && results[0]?.id === variant.id ? <kbd className="shrink-0 rounded border border-slate-200 bg-slate-50 px-1 text-[10px] text-slate-500">Enter ↵</kbd> : null}
+                          </span>
+                          <SpecChips color={variant.color} storage={variant.storage} ram={variant.ram} className="flex" />
                         </span>
                         <span className="flex shrink-0 items-center gap-2">
                           {variant.inStock !== undefined ? (

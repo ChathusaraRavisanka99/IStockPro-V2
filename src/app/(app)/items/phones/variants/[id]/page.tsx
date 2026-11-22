@@ -11,7 +11,7 @@ import { InfoHelp } from "@/components/ui/info-help";
 import { formatMoney } from "@/lib/currency";
 import { VariantSpecEditor } from "@/components/items/variant-spec-editor";
 import { CostRow } from "@/components/ui/cost-breakdown-modal";
-import { NoModalCell } from "@/components/ui/no-modal-cell";
+import { NoModalCell, NoModalLink } from "@/components/ui/no-modal-cell";
 import type { ActionResult } from "@/components/ui/editable-row";
 import { checkVariantPlacement, deletePhoneVariant, normalizeVariantInput } from "@/lib/phone-variants";
 import { DeleteVariantButton } from "@/components/items/delete-variant-button";
@@ -193,7 +193,7 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
                     <td className="px-2 py-2">{phone.batteryHealth !== null ? `${phone.batteryHealth}%` : "-"}</td>
                     <td className="px-2 py-2">{phone.status}</td>
                     <NoModalCell className="px-2 py-2">
-                      <Link href={`/lots/${phone.lot.id}`} className="text-slate-800 underline">{phone.lot.lotNumber}</Link>
+                      <NoModalLink href={`/lots/${phone.lot.id}`}>{phone.lot.lotNumber}</NoModalLink>
                     </NoModalCell>
                     {showCost ? <td className="px-2 py-2">{formatMoney(unitCost)}</td> : null}
                     <td className="px-2 py-2">{formatMoney(Number(phone.retailPrice ?? 0))}</td>
@@ -223,7 +223,7 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
                         { label: "Status", value: phone.status },
                         { label: "Grade", value: phone.grade || "Not Graded" },
                         { label: "Battery health", value: phone.batteryHealth !== null ? `${phone.batteryHealth}%` : "-" },
-                        { label: "Lot", value: phone.lot.lotNumber },
+                        { label: "Lot", value: phone.lot.lotNumber, href: `/lots/${phone.lot.id}` },
                         ...(phone.notes ? [{ label: "Notes", value: phone.notes }] : []),
                       ],
                       expenses: (expensesByPhone.get(phone.id) ?? []).map((expense) => ({

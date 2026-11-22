@@ -27,6 +27,7 @@ import { formatVariantSpecs } from "@/lib/format-item-name";
 import { softDeleteLot, toggleLotBookmark } from "@/lib/lots";
 import { BookmarkButton } from "@/components/items/bookmark-button";
 import { priceChangeLogs } from "@/lib/price-history";
+import { findImeiOwner, liveImeiOwners } from "@/lib/imei";
 
 function computeGoodsCost(phones: { purchasePrice: unknown }[], accessoryItems: { unitCost: unknown; quantity: number }[]) {
   return phones.reduce((sum, phone) => sum + Number(phone.purchasePrice), 0) + accessoryItems.reduce((sum, item) => sum + Number(item.unitCost) * item.quantity, 0);
@@ -50,7 +51,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
     }),
     prisma.phoneVariant.findMany({ where: { deletedAt: null, phoneModel: { deletedAt: null } }, include: { phoneModel: true }, orderBy: { variantName: "asc" } }),
     prisma.phoneModel.findMany({ where: { deletedAt: null }, orderBy: [{ brand: "asc" }, { modelName: "asc" }] }),
-    prisma.phone.findMany({ where: { deletedAt: null }, select: { imei: true } }),
+    liveImeiOwners(),
     prisma.accessory.findMany({ where: { deletedAt: null }, orderBy: [{ category: "asc" }, { name: "asc" }] }),
   ]);
   if (!lot || lot.deletedAt) notFound();
@@ -393,8 +394,8 @@ export default async function LotDetailPage({ params }: { params: { id: string }
     const imei = String(formData.get("imei") ?? existingPhone.imei).trim();
     if (!imei) return { ok: false, error: "IMEI can't be empty." };
     if (imei !== existingPhone.imei) {
-      const clash = await prisma.phone.findFirst({ where: { imei: { equals: imei, mode: "insensitive" }, id: { not: id }, deletedAt: null }, select: { id: true } });
-      if (clash) return { ok: false, error: `IMEI ${imei} is already registered to another unit.` };
+      const owner = await findImeiOwner(imei, id);
+      if (owner) return { ok: false, error: `IMEI ${imei} is already registered to ${owner.phone} in lot ${owner.lotNumber} (${owner.status}). An IMEI can only belong to one active phone — archive or correct that unit first.` };
     }
 
     const purchasePrice = Number(formData.get("purchasePrice") || 0);
@@ -444,6 +445,11 @@ export default async function LotDetailPage({ params }: { params: { id: string }
     revalidatePath("/items/phones");
     revalidatePath("/dashboard");
     return { ok: true };
+  }
+
+  async function checkImei(imei: string, phoneId: string) {
+    "use server";
+    return findImeiOwner(imei, phoneId);
   }
 
   async function archivePhone(formData: FormData) {
@@ -809,7 +815,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
             defaultTagCost: Number(variant.defaultTagCost),
             defaultBatteryCost: Number(variant.defaultBatteryCost),
           }))}
-          existingImeis={allPhones.map((phone) => phone.imei)}
+          imeiOwners={allPhones}
           showCost={showCost}
           allowGrading={canGrade}
           action={registerPhonesBatch}
@@ -867,6 +873,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
                   requireReauth={requirePhoneCostReauth}
                   username={username}
                   updateAction={updatePhoneCosts}
+                  checkImei={checkImei}
                   archiveAction={archivePhone}
                 />
               ))}

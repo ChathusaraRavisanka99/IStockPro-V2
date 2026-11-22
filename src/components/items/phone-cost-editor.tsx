@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ScanLine } from "lucide-react";
 import { Modal, modalButton, modalField } from "@/components/ui/modal";
 import { GradeBadge, SpecChips, StatusPill } from "@/components/ui/spec-chips";
+import { ImeiConflictNotice, type ImeiOwner } from "@/components/items/imei-conflict-notice";
 import { formatMoney } from "@/lib/currency";
 import { CostRow } from "@/components/ui/cost-breakdown-modal";
 import { ReauthFields } from "@/components/ui/reauth-fields";
@@ -33,10 +34,32 @@ type Props = {
   requireReauth: boolean;
   username?: string;
   updateAction: (formData: FormData) => Promise<ActionResult>;
+  /** Looks up the live unit already holding an IMEI (excluding this one). */
+  checkImei?: (imei: string, phoneId: string) => Promise<ImeiOwner | null>;
   archiveAction: (formData: FormData) => void | Promise<void>;
 };
 
-export function PhoneCostEditor({ phone, showCost, canGrade, requireReauth, username, updateAction, archiveAction }: Props) {
+export function PhoneCostEditor({ phone, showCost, canGrade, requireReauth, username, updateAction, checkImei, archiveAction }: Props) {
+  const [imeiDraft, setImeiDraft] = useState(phone.imei);
+  const [imeiOwner, setImeiOwner] = useState<ImeiOwner | null>(null);
+
+  // Check the edited IMEI against other live units as the user types (debounced).
+  useEffect(() => {
+    const value = imeiDraft.trim();
+    if (!checkImei || !value || value === phone.imei) {
+      setImeiOwner(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      const owner = await checkImei(value, phone.id);
+      if (!cancelled) setImeiOwner(owner);
+    }, 350);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [imeiDraft, checkImei, phone.id, phone.imei]);
   const { editing, error, pending, open, cancel, save } = useEditableRow(updateAction);
   // An IMEI change is held here until the user re-types the new number in the popup.
   const [pendingImeiChange, setPendingImeiChange] = useState<FormData | null>(null);
@@ -45,6 +68,7 @@ export function PhoneCostEditor({ phone, showCost, canGrade, requireReauth, user
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
+    if (imeiOwner) return;
     const nextImei = String(formData.get("imei") || "").trim();
     if (nextImei && nextImei !== phone.imei) {
       setImeiConfirmInput("");
@@ -90,7 +114,14 @@ export function PhoneCostEditor({ phone, showCost, canGrade, requireReauth, user
             </p>
             <label className="grid min-w-0 gap-1 text-xs text-slate-600">
               IMEI
-              <input name="imei" required defaultValue={phone.imei} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" />
+              <input
+                name="imei"
+                required
+                value={imeiDraft}
+                onChange={(event) => setImeiDraft(event.target.value)}
+                aria-invalid={Boolean(imeiOwner)}
+                className={`w-full min-w-0 rounded-lg border bg-white px-2 py-1 text-sm ${imeiOwner ? "border-red-400 ring-2 ring-red-100" : "border-slate-300"}`}
+              />
             </label>
             <label className="grid min-w-0 gap-1 text-xs text-slate-600">
               Purchase price
@@ -129,13 +160,25 @@ export function PhoneCostEditor({ phone, showCost, canGrade, requireReauth, user
                 </label>
               </>
             ) : null}
+            {imeiOwner ? (
+              <div className="col-span-full">
+                <ImeiConflictNotice imei={imeiDraft.trim()} owner={imeiOwner} />
+              </div>
+            ) : null}
             {requireReauth ? <ReauthFields username={username} /> : null}
             {error ? <p className="col-span-full text-xs text-red-700">{error}</p> : null}
             <div className="flex items-end gap-2">
-              <button type="submit" disabled={pending} className="rounded-md bg-slate-900 px-3 py-1 text-xs text-white disabled:opacity-60">
+              <button type="submit" disabled={pending || Boolean(imeiOwner)} className="rounded-md bg-slate-900 px-3 py-1 text-xs text-white disabled:opacity-60">
                 {pending ? "Saving..." : "Save"}
               </button>
-              <button type="button" onClick={cancel} className="rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-700">
+              <button
+                type="button"
+                onClick={() => {
+                  setImeiDraft(phone.imei);
+                  cancel();
+                }}
+                className="rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-700"
+              >
                 Cancel
               </button>
             </div>

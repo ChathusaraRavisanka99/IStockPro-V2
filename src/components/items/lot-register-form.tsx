@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { VariantPicker, variantDisplayLabel, type VariantPickerOption, type CreateVariantResult } from "@/components/items/variant-picker";
 import type { QuickAdd } from "@/components/ui/searchable-select";
+import { ImeiConflictNotice, type ImeiOwner } from "@/components/items/imei-conflict-notice";
 import { FxAmountField } from "@/components/ui/fx-amount-field";
 import { formatMoney } from "@/lib/currency";
 
@@ -26,7 +27,8 @@ export type BatchLine = {
 
 type Props = {
   variants: VariantPickerOption[];
-  existingImeis: string[];
+  /** Live IMEIs (lower-cased) → the unit holding each, for instant duplicate explanations. */
+  imeiOwners: Record<string, ImeiOwner>;
   showCost: boolean;
   /** Grading is a physical-inspection step that only makes sense once a lot has
    * cleared customs — while false, the Grade selector is hidden and units register
@@ -38,7 +40,7 @@ type Props = {
   modelQuickAdd?: QuickAdd;
 };
 
-export function LotRegisterForm({ variants, existingImeis, showCost, allowGrading, action, createVariant, models, modelQuickAdd }: Props) {
+export function LotRegisterForm({ variants, imeiOwners, showCost, allowGrading, action, createVariant, models, modelQuickAdd }: Props) {
   const [variantId, setVariantId] = useState("");
   // Kept separately so a variant created from the picker can be used before the page's
   // variant list refreshes.
@@ -57,7 +59,10 @@ export function LotRegisterForm({ variants, existingImeis, showCost, allowGradin
   const [batch, setBatch] = useState<BatchLine[]>([]);
   const imeiInputRef = useRef<HTMLInputElement>(null);
 
-  const existingSet = new Set(existingImeis.map((value) => value.trim().toLowerCase()));
+  const typedImei = imei.trim();
+  const imeiOwner = typedImei ? imeiOwners[typedImei.toLowerCase()] ?? null : null;
+  const batchIndex = typedImei ? batch.findIndex((line) => line.imei.trim().toLowerCase() === typedImei.toLowerCase()) : -1;
+  const imeiBlocked = Boolean(imeiOwner) || batchIndex >= 0;
 
   function selectVariant(variant: VariantPickerOption) {
     setVariantId(variant.id);
@@ -94,9 +99,10 @@ export function LotRegisterForm({ variants, existingImeis, showCost, allowGradin
       toast.error("Enter an IMEI");
       return;
     }
-    const normalized = trimmedImei.toLowerCase();
-    if (existingSet.has(normalized) || batch.some((line) => line.imei.trim().toLowerCase() === normalized)) {
-      toast.error(`IMEI ${trimmedImei} is already registered`);
+    if (imeiBlocked) {
+      // The reason (and the phone holding it) is shown under the IMEI field.
+      toast.error(imeiOwner ? `IMEI ${trimmedImei} is already registered to another phone` : `IMEI ${trimmedImei} is already in this batch`);
+      imeiInputRef.current?.focus();
       return;
     }
 
@@ -144,9 +150,22 @@ export function LotRegisterForm({ variants, existingImeis, showCost, allowGradin
             value={imei}
             onChange={(event) => setImei(event.target.value)}
             placeholder="Scan or type IMEI"
-            className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2"
+            aria-invalid={imeiBlocked}
+            onKeyDown={(event) => {
+              // Scanners send Enter after the code: add to the batch instead of submitting.
+              if (event.key === "Enter") {
+                event.preventDefault();
+                addToBatch();
+              }
+            }}
+            className={`w-full min-w-0 rounded-lg border bg-white px-3 py-2 ${imeiBlocked ? "border-red-400 ring-2 ring-red-100" : "border-slate-300"}`}
           />
         </label>
+        {imeiBlocked ? (
+          <div className="md:col-span-2 xl:col-span-4">
+            <ImeiConflictNotice imei={typedImei} owner={imeiOwner} batchLine={batchIndex >= 0 ? batchIndex + 1 : null} />
+          </div>
+        ) : null}
         {allowGrading ? (
           <label className="grid min-w-0 gap-1 text-sm text-slate-700">
             Grade
@@ -214,7 +233,7 @@ export function LotRegisterForm({ variants, existingImeis, showCost, allowGradin
           />
         </label>
       </div>
-      <button type="button" onClick={addToBatch} className="justify-self-start rounded-lg border border-dashed border-slate-300 px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50">
+      <button type="button" onClick={addToBatch} disabled={imeiBlocked} className="justify-self-start disabled:cursor-not-allowed disabled:opacity-50 rounded-lg border border-dashed border-slate-300 px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50">
         + Add to Batch
       </button>
 

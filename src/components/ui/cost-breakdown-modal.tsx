@@ -3,6 +3,8 @@
 import { useState, type ReactNode } from "react";
 import { formatMoney } from "@/lib/currency";
 import { Modal, modalButton } from "@/components/ui/modal";
+import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 
 export type CostBreakdownData = {
   name: string;
@@ -11,7 +13,7 @@ export type CostBreakdownData = {
   wholesalePrice: number;
   retailPrice: number;
   /** Full item details (model/variant, IMEI, grade, lot, SKU, specs, etc.) shown above the cost breakdown. */
-  details?: { label: string; value: string }[];
+  details?: { label: string; value: string; href?: string }[];
   /** Expense records linked to this item. Pass an empty array (vs. omitting the prop) to show the
    * section with a "no expenses" message rather than hiding it entirely. */
   expenses?: { label: string; amount: number; date: string }[];
@@ -64,7 +66,15 @@ function CostBreakdownDialog({ data, onClose }: { data: CostBreakdownData; onClo
             {data.details.map((row) => (
               <div key={row.label} className="flex justify-between gap-3 sm:block">
                 <dt className="text-xs text-slate-500">{row.label}</dt>
-                <dd className="text-right font-medium text-slate-900 sm:text-left">{row.value}</dd>
+                <dd className="text-right font-medium text-slate-900 sm:text-left">
+                  {row.href ? (
+                    <Link href={row.href} className="inline-flex items-center gap-1 text-slate-900 underline decoration-slate-300 underline-offset-2 hover:decoration-slate-900">
+                      {row.value} <ArrowUpRight className="size-3.5" />
+                    </Link>
+                  ) : (
+                    row.value
+                  )}
+                </dd>
               </div>
             ))}
           </dl>

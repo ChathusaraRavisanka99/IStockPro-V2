@@ -4,6 +4,9 @@
 
 const COLOR_FIXES: Record<string, string> = {
   graplite: "Graphite",
+  graphie: "Graphite",
+  grapite: "Graphite",
+  graphit: "Graphite",
   midnightgreen: "Midnight Green",
   midnightblue: "Midnight Blue",
   spacegray: "Space Gray",
