@@ -38,6 +38,8 @@ type Shared = {
   };
 };
 
+const PRICE_LABELS = { purchasePrice: "Purchase price", wholesalePrice: "Wholesale price", retailPrice: "Retail price", tagCost: "Tag cost", batteryCost: "Battery cost" } as const;
+
 const UnitEditContext = createContext<{ open: (unit: EditableUnit) => void } | null>(null);
 
 /**
@@ -228,7 +230,21 @@ function UnitEditDialog({ unit, shared, onClose }: { unit: EditableUnit; shared:
             </div>
             {needsPassword ? (
               <div className="grid gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 sm:grid-cols-2">
-                <p className="text-xs text-amber-900 sm:col-span-2">Lot {unit.lotNumber} is past Collection, so changing prices needs your password.</p>
+                <p className="text-xs text-amber-900 sm:col-span-2">Lot {unit.lotNumber} is past Collection, so these price changes need your password:</p>
+                <ul className="grid gap-1 rounded-md bg-white/80 px-3 py-2 text-xs sm:col-span-2">
+                  {unit.prices && prices
+                    ? (Object.keys(prices) as (keyof NonNullable<typeof prices>)[])
+                        .filter((key) => Math.abs(prices[key] - unit.prices![key]) >= 0.005)
+                        .map((key) => (
+                          <li key={key} className="flex flex-wrap items-center gap-2">
+                            <span className="w-28 font-medium text-slate-700">{PRICE_LABELS[key]}</span>
+                            <span className="text-slate-400 line-through">{formatMoney(unit.prices![key])}</span>
+                            <span className="text-slate-400">→</span>
+                            <span className="font-semibold text-slate-900">{formatMoney(prices[key])}</span>
+                          </li>
+                        ))
+                    : null}
+                </ul>
                 <label className={modalField.label}>
                   Username
                   <input name="confirmUsername" required defaultValue={shared.username} className={modalField.input} />

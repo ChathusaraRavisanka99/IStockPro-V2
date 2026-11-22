@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui/page-header";
 import { DocumentActions } from "@/components/ui/document-actions";
+import { QuotationRowActions } from "@/components/quotations/quotation-row-actions";
 import { SpecChips } from "@/components/ui/spec-chips";
 import { formatMoney } from "@/lib/currency";
 import { quotationLineLabel } from "@/lib/format-item-name";
@@ -51,7 +52,10 @@ export default async function QuotationDetailPage({ params }: { params: { id: st
           <Link href="/quotations" className="text-sm text-slate-700 underline">
             Back to Quotations
           </Link>
-          <DocumentActions pdfUrl={`/api/quotations/${quotation.id}/pdf`} fileName={quotation.quoteNumber} />
+          <div className="flex flex-wrap items-center gap-2">
+            <QuotationRowActions large redirectAfterDelete="/quotations" quotation={{ id: quotation.id, quoteNumber: quotation.quoteNumber, status: quotation.status, validUntil: quotation.validUntil, customerPhone: quotation.customerPhone, customerEmail: quotation.customerEmail, notes: quotation.notes, totalAmount: quotation.totalAmount, itemCount: quotation.items.length, convertedSaleNumber: quotation.convertedSale?.saleNumber ?? null }} />
+            <DocumentActions pdfUrl={`/api/quotations/${quotation.id}/pdf`} fileName={quotation.quoteNumber} />
+          </div>
         </div>
       </div>
 

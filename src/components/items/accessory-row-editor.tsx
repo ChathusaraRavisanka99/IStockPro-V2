@@ -5,6 +5,7 @@ import { formatMoney } from "@/lib/currency";
 import { CostRow, CostCard } from "@/components/ui/cost-breakdown-modal";
 import { useEditableRow, type ActionResult } from "@/components/ui/editable-row";
 import { ItemCommentsButton } from "@/components/items/item-comments";
+import { EntityDeleteButton, EntityEditButton } from "@/components/ui/entity-editor";
 
 type Accessory = {
   id: string;
@@ -26,7 +27,8 @@ type Accessory = {
 type Props = {
   item: Accessory;
   updateAction: (formData: FormData) => Promise<ActionResult>;
-  archiveAction: (formData: FormData) => void | Promise<void>;
+  archiveAction: (formData: FormData) => Promise<ActionResult>;
+  username?: string;
 };
 
 function EditForm({ item, error, pending, onSubmit, cancel }: { item: Accessory; error: string | null; pending: boolean; onSubmit: (event: FormEvent<HTMLFormElement>) => void; cancel: () => void }) {
@@ -70,7 +72,7 @@ function EditForm({ item, error, pending, onSubmit, cancel }: { item: Accessory;
   );
 }
 
-export function AccessoryTableRow({ item, updateAction, archiveAction }: Props) {
+export function AccessoryTableRow({ item, updateAction, archiveAction, username }: Props) {
   const { editing, error, pending, open, cancel, handleSubmit } = useEditableRow(updateAction);
   const editRowRef = useRef<HTMLTableRowElement>(null);
 
@@ -132,21 +134,44 @@ export function AccessoryTableRow({ item, updateAction, archiveAction }: Props) 
       <td className="px-2 py-2">{formatMoney(Number(item.retailPrice))}</td>
       <td className="px-2 py-2" onClick={(event) => event.stopPropagation()}>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={open} className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700">
-            Edit
-          </button>
+          <EntityEditButton
+            title={`Edit ${item.name}`}
+            subtitle={`SKU ${item.sku}`}
+            hidden={{ id: item.id }}
+            action={updateAction}
+            username={username}
+            buttonClassName={undefined}
+            fields={[
+              { name: "name", label: "Name", value: item.name, required: true },
+              { name: "sku", label: "SKU", value: item.sku, required: true },
+              { name: "lowStockThreshold", label: "Low stock threshold", value: String(item.lowStockThreshold), type: "number" },
+              { name: "purchasePrice", label: "Purchase price", value: String(Number(item.purchasePrice)), type: "number", money: true, sensitive: true },
+              { name: "wholesalePrice", label: "Wholesale price", value: String(Number(item.wholesalePrice)), type: "number", money: true, sensitive: true },
+              { name: "retailPrice", label: "Retail price", value: String(Number(item.retailPrice)), type: "number", money: true, sensitive: true },
+              { name: "notes", label: "Notes (shown to staff when selling)", value: item.notes ?? "", type: "textarea" },
+            ]}
+          />
           <ItemCommentsButton entityType="Accessory" entityId={item.id} title={`${item.name} (${item.sku})`} />
-          <form action={archiveAction}>
-            <input type="hidden" name="id" value={item.id} />
-            <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Archive</button>
-          </form>
+          <EntityDeleteButton
+            label="Archive"
+            confirmLabel="Archive item"
+            title={`Archive ${item.name}?`}
+            fields={{ id: item.id }}
+            action={archiveAction}
+            buttonClassName={undefined}
+            consequences={[
+              item.quantity ? `${item.quantity} unit${item.quantity === 1 ? "" : "s"} in stock leave active stock and can no longer be sold.` : "It has no stock left.",
+              item.soldQuantity ? `Its sales history (${item.soldQuantity} sold) is kept.` : "It has no sales history.",
+              "It stays in the Recycle Bin for 30 days and can be restored.",
+            ]}
+          />
         </div>
       </td>
     </CostRow>
   );
 }
 
-export function AccessoryGridCard({ item, updateAction, archiveAction }: Props) {
+export function AccessoryGridCard({ item, updateAction, archiveAction, username }: Props) {
   const { editing, error, pending, open, cancel, handleSubmit } = useEditableRow(updateAction);
 
   if (editing) {
@@ -189,14 +214,37 @@ export function AccessoryGridCard({ item, updateAction, archiveAction }: Props) 
       <p className="mt-3 text-sm text-slate-700">{item.quantity} in stock | {formatMoney(Number(item.retailPrice))}</p>
       {item.notes ? <p className="mt-1 text-xs italic text-slate-500">{item.notes}</p> : null}
       <div className="mt-3 flex gap-2" onClick={(event) => event.stopPropagation()}>
-        <button type="button" onClick={open} className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-700">
-          Edit
-        </button>
-        <ItemCommentsButton entityType="Accessory" entityId={item.id} title={`${item.name} (${item.sku})`} />
-        <form action={archiveAction}>
-          <input type="hidden" name="id" value={item.id} />
-          <button className="rounded-lg border border-red-200 px-3 py-1 text-sm text-red-700">Archive</button>
-        </form>
+        <EntityEditButton
+            title={`Edit ${item.name}`}
+            subtitle={`SKU ${item.sku}`}
+            hidden={{ id: item.id }}
+            action={updateAction}
+            username={username}
+            buttonClassName={"inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-50"}
+            fields={[
+              { name: "name", label: "Name", value: item.name, required: true },
+              { name: "sku", label: "SKU", value: item.sku, required: true },
+              { name: "lowStockThreshold", label: "Low stock threshold", value: String(item.lowStockThreshold), type: "number" },
+              { name: "purchasePrice", label: "Purchase price", value: String(Number(item.purchasePrice)), type: "number", money: true, sensitive: true },
+              { name: "wholesalePrice", label: "Wholesale price", value: String(Number(item.wholesalePrice)), type: "number", money: true, sensitive: true },
+              { name: "retailPrice", label: "Retail price", value: String(Number(item.retailPrice)), type: "number", money: true, sensitive: true },
+              { name: "notes", label: "Notes (shown to staff when selling)", value: item.notes ?? "", type: "textarea" },
+            ]}
+          />
+          <ItemCommentsButton entityType="Accessory" entityId={item.id} title={`${item.name} (${item.sku})`} />
+          <EntityDeleteButton
+            label="Archive"
+            confirmLabel="Archive item"
+            title={`Archive ${item.name}?`}
+            fields={{ id: item.id }}
+            action={archiveAction}
+            buttonClassName={"inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-sm text-red-700 hover:bg-red-50"}
+            consequences={[
+              item.quantity ? `${item.quantity} unit${item.quantity === 1 ? "" : "s"} in stock leave active stock and can no longer be sold.` : "It has no stock left.",
+              item.soldQuantity ? `Its sales history (${item.soldQuantity} sold) is kept.` : "It has no sales history.",
+              "It stays in the Recycle Bin for 30 days and can be restored.",
+            ]}
+          />
       </div>
     </CostCard>
   );
