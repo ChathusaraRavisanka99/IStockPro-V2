@@ -45,12 +45,17 @@ export function Modal({ title, subtitle, icon, tone = "default", size = "md", on
   useEffect(() => setMounted(true), []);
   const busyRef = useRef(busy);
   busyRef.current = busy;
+  // Callers usually pass a fresh inline onClose each render. Keep it in a ref so the
+  // open/focus effect below runs once per opening — re-running it on every keystroke
+  // would steal focus back to the first field while the user types.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   const requestClose = useCallback(() => {
     if (busyRef.current) return;
     setClosing(true);
-    window.setTimeout(onClose, EXIT_MS);
-  }, [onClose]);
+    window.setTimeout(() => onCloseRef.current(), EXIT_MS);
+  }, []);
 
   useEffect(() => {
     if (!mounted) return;
