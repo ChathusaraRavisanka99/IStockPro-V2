@@ -21,6 +21,9 @@ import { VariantPickerField, type CreateVariantResult } from "@/components/items
 import { compareSizes } from "@/lib/variant-specs";
 import { formatPhoneName, formatVariantSpecs } from "@/lib/format-item-name";
 import { TabPanels } from "@/components/ui/tab-panels";
+import { UnitEditButton, UnitEditProvider, type EditableUnit } from "@/components/items/unit-edit";
+import { editPhoneUnit } from "@/lib/phone-units";
+import { findImeiOwner } from "@/lib/imei";
 import { GradeBadge, SpecChips, StatusPill } from "@/components/ui/spec-chips";
 import { Boxes, LineChart, Plus, Search, Smartphone, Wallet } from "lucide-react";
 
@@ -238,6 +241,27 @@ export default async function PhonesPage({ searchParams }: Props) {
     revalidatePath("/items/phones");
   }
 
+  async function editUnit(formData: FormData): Promise<ActionResult> {
+    "use server";
+    const actor = await getServerSession(authOptions);
+    const result = await editPhoneUnit(formData, {
+      userId: actor?.user?.id,
+      canEditCost: canViewCost(actor?.user?.role as "admin" | "manager" | "staff" | undefined),
+    });
+    if (result.ok) {
+      revalidatePath("/items/phones");
+      revalidatePath("/items/phone-catalog");
+      revalidatePath("/items/phones/price-history");
+      revalidatePath("/lots");
+    }
+    return result;
+  }
+
+  async function checkImei(imei: string, phoneId: string) {
+    "use server";
+    return findImeiOwner(imei, phoneId);
+  }
+
   async function archivePhone(formData: FormData) {
     "use server";
     const id = String(formData.get("id") || "");
@@ -272,6 +296,31 @@ export default async function PhonesPage({ searchParams }: Props) {
     if (mode === "all") params.set("options", "all");
     const query = params.toString();
     return `/items/phones${query ? `?${query}` : ""}`;
+  };
+
+  const editableUnit = (phone: (typeof phones)[number]): EditableUnit => {
+    const cost = phone as unknown as { purchasePrice?: unknown; wholesalePrice?: unknown; retailPrice?: unknown; tagCost?: unknown; batteryCost?: unknown };
+    return {
+      id: phone.id,
+      imei: phone.imei,
+      phoneVariantId: phone.phoneVariant.id,
+      lotStatus: phone.lot.status,
+      lotNumber: phone.lot.lotNumber,
+      grade: phone.grade,
+      batteryHealth: phone.batteryHealth,
+      notes: phone.notes,
+      ...(showCost
+        ? {
+            prices: {
+              purchasePrice: Number(cost.purchasePrice ?? 0),
+              wholesalePrice: Number(cost.wholesalePrice ?? 0),
+              retailPrice: Number(cost.retailPrice ?? 0),
+              tagCost: Number(cost.tagCost ?? 0),
+              batteryCost: Number(cost.batteryCost ?? 0),
+            },
+          }
+        : {}),
+    };
   };
 
   const inStockTotal = variants.reduce((sum, variant) => sum + variant._count.phones, 0);
@@ -468,11 +517,18 @@ export default async function PhonesPage({ searchParams }: Props) {
 
       <ListControls search={search} filter={status} view={view} placeholder="Search units by IMEI, model, variant or color" filterLabel="All statuses" filterOptions={["InStock", "Reserved", "Sold", "Returned", "Repair", "WrittenOff"].map((value) => ({ label: value, value }))} />
 
+      <UnitEditProvider
+        variants={pickerVariants}
+        username={session?.user?.username}
+        action={editUnit}
+        checkImei={checkImei}
+        createVariant={{ action: createVariantFromPicker, models: models.map((model) => ({ id: model.id, label: `${model.brand} ${model.modelName}` })) }}
+      >
       <Card className="mt-4">
         <h2 className="mb-3 flex items-center gap-1.5 text-lg font-semibold">
           Units
           <InfoHelp size="sm" title="Units">
-            Individual phones by IMEI, newest first — search and filter with the bar above.{showCost ? " Click a unit for its cost and profit breakdown." : ""} Archiving a unit removes it from active stock (it stays in the Recycle Bin for 30 days).
+            Individual phones by IMEI, newest first — search and filter with the bar above.{showCost ? " Click a unit for its cost and profit breakdown." : ""} Edit changes a unit&apos;s variant (or moves it to another model), IMEI, grade, notes and — for managers — prices. Archiving removes it from active stock (it stays in the Recycle Bin for 30 days).
           </InfoHelp>
         </h2>
         {view === "grid" ? (
@@ -498,7 +554,8 @@ export default async function PhonesPage({ searchParams }: Props) {
                     {showCost ? <div className="flex justify-between gap-2"><dt>Purchase price</dt><dd className="text-right text-slate-800">{formatMoney(purchasePrice)}</dd></div> : null}
                   </dl>
                   {phone.notes ? <p className="mt-2 text-xs italic text-slate-500">{phone.notes}</p> : null}
-                  <NoModalDiv className="mt-3">
+                  <NoModalDiv className="mt-3 flex flex-wrap gap-2">
+                    <UnitEditButton unit={editableUnit(phone)} />
                     <form action={archivePhone}>
                       <input type="hidden" name="id" value={phone.id} />
                       <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Archive</button>
@@ -585,7 +642,12 @@ export default async function PhonesPage({ searchParams }: Props) {
                     <td className="px-2 py-2.5"><GradeBadge grade={phone.grade} /></td>
                     <td className="px-2 py-2.5"><StatusPill status={phone.status} /></td>
                     {showCost ? <td className="px-2 py-2">{formatMoney(purchasePrice)}</td> : null}
-                    <NoModalCell className="px-2 py-2"><form action={archivePhone}><input type="hidden" name="id" value={phone.id} /><button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Archive</button></form></NoModalCell>
+                    <NoModalCell className="px-2 py-2">
+                      <div className="flex flex-wrap gap-1.5">
+                        <UnitEditButton unit={editableUnit(phone)} />
+                        <form action={archivePhone}><input type="hidden" name="id" value={phone.id} /><button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">Archive</button></form>
+                      </div>
+                    </NoModalCell>
                   </>
                 );
                 if (!showCost) {
@@ -638,6 +700,7 @@ export default async function PhonesPage({ searchParams }: Props) {
         </div>
         )}
       </Card>
+      </UnitEditProvider>
       <Pagination page={page} pageSize={pageSize} total={phoneTotal} query={{ ...(search ? { search } : {}), ...(status ? { filter: status } : {}), view }} />
     </div>
   );
