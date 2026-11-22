@@ -3,10 +3,20 @@ import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { DocumentActions } from "@/components/ui/document-actions";
+import { SpecChips } from "@/components/ui/spec-chips";
 import { formatMoney } from "@/lib/currency";
-import { formatVariantSpecs } from "@/lib/format-item-name";
+import { quotationLineLabel } from "@/lib/format-item-name";
+
+const STATUS_STYLES: Record<string, string> = {
+  Draft: "bg-slate-100 text-slate-700",
+  Sent: "bg-sky-50 text-sky-800",
+  Accepted: "bg-emerald-50 text-emerald-800",
+  Converted: "bg-emerald-50 text-emerald-800",
+  Rejected: "bg-red-50 text-red-800",
+  Expired: "bg-amber-50 text-amber-900",
+};
 
 export default async function QuotationDetailPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -14,45 +24,166 @@ export default async function QuotationDetailPage({ params }: { params: { id: st
 
   const quotation = await prisma.quotation.findUnique({
     where: { id: params.id },
-    include: { customer: true, items: { include: { phoneModel: true, phoneVariant: true } }, convertedSale: true },
+    include: { customer: true, items: { include: { phoneModel: true, phoneVariant: { include: { phoneModel: true } } } }, convertedSale: true },
   });
   if (!quotation) notFound();
 
   const contactPhone = quotation.customer?.phone || quotation.customerPhone;
   const contactEmail = quotation.customer?.email || quotation.customerEmail;
+  const validUntil = quotation.validUntil?.toISOString().slice(0, 10);
+  const expired = quotation.validUntil ? quotation.validUntil.getTime() < Date.now() : false;
+  const lines = quotation.items.map((item) => ({ item, ...quotationLineLabel(item) }));
 
   return (
     <div>
-      <PageHeader
-        title={`Quotation ${quotation.quoteNumber}`}
-        subtitle="Quotation details and pricing summary"
-        help={
-          <p>
-            A read-only snapshot of this quote&apos;s pricing and validity. If it has already been converted to a sale, a
-            link to that sale is shown in the Status card above.
-          </p>
-        }
-      />
-      <div className="mb-4"><Link href="/quotations" className="text-sm text-slate-700 underline">Back to Quotations</Link></div>
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card>
-          <p className="text-xs font-semibold uppercase text-slate-500">Customer</p>
-          <p className="mt-2 font-semibold text-slate-900">{quotation.customer?.name || "Walk-in customer"}</p>
-          <p className="mt-1 text-sm text-slate-700">{contactPhone || "No phone"}</p>
-          <p className="text-sm text-slate-700">{contactEmail || "No email"}</p>
-        </Card>
-        <Card><p className="text-xs font-semibold uppercase text-slate-500">Dates</p><p className="mt-2 text-sm text-slate-700">Created: {quotation.quoteDate.toISOString().slice(0, 10)}</p><p className="text-sm text-slate-700">Valid until: {quotation.validUntil?.toISOString().slice(0, 10) || "-"}</p></Card>
-        <Card><p className="text-xs font-semibold uppercase text-slate-500">Status</p><p className="mt-2 text-lg font-semibold text-slate-900">{quotation.status}</p><span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${quotation.saleType === "Wholesale" ? "bg-purple-100 text-purple-800" : "bg-slate-100 text-slate-700"}`}>{quotation.saleType}</span><p className="text-sm text-slate-700">Total: {formatMoney(Number(quotation.totalAmount))}</p>{quotation.convertedSale ? <Link href={`/sales/${quotation.convertedSale.id}`} className="mt-2 inline-block text-sm text-slate-800 underline">View Sale {quotation.convertedSale.saleNumber}</Link> : null}</Card>
+      <div className="print:hidden">
+        <PageHeader
+          title={`Quotation ${quotation.quoteNumber}`}
+          subtitle="Quotation details and pricing summary"
+          help={
+            <p>
+              The quotation as the customer sees it. Use <b>Print</b> for a paper copy or <b>Download PDF</b> to email or share it. Phone lines show the model, variant and its
+              color/storage. If it has been converted to a sale, a link to that sale is shown.
+            </p>
+          }
+        />
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <Link href="/quotations" className="text-sm text-slate-700 underline">
+            Back to Quotations
+          </Link>
+          <DocumentActions pdfUrl={`/api/quotations/${quotation.id}/pdf`} fileName={quotation.quoteNumber} />
+        </div>
       </div>
 
-      {quotation.notes ? (
-        <Card className="mt-4">
-          <p className="text-xs font-semibold uppercase text-slate-500">Notes</p>
-          <p className="mt-2 text-sm text-slate-700">{quotation.notes}</p>
-        </Card>
-      ) : null}
+      {/* The document itself — what prints and what the PDF mirrors. */}
+      <article className="quote-document mx-auto max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm print:max-w-none print:rounded-none print:border-0 print:shadow-none">
+        <div className="h-1.5 bg-[#10233f]" aria-hidden="true" />
+        <div className="p-4 sm:p-8">
+          <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-2xl font-bold tracking-tight text-[#10233f]">IStockPro</p>
+              <p className="text-sm text-slate-500">Phones &amp; accessories</p>
+            </div>
+            <div className="sm:text-right">
+              <p className="text-xl font-bold tracking-wide text-[#10233f]">QUOTATION</p>
+              <p className="text-sm text-slate-600">{quotation.quoteNumber}</p>
+              <div className="mt-1.5 flex flex-wrap gap-1.5 sm:justify-end print:hidden">
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[quotation.status] ?? "bg-slate-100 text-slate-700"}`}>{quotation.status}</span>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${quotation.saleType === "Wholesale" ? "bg-purple-50 text-purple-800" : "bg-slate-100 text-slate-700"}`}>{quotation.saleType}</span>
+                {expired ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900">Expired</span> : null}
+              </div>
+            </div>
+          </header>
 
-      <Card className="mt-4"><h2 className="mb-3 text-lg font-semibold">Line Items</h2><div className="overflow-x-auto"><table className="min-w-full text-sm"><thead><tr className="border-b border-slate-300 text-left text-slate-700"><th className="px-2 py-2">Description</th><th className="px-2 py-2">Qty</th><th className="px-2 py-2">Unit Price</th><th className="px-2 py-2">Line Total</th></tr></thead><tbody>{quotation.items.map((item) => <tr key={item.id} className="border-b border-slate-200"><td className="px-2 py-2">{item.description || item.phoneModel?.modelName || item.phoneVariant?.variantName || "Quotation item"}{item.phoneVariant && formatVariantSpecs(item.phoneVariant) && !(item.description || "").includes(formatVariantSpecs(item.phoneVariant)) ? <p className="text-xs text-slate-500">{formatVariantSpecs(item.phoneVariant)}</p> : null}</td><td className="px-2 py-2">{item.quantity}</td><td className="px-2 py-2">{formatMoney(Number(item.unitPrice))}</td><td className="px-2 py-2">{formatMoney(Number(item.lineTotal))}</td></tr>)}{!quotation.items.length ? <tr><td colSpan={4} className="px-2 py-4 text-slate-600">No line items were added.</td></tr> : null}</tbody></table></div><div className="mt-5 ml-auto max-w-xs space-y-2 text-sm text-slate-700"><p className="flex justify-between"><span>Subtotal</span><span>{formatMoney(Number(quotation.subtotal))}</span></p><p className="flex justify-between"><span>Tax{quotation.taxType === "Percent" ? ` (${Number(quotation.taxPercent).toFixed(2)}%)` : ""}</span><span>{formatMoney(Number(quotation.taxAmount))}</span></p><p className="flex justify-between"><span>Handling fee</span><span>{formatMoney(Number(quotation.handlingFee))}</span></p><p className="flex justify-between border-t border-slate-300 pt-2 text-base font-semibold text-slate-950"><span>Total</span><span>{formatMoney(Number(quotation.totalAmount))}</span></p></div></Card>
+          <section className="grid gap-4 border-b border-slate-200 py-5 text-sm sm:grid-cols-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Prepared for</p>
+              <p className="mt-1 font-semibold text-slate-900">{quotation.customer?.name || "Walk-in customer"}</p>
+              {contactPhone ? <p className="text-slate-600">{contactPhone}</p> : null}
+              {contactEmail ? <p className="break-all text-slate-600">{contactEmail}</p> : null}
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Date</p>
+              <p className="mt-1 text-slate-900">{quotation.quoteDate.toISOString().slice(0, 10)}</p>
+              <p className="text-slate-600">Valid until: {validUntil || "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Pricing</p>
+              <p className="mt-1 text-slate-900">{quotation.saleType}</p>
+              {quotation.convertedSale ? (
+                <Link href={`/sales/${quotation.convertedSale.id}`} className="text-slate-700 underline print:hidden">
+                  Converted to sale {quotation.convertedSale.saleNumber}
+                </Link>
+              ) : null}
+            </div>
+          </section>
+
+          {/* Desktop / print: table */}
+          <table className="mt-5 hidden w-full text-sm sm:table print:table">
+            <thead>
+              <tr className="bg-[#10233f] text-left text-white">
+                <th className="px-3 py-2 font-semibold">Description</th>
+                <th className="w-16 px-3 py-2 text-center font-semibold">Qty</th>
+                <th className="w-36 px-3 py-2 text-right font-semibold">Unit price</th>
+                <th className="w-36 px-3 py-2 text-right font-semibold">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map(({ item, label, note }) => (
+                <tr key={item.id} className="border-b border-slate-200 align-top">
+                  <td className="px-3 py-3">
+                    <span className="font-medium text-slate-900">{label}</span>
+                    {item.phoneVariant ? <SpecChips color={item.phoneVariant.color} storage={item.phoneVariant.storage} ram={item.phoneVariant.ram} className="mt-1 flex print:hidden" /> : null}
+                    {note ? <p className="mt-1 text-xs text-slate-500">{note}</p> : null}
+                  </td>
+                  <td className="px-3 py-3 text-center">{item.quantity}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right">{formatMoney(Number(item.unitPrice))}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right font-medium">{formatMoney(Number(item.lineTotal))}</td>
+                </tr>
+              ))}
+              {!lines.length ? (
+                <tr>
+                  <td colSpan={4} className="px-3 py-4 text-slate-500">No line items were added.</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+
+          {/* Phones: stacked cards */}
+          <ul className="mt-5 grid gap-2 sm:hidden print:hidden">
+            {lines.map(({ item, label, note }) => (
+              <li key={item.id} className="rounded-xl border border-slate-200 p-3">
+                <p className="font-medium text-slate-900">{label}</p>
+                {item.phoneVariant ? <SpecChips color={item.phoneVariant.color} storage={item.phoneVariant.storage} ram={item.phoneVariant.ram} className="mt-1.5 flex" /> : null}
+                {note ? <p className="mt-1 text-xs text-slate-500">{note}</p> : null}
+                <div className="mt-2 flex items-end justify-between gap-2 text-sm">
+                  <span className="text-slate-600">
+                    {item.quantity} × {formatMoney(Number(item.unitPrice))}
+                  </span>
+                  <span className="font-semibold text-slate-900">{formatMoney(Number(item.lineTotal))}</span>
+                </div>
+              </li>
+            ))}
+            {!lines.length ? <li className="text-sm text-slate-500">No line items were added.</li> : null}
+          </ul>
+
+          <section className="mt-6 flex flex-col-reverse gap-6 sm:flex-row sm:items-start sm:justify-between">
+            <div className="max-w-sm text-sm text-slate-600">
+              {quotation.notes ? (
+                <>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Notes</p>
+                  <p className="mt-1 whitespace-pre-wrap">{quotation.notes}</p>
+                </>
+              ) : null}
+            </div>
+            <dl className="w-full space-y-2 text-sm text-slate-700 sm:max-w-xs">
+              <div className="flex justify-between">
+                <dt>Subtotal</dt>
+                <dd>{formatMoney(Number(quotation.subtotal))}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt>Tax{quotation.taxType === "Percent" ? ` (${Number(quotation.taxPercent).toFixed(2)}%)` : ""}</dt>
+                <dd>{formatMoney(Number(quotation.taxAmount))}</dd>
+              </div>
+              {Number(quotation.handlingFee) ? (
+                <div className="flex justify-between">
+                  <dt>Handling fee</dt>
+                  <dd>{formatMoney(Number(quotation.handlingFee))}</dd>
+                </div>
+              ) : null}
+              <div className="flex justify-between border-t-2 border-[#10233f] pt-2 text-base font-bold text-[#10233f]">
+                <dt>Total</dt>
+                <dd>{formatMoney(Number(quotation.totalAmount))}</dd>
+              </div>
+              {validUntil ? <p className="rounded-md bg-sky-50 px-2 py-1.5 text-center text-xs font-semibold text-sky-800">Valid until {validUntil}</p> : null}
+            </dl>
+          </section>
+
+          <footer className="mt-8 border-t border-slate-200 pt-4 text-center text-xs text-slate-500">
+            IStockPro · Thank you for your interest. Prices are subject to stock availability until the quotation is accepted.
+          </footer>
+        </div>
+      </article>
     </div>
   );
 }

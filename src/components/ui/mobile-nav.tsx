@@ -38,7 +38,7 @@ export function MobileNav({ name, role }: Props) {
 
   return (
     <>
-      <div className="glass-panel sticky top-0 z-30 mb-4 flex items-center justify-between rounded-2xl border border-white/90 p-3 lg:hidden">
+      <div className="glass-panel sticky top-0 z-30 mb-4 flex print:hidden items-center justify-between rounded-2xl border border-white/90 p-3 lg:hidden">
         <Link href="/dashboard" className="rounded-xl px-2 py-1 text-lg font-semibold tracking-tight text-slate-950">
           IStockPro-v2
         </Link>
