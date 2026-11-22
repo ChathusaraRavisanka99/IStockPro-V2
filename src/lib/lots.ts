@@ -33,3 +33,27 @@ export async function toggleLotBookmark(userId: string, lotId: string): Promise<
   await prisma.lotBookmark.create({ data: { userId, lotId } });
   return true;
 }
+
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+/**
+ * Recomputes a lot's amountPaid (sum of its payments) and payment status. Used after a payment
+ * is edited or deleted — amountPaid is otherwise maintained incrementally on create.
+ */
+export async function recomputeLotPayments(lotId: string, tx: Tx | typeof prisma = prisma) {
+  const lot = await tx.lot.findUnique({
+    where: { id: lotId },
+    include: {
+      payments: { select: { amount: true } },
+      phones: { where: { deletedAt: null }, select: { purchasePrice: true } },
+      accessoryItems: { select: { unitCost: true, quantity: true } },
+    },
+  });
+  if (!lot) return null;
+  const amountPaid = lot.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+  const goods = lot.phones.reduce((sum, phone) => sum + Number(phone.purchasePrice), 0) + lot.accessoryItems.reduce((sum, item) => sum + Number(item.unitCost) * item.quantity, 0);
+  const total = Number(lot.shippingCost) + Number(lot.taxCost) + Number(lot.customsCost) + Number(lot.otherCost) + goods;
+  const paymentStatus = amountPaid <= 0 ? "Unpaid" : amountPaid >= total && total > 0 ? "Paid" : "Partial";
+  await tx.lot.update({ where: { id: lotId }, data: { amountPaid, paymentStatus } });
+  return { amountPaid, total, paymentStatus };
+}

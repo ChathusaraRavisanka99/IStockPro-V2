@@ -10,6 +10,11 @@ import { formatMoney } from "@/lib/currency";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { uploadFile, getSignedDownloadUrl, isStorageKey, buildKey } from "@/lib/storage";
 import { formatPhoneName } from "@/lib/format-item-name";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { EntityDeleteButton, EntityEditButton } from "@/components/ui/entity-editor";
+import { auditChange, diffFields, requireReauthWhen } from "@/lib/entity-guard";
+import type { ActionResult } from "@/components/ui/editable-row";
 
 const ACCESSORY_CATEGORY_ROUTES: Record<string, string> = {
   Charger: "/items/chargers",
@@ -19,6 +24,7 @@ const ACCESSORY_CATEGORY_ROUTES: Record<string, string> = {
 };
 
 export default async function ExpensesPage({ searchParams }: { searchParams: { search?: string; page?: string; pageSize?: string } }) {
+  const session = await getServerSession(authOptions);
   const search = searchParams.search?.trim() || "";
   const page = parsePage(searchParams.page);
   const pageSize = parsePageSize(searchParams.pageSize);
@@ -73,6 +79,50 @@ export default async function ExpensesPage({ searchParams }: { searchParams: { s
     });
 
     revalidatePath("/expenses");
+  }
+
+  // Category/description are non-sensitive; amount and date change the books, so editing them
+  // (or deleting an expense) needs a review + password and is audit-logged.
+  async function updateExpense(formData: FormData): Promise<ActionResult> {
+    "use server";
+    const id = String(formData.get("id") || "");
+    const expense = await prisma.expense.findUnique({ where: { id } });
+    if (!expense) return { ok: false, error: "Expense not found." };
+    const next = {
+      category: String(formData.get("category") || "").trim(),
+      description: String(formData.get("description") || "").trim() || null,
+      amount: Number(formData.get("amount") || 0),
+      expenseDate: String(formData.get("expenseDate") || ""),
+    };
+    if (!next.category) return { ok: false, error: "Category is required." };
+    if (!(next.amount > 0)) return { ok: false, error: "Amount must be greater than zero." };
+    if (!next.expenseDate) return { ok: false, error: "Date is required." };
+    const changes = diffFields({ category: expense.category, description: expense.description, amount: expense.amount, expenseDate: expense.expenseDate }, next);
+    const sensitive = changes.filter((change) => change.field === "amount" || change.field === "expenseDate");
+    const guard = await requireReauthWhen(formData, sensitive.length > 0);
+    if (!guard.ok) return guard;
+    await prisma.expense.update({ where: { id }, data: { ...next, expenseDate: new Date(next.expenseDate) } });
+    if (sensitive.length) {
+      const actor = await getServerSession(authOptions);
+      await auditChange("SensitiveEdit", "Expense", id, actor?.user?.id, { changes });
+    }
+    revalidatePath("/expenses");
+    return { ok: true };
+  }
+
+  async function deleteExpense(formData: FormData): Promise<ActionResult> {
+    "use server";
+    const guard = await requireReauthWhen(formData, true);
+    if (!guard.ok) return guard;
+    const id = String(formData.get("id") || "");
+    const expense = await prisma.expense.findUnique({ where: { id } });
+    if (!expense) return { ok: false, error: "Expense not found." };
+    await prisma.expense.delete({ where: { id } });
+    const actor = await getServerSession(authOptions);
+    await auditChange("SensitiveDelete", "Expense", id, actor?.user?.id, { category: expense.category, amount: Number(expense.amount), date: expense.expenseDate.toISOString().slice(0, 10), phoneId: expense.phoneId, accessoryId: expense.accessoryId });
+    revalidatePath("/expenses");
+    revalidatePath("/reports");
+    return { ok: true };
   }
 
   return (
@@ -144,6 +194,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams: { s
                 <th className="px-2 py-2">Amount</th>
                 <th className="px-2 py-2">Linked item</th>
                 <th className="px-2 py-2">Receipt</th>
+                <th className="px-2 py-2">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -172,6 +223,40 @@ export default async function ExpensesPage({ searchParams }: { searchParams: { s
                     ) : (
                       "-"
                     )}
+                  </td>
+                  <td className="px-2 py-2">
+                    <div className="flex flex-wrap gap-1.5">
+                      <EntityEditButton
+                        title="Edit expense"
+                        subtitle={`${expense.category} · ${formatMoney(Number(expense.amount))}`}
+                        hidden={{ id: expense.id }}
+                        action={updateExpense}
+                        username={session?.user?.username}
+                        fields={[
+                          { name: "category", label: "Category", value: expense.category, required: true },
+                          { name: "amount", label: "Amount", value: String(Number(expense.amount)), type: "number", sensitive: true, money: true, required: true },
+                          { name: "expenseDate", label: "Date", value: expense.expenseDate.toISOString().slice(0, 10), type: "date", sensitive: true, required: true },
+                          { name: "description", label: "Description", value: expense.description ?? "", type: "textarea" },
+                        ]}
+                      />
+                      <EntityDeleteButton
+                        title={`Delete expense "${expense.category}"?`}
+                        sensitive
+                        username={session?.user?.username}
+                        fields={{ id: expense.id }}
+                        action={deleteExpense}
+                        consequences={[
+                          `${formatMoney(Number(expense.amount))} is removed from expense totals and the Reports P&L for ${expense.expenseDate.toISOString().slice(0, 10)}.`,
+                          expense.phone
+                            ? `It stops counting toward the cost breakdown of IMEI ${expense.phone.imei}.`
+                            : expense.accessory
+                              ? `It stops counting toward the cost breakdown of ${expense.accessory.name}.`
+                              : "It isn't linked to any item.",
+                          receiptLinks[i] ? "The attached receipt is no longer reachable from the app." : "No receipt is attached.",
+                          "This is permanent (expenses don't go to the Recycle Bin) and is recorded in the activity log.",
+                        ]}
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}

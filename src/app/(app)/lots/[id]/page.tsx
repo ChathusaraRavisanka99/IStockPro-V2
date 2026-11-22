@@ -22,9 +22,10 @@ import { NoModalCell } from "@/components/ui/no-modal-cell";
 import { LotChargeEditor } from "@/components/items/lot-charge-editor";
 import type { ActionResult } from "@/components/ui/editable-row";
 import type { CreateVariantResult } from "@/components/items/variant-picker";
-import { PasswordConfirmDialog } from "@/components/ui/password-confirm-dialog";
+import { EntityDeleteButton, EntityEditButton } from "@/components/ui/entity-editor";
+import { auditChange, diffFields, requireReauthWhen } from "@/lib/entity-guard";
 import { formatVariantSpecs } from "@/lib/format-item-name";
-import { softDeleteLot, toggleLotBookmark } from "@/lib/lots";
+import { recomputeLotPayments, softDeleteLot, toggleLotBookmark } from "@/lib/lots";
 import { BookmarkButton } from "@/components/items/bookmark-button";
 import { priceChangeLogs } from "@/lib/price-history";
 import { findImeiOwner, liveImeiOwners } from "@/lib/imei";
@@ -58,6 +59,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
     prisma.accessory.findMany({ where: { deletedAt: null }, orderBy: [{ category: "asc" }, { name: "asc" }] }),
   ]);
   if (!lot || lot.deletedAt) notFound();
+  const supplierOptions = await prisma.supplier.findMany({ where: { OR: [{ deletedAt: null }, { id: lot.supplierId }] }, orderBy: { name: "asc" }, select: { id: true, name: true } });
   const bookmarked = Boolean(await prisma.lotBookmark.findUnique({ where: { userId_lotId: { userId: session.user.id, lotId: lot.id } } }));
 
   const [lotSaleItems, lotReturnItems, phoneExpenseRows, accessoryExpenseRows] = await Promise.all([
@@ -438,6 +440,89 @@ export default async function LotDetailPage({ params }: { params: { id: string }
     revalidatePath("/dashboard");
   }
 
+  // Lot details: note is non-sensitive; lot number, supplier and start date identify the purchase
+  // record, so changing them needs a review + password and is audit-logged.
+  async function updateLotDetails(formData: FormData): Promise<ActionResult> {
+    "use server";
+    const current = await prisma.lot.findUnique({ where: { id: params.id } });
+    if (!current || current.deletedAt) return { ok: false, error: "Lot not found." };
+    const next = {
+      lotNumber: String(formData.get("lotNumber") || "").trim(),
+      supplierId: String(formData.get("supplierId") || ""),
+      purchaseDate: String(formData.get("purchaseDate") || ""),
+      note: String(formData.get("note") || "").trim() || null,
+    };
+    if (!next.lotNumber || !next.supplierId || !next.purchaseDate) return { ok: false, error: "Lot number, supplier and start date are required." };
+    const changes = diffFields({ lotNumber: current.lotNumber, supplierId: current.supplierId, purchaseDate: current.purchaseDate, note: current.note }, next);
+    const sensitive = changes.filter((change) => change.field !== "note");
+    const guard = await requireReauthWhen(formData, sensitive.length > 0);
+    if (!guard.ok) return guard;
+    if (next.lotNumber !== current.lotNumber && (await prisma.lot.findUnique({ where: { lotNumber: next.lotNumber }, select: { id: true } }))) {
+      return { ok: false, error: `Lot number ${next.lotNumber} is already used by another lot.` };
+    }
+    await prisma.lot.update({ where: { id: params.id }, data: { ...next, purchaseDate: new Date(next.purchaseDate) } });
+    if (sensitive.length) {
+      const actor = await getServerSession(authOptions);
+      await auditChange("SensitiveEdit", "Lot", params.id, actor?.user?.id, { changes });
+    }
+    revalidatePath(`/lots/${params.id}`);
+    revalidatePath("/lots");
+    return { ok: true };
+  }
+
+  // Payments are money records: editing the amount/date or deleting one needs review + password,
+  // and the lot's paid total and payment status are recomputed from all its payments.
+  async function updateLotPayment(formData: FormData): Promise<ActionResult> {
+    "use server";
+    const id = String(formData.get("id") || "");
+    const payment = await prisma.lotPayment.findUnique({ where: { id } });
+    if (!payment || payment.lotId !== params.id) return { ok: false, error: "Payment not found." };
+    const methodInput = String(formData.get("method") || "");
+    const next = {
+      amount: Number(formData.get("amount") || 0),
+      paidAt: String(formData.get("paidAt") || ""),
+      method: (["Cash", "Card", "BankTransfer", "Cheque", "UPI", "Other"].includes(methodInput) ? methodInput : null) as "Cash" | "Card" | "BankTransfer" | "Cheque" | "UPI" | "Other" | null,
+      reference: String(formData.get("reference") || "").trim() || null,
+    };
+    if (!(next.amount > 0)) return { ok: false, error: "Amount must be greater than zero." };
+    if (!next.paidAt) return { ok: false, error: "Date is required." };
+    const changes = diffFields({ amount: payment.amount, paidAt: payment.paidAt, method: payment.method, reference: payment.reference }, next);
+    const sensitive = changes.filter((change) => change.field === "amount" || change.field === "paidAt");
+    const guard = await requireReauthWhen(formData, sensitive.length > 0);
+    if (!guard.ok) return guard;
+    await prisma.$transaction(async (tx) => {
+      await tx.lotPayment.update({ where: { id }, data: { ...next, paidAt: new Date(next.paidAt) } });
+      await recomputeLotPayments(params.id, tx);
+    });
+    if (sensitive.length) {
+      const actor = await getServerSession(authOptions);
+      await auditChange("SensitiveEdit", "LotPayment", id, actor?.user?.id, { lotId: params.id, changes });
+    }
+    revalidatePath(`/lots/${params.id}`);
+    revalidatePath("/lots");
+    revalidatePath("/dashboard");
+    return { ok: true };
+  }
+
+  async function deleteLotPayment(formData: FormData): Promise<ActionResult> {
+    "use server";
+    const guard = await requireReauthWhen(formData, true);
+    if (!guard.ok) return guard;
+    const id = String(formData.get("id") || "");
+    const payment = await prisma.lotPayment.findUnique({ where: { id } });
+    if (!payment || payment.lotId !== params.id) return { ok: false, error: "Payment not found." };
+    await prisma.$transaction(async (tx) => {
+      await tx.lotPayment.delete({ where: { id } });
+      await recomputeLotPayments(params.id, tx);
+    });
+    const actor = await getServerSession(authOptions);
+    await auditChange("SensitiveDelete", "LotPayment", id, actor?.user?.id, { lotId: params.id, amount: Number(payment.amount), paidAt: payment.paidAt.toISOString().slice(0, 10), method: payment.method, reference: payment.reference });
+    revalidatePath(`/lots/${params.id}`);
+    revalidatePath("/lots");
+    revalidatePath("/dashboard");
+    return { ok: true };
+  }
+
   async function deleteLot(formData: FormData): Promise<ActionResult> {
     "use server";
     const check = await checkReauth(formData);
@@ -591,16 +676,39 @@ export default async function LotDetailPage({ params }: { params: { id: string }
         <Link href="/lots" className="text-sm text-slate-700 underline">Back to Lots</Link>
         <div className="flex items-center gap-2">
         <BookmarkButton lotId={lot.id} bookmarked={bookmarked} action={toggleBookmark} withLabel />
-        <PasswordConfirmDialog
+        <EntityEditButton
+          title={`Edit lot ${lot.lotNumber}`}
+          subtitle="Lot number, supplier and start date are sensitive — changing them needs your password"
+          action={updateLotDetails}
+          username={username}
+          label="Edit details"
+          buttonClassName="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-50"
+          fields={[
+            { name: "lotNumber", label: "Lot number", value: lot.lotNumber, required: true, sensitive: true },
+            { name: "supplierId", label: "Supplier", value: lot.supplierId, type: "select", options: supplierOptions.map((supplier) => ({ value: supplier.id, label: supplier.name })), sensitive: true },
+            { name: "purchaseDate", label: "Start date", value: lot.purchaseDate.toISOString().slice(0, 10), type: "date", required: true, sensitive: true },
+            { name: "note", label: "Note", value: lot.note ?? "", type: "textarea" },
+          ]}
+        />
+        <EntityDeleteButton
           label="Delete lot"
           title={`Delete lot ${lot.lotNumber}?`}
-          message="This removes the lot and archives all its units. It's kept for 30 days, then permanently deleted. Lots with sold units can't be deleted. Enter your password to confirm."
+          sensitive
           username={username}
           fields={{ id: lot.id }}
           action={deleteLot}
           confirmLabel="Delete lot"
           redirectTo="/lots"
-          buttonClassName="rounded-md border border-red-200 px-3 py-1 text-sm text-red-700"
+          buttonClassName="inline-flex items-center gap-1 rounded-md border border-red-200 px-3 py-1 text-sm text-red-700 hover:bg-red-50"
+          blockedReason={lotSaleItems.length ? `${lotSaleItems.length} sale line${lotSaleItems.length === 1 ? "" : "s"} already include units from this lot, so it can't be deleted — sales history must keep pointing at it. Archive individual unsold units instead.` : null}
+          consequences={[
+            `The lot disappears from the lot list, dashboard and reports${lot.status !== "Collection" ? ` (it is currently ${lot.status})` : ""}.`,
+            units ? `Its ${units} unit${units === 1 ? "" : "s"} are archived and leave stock — ${inStockCount} of them are in stock right now.` : "It has no units.",
+            lot.payments.length ? `Its ${lot.payments.length} supplier payment${lot.payments.length === 1 ? "" : "s"} (${formatMoney(lot.amountPaid)}) stay attached to the deleted lot.` : "No supplier payments are recorded.",
+            lot.accessoryItems.length ? `${lot.accessoryItems.length} accessory batch${lot.accessoryItems.length === 1 ? "" : "es"} stay attached to it.` : "No accessory batches are attached.",
+            `The lot number ${lot.lotNumber} is freed for reuse.`,
+            "It stays in the Recycle Bin for 30 days (restoring brings the units back), then is deleted permanently.",
+          ]}
         />
         </div>
       </div>
@@ -762,6 +870,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
                     <th className="px-2 py-2">Method</th>
                     <th className="px-2 py-2">Reference</th>
                     <th className="px-2 py-2">Slip</th>
+                    <th className="px-2 py-2">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -777,6 +886,36 @@ export default async function LotDetailPage({ params }: { params: { id: string }
                         ) : (
                           "-"
                         )}
+                      </td>
+                      <td className="px-2 py-2">
+                        <div className="flex flex-wrap gap-1.5">
+                          <EntityEditButton
+                            title="Edit supplier payment"
+                            subtitle={`${formatMoney(payment.amount)} on ${payment.paidAt.toISOString().slice(0, 10)}`}
+                            hidden={{ id: payment.id }}
+                            action={updateLotPayment}
+                            username={username}
+                            fields={[
+                              { name: "amount", label: "Amount", value: String(Number(payment.amount)), type: "number", money: true, sensitive: true, required: true },
+                              { name: "paidAt", label: "Date", value: payment.paidAt.toISOString().slice(0, 10), type: "date", sensitive: true, required: true },
+                              { name: "method", label: "Method", value: payment.method ?? "", type: "select", options: [{ value: "", label: "Not set" }, ...["Cash", "Card", "BankTransfer", "Cheque", "UPI", "Other"].map((value) => ({ value, label: value === "BankTransfer" ? "Bank transfer" : value }))] },
+                              { name: "reference", label: "Reference", value: payment.reference ?? "" },
+                            ]}
+                          />
+                          <EntityDeleteButton
+                            title={`Delete payment of ${formatMoney(payment.amount)}?`}
+                            sensitive
+                            username={username}
+                            fields={{ id: payment.id }}
+                            action={deleteLotPayment}
+                            consequences={[
+                              `Paid to the supplier drops from ${formatMoney(lot.amountPaid)} to ${formatMoney(Number(lot.amountPaid) - Number(payment.amount))}; remaining owed rises to ${formatMoney(Math.max(0, totalCost - (Number(lot.amountPaid) - Number(payment.amount))))}.`,
+                              `The lot's payment status is recalculated (currently ${lot.paymentStatus}).`,
+                              paymentProofLinks[i] ? "The attached payment slip is no longer reachable from the app." : "No payment slip is attached.",
+                              "This is permanent and recorded in the activity log.",
+                            ]}
+                          />
+                        </div>
                       </td>
                     </tr>
                   ))}

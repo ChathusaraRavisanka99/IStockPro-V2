@@ -8,6 +8,9 @@ import { Pagination } from "@/components/ui/pagination";
 import { parsePage, parsePageSize } from "@/lib/pagination";
 import { AccessoryTableRow, AccessoryGridCard } from "@/components/items/accessory-row-editor";
 import type { ActionResult } from "@/components/ui/editable-row";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { auditChange, diffFields, requireReauthWhen } from "@/lib/entity-guard";
 
 type SpecField = "connectorType" | "voltage" | "fastCharging";
 
@@ -56,6 +59,7 @@ export async function AccessoryCategoryPage({
   connectorPlaceholder = "Connector type",
   searchParams = {},
 }: Props) {
+  const session = await getServerSession(authOptions);
   const showConnectorType = specFields.includes("connectorType");
   const showVoltage = specFields.includes("voltage");
   const showFastCharging = specFields.includes("fastCharging");
@@ -124,12 +128,16 @@ export async function AccessoryCategoryPage({
     revalidatePath(route);
   }
 
-  async function archiveAccessory(formData: FormData) {
+  async function archiveAccessory(formData: FormData): Promise<ActionResult> {
     "use server";
     const id = String(formData.get("id") || "");
-    if (!id) return;
+    if (!id) return { ok: false, error: "Missing item." };
+    const actor = await getServerSession(authOptions);
     await prisma.accessory.update({ where: { id }, data: { deletedAt: new Date() } });
+    await auditChange("Delete", "Accessory", id, actor?.user?.id, {});
     revalidatePath(route);
+    revalidatePath("/recycle-bin");
+    return { ok: true };
   }
 
   async function updateAccessory(formData: FormData): Promise<ActionResult> {
@@ -138,6 +146,18 @@ export async function AccessoryCategoryPage({
     const name = String(formData.get("name") || "").trim();
     const sku = String(formData.get("sku") || "").trim();
     if (!id || !name || !sku) return { ok: false, error: "Name and SKU are required." };
+    const current = await prisma.accessory.findUnique({ where: { id } });
+    if (!current) return { ok: false, error: "Item not found." };
+    const prices = {
+      purchasePrice: Number(formData.get("purchasePrice") || 0),
+      wholesalePrice: Number(formData.get("wholesalePrice") || 0),
+      retailPrice: Number(formData.get("retailPrice") || 0),
+    };
+    // Name/SKU/threshold/notes are non-sensitive; price changes need review + password.
+    const priceChanges = diffFields({ purchasePrice: current.purchasePrice, wholesalePrice: current.wholesalePrice, retailPrice: current.retailPrice }, prices);
+    const guard = await requireReauthWhen(formData, priceChanges.length > 0);
+    if (!guard.ok) return guard;
+    if (sku !== current.sku && (await prisma.accessory.findUnique({ where: { sku }, select: { id: true } }))) return { ok: false, error: `SKU ${sku} is already used by another item.` };
 
     await prisma.accessory.update({
       where: { id },
@@ -145,11 +165,14 @@ export async function AccessoryCategoryPage({
         name,
         sku,
         lowStockThreshold: Number(formData.get("lowStockThreshold") || 0),
-        purchasePrice: Number(formData.get("purchasePrice") || 0),
-        wholesalePrice: Number(formData.get("wholesalePrice") || 0),
-        retailPrice: Number(formData.get("retailPrice") || 0),
+        notes: formData.has("notes") ? String(formData.get("notes") || "").trim() || null : undefined,
+        ...prices,
       },
     });
+    if (priceChanges.length) {
+      const actor = await getServerSession(authOptions);
+      await auditChange("SensitiveEdit", "Accessory", id, actor?.user?.id, { changes: priceChanges });
+    }
 
     revalidatePath(route);
     return { ok: true };
@@ -222,7 +245,7 @@ export async function AccessoryCategoryPage({
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {accessories.map((item) => (
             <Card key={item.id}>
-              <AccessoryGridCard item={normalizeAccessory(item)} updateAction={updateAccessory} archiveAction={archiveAccessory} />
+              <AccessoryGridCard item={normalizeAccessory(item)} updateAction={updateAccessory} archiveAction={archiveAccessory} username={session?.user?.username} />
             </Card>
           ))}
         </div>
@@ -246,7 +269,7 @@ export async function AccessoryCategoryPage({
             </thead>
             <tbody>
               {accessories.map((item) => (
-                <AccessoryTableRow key={item.id} item={normalizeAccessory(item)} updateAction={updateAccessory} archiveAction={archiveAccessory} />
+                <AccessoryTableRow key={item.id} item={normalizeAccessory(item)} updateAction={updateAccessory} archiveAction={archiveAccessory} username={session?.user?.username} />
               ))}
               {!accessories.length ? (
                 <tr>

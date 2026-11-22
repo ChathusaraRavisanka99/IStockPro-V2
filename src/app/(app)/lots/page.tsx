@@ -16,7 +16,7 @@ import { formatMoney } from "@/lib/currency";
 import { checkReauth } from "@/lib/reauth";
 import { softDeleteLot, toggleLotBookmark } from "@/lib/lots";
 import { BookmarkButton } from "@/components/items/bookmark-button";
-import { PasswordConfirmDialog } from "@/components/ui/password-confirm-dialog";
+import { EntityDeleteButton } from "@/components/ui/entity-editor";
 import { LotFxConverter, LotFxAmount, LotFxHeader } from "@/components/items/lot-fx-converter";
 import type { ActionResult } from "@/components/ui/editable-row";
 import { formatPhoneName } from "@/lib/format-item-name";
@@ -76,6 +76,8 @@ export default async function LotsPage({ searchParams }: Props) {
             id: true,
             imei: true,
             purchasePrice: true,
+            status: true,
+            _count: { select: { saleItems: true } },
           },
         },
         accessoryItems: { select: { unitCost: true, quantity: true } },
@@ -153,17 +155,28 @@ export default async function LotsPage({ searchParams }: Props) {
     lot.phones.reduce((sum, phone) => sum + Number(phone.purchasePrice), 0) +
     lot.accessoryItems.reduce((sum, item) => sum + Number(item.unitCost) * item.quantity, 0);
 
-  const deleteButton = (lot: (typeof lots)[number]) => (
-    <PasswordConfirmDialog
-      label="Delete"
-      title={`Delete lot ${lot.lotNumber}?`}
-      message="This removes the lot and archives all its units. It's kept for 30 days, then permanently deleted. Lots with sold units can't be deleted. Enter your password to confirm."
-      username={username}
-      fields={{ id: lot.id }}
-      action={deleteLot}
-      confirmLabel="Delete lot"
-    />
-  );
+  const deleteButton = (lot: (typeof lots)[number]) => {
+    const soldLines = lot.phones.reduce((sum, phone) => sum + phone._count.saleItems, 0);
+    const inStock = lot.phones.filter((phone) => phone.status === "InStock").length;
+    return (
+      <EntityDeleteButton
+        title={`Delete lot ${lot.lotNumber}?`}
+        sensitive
+        username={username}
+        fields={{ id: lot.id }}
+        action={deleteLot}
+        confirmLabel="Delete lot"
+        blockedReason={soldLines ? `Units from this lot appear on ${soldLines} sale line${soldLines === 1 ? "" : "s"}, so it can't be deleted — sales history must keep pointing at it. Archive individual unsold units instead.` : null}
+        consequences={[
+          "The lot disappears from the lot list, dashboard and reports.",
+          lot.phones.length ? `Its ${lot.phones.length} unit${lot.phones.length === 1 ? "" : "s"} are archived and leave stock — ${inStock} in stock right now.` : "It has no units.",
+          Number(lot.amountPaid) ? `Supplier payments of ${formatMoney(lot.amountPaid)} stay attached to the deleted lot.` : "No supplier payments are recorded.",
+          `The lot number ${lot.lotNumber} is freed for reuse.`,
+          "It stays in the Recycle Bin for 30 days (restoring brings the units back), then is deleted permanently.",
+        ]}
+      />
+    );
+  };
 
   async function createSupplierDependency(formData: FormData) {
     "use server";

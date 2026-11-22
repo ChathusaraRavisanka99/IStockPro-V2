@@ -10,7 +10,7 @@ import { formatMoney } from "@/lib/currency";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { checkReauth } from "@/lib/reauth";
-import { PasswordConfirmDialog } from "@/components/ui/password-confirm-dialog";
+import { EntityDeleteButton } from "@/components/ui/entity-editor";
 import { CustomerEditDialog } from "@/components/customers/customer-edit-dialog";
 import type { ActionResult } from "@/components/ui/editable-row";
 
@@ -126,14 +126,18 @@ export default async function CustomersPage({ searchParams }: Props) {
                 <p className="mt-3 text-sm text-slate-700">{customer.sales.length} sales | {formatMoney(lifetimeValue)}</p>
                 <div className="mt-3 flex gap-2">
                   <CustomerEditDialog customer={{ id: customer.id, name: customer.name, phone: customer.phone, email: customer.email, address: customer.address }} action={updateCustomer} buttonClassName="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-700" />
-                  <PasswordConfirmDialog
-                    label="Delete"
+                  <EntityDeleteButton
                     title={`Delete ${customer.name}?`}
-                    message="The customer is removed from this list; their past sales stay intact. It's permanently deleted after 30 days. Enter your password to confirm."
+                    sensitive
                     username={username}
                     fields={{ id: customer.id }}
                     action={deleteCustomer}
-                    buttonClassName="rounded-lg border border-red-200 px-3 py-1 text-sm text-red-700"
+                    buttonClassName="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-sm text-red-700 hover:bg-red-50"
+                    consequences={[
+                      "The customer disappears from this list and from the customer picker on sales and quotations.",
+                      customer.sales.length ? `Their ${customer.sales.length} sale${customer.sales.length === 1 ? "" : "s"} (${formatMoney(customer.sales.reduce((acc, sale) => acc + Number(sale.totalAmount), 0))}) are kept and still show their name.` : "They have no sales, so nothing else changes.",
+                      "It stays in the Recycle Bin for 30 days and can be restored; after that it is removed permanently (unless sales still reference it).",
+                    ]}
                   />
                 </div>
               </Card>
@@ -165,13 +169,17 @@ export default async function CustomersPage({ searchParams }: Props) {
                     <td className="px-2 py-2">
                       <div className="flex gap-2">
                   <CustomerEditDialog customer={{ id: customer.id, name: customer.name, phone: customer.phone, email: customer.email, address: customer.address }} action={updateCustomer} />
-                  <PasswordConfirmDialog
-                    label="Delete"
+                  <EntityDeleteButton
                     title={`Delete ${customer.name}?`}
-                    message="The customer is removed from this list; their past sales stay intact. It's permanently deleted after 30 days. Enter your password to confirm."
+                    sensitive
                     username={username}
                     fields={{ id: customer.id }}
                     action={deleteCustomer}
+                    consequences={[
+                      "The customer disappears from this list and from the customer picker on sales and quotations.",
+                      customer.sales.length ? `Their ${customer.sales.length} sale${customer.sales.length === 1 ? "" : "s"} (${formatMoney(customer.sales.reduce((acc, sale) => acc + Number(sale.totalAmount), 0))}) are kept and still show their name.` : "They have no sales, so nothing else changes.",
+                      "It stays in the Recycle Bin for 30 days and can be restored; after that it is removed permanently (unless sales still reference it).",
+                    ]}
                   />
                       </div>
                     </td>
