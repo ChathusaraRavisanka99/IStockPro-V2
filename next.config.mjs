@@ -1,5 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+	// Receipt/proof images are uploaded through Server Actions, whose default body limit (1 MB)
+	// rejects most phone photos.
+	experimental: {
+		serverActions: {
+			bodySizeLimit: "8mb",
+		},
+	},
 	webpack: (config, { dev }) => {
 		// Stabilize dev server on this Windows setup where filesystem cache intermittently drops chunks.
 		if (dev) {

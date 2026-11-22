@@ -29,6 +29,7 @@ import { BookmarkButton } from "@/components/items/bookmark-button";
 import { priceChangeLogs } from "@/lib/price-history";
 import { findImeiOwner, liveImeiOwners } from "@/lib/imei";
 import { editPhoneUnit } from "@/lib/phone-units";
+import { createPhoneExpense, expenseCategories, listPhoneExpenses } from "@/lib/unit-expenses";
 import { UnitEditProvider } from "@/components/items/unit-edit";
 
 function computeGoodsCost(phones: { purchasePrice: unknown }[], accessoryItems: { unitCost: unknown; quantity: number }[]) {
@@ -461,6 +462,25 @@ export default async function LotDetailPage({ params }: { params: { id: string }
     return result;
   }
 
+  async function listUnitExpenses(phoneId: string) {
+    "use server";
+    const actor = await getServerSession(authOptions);
+    if (!canViewCost(actor?.user?.role as "admin" | "manager" | "staff" | undefined)) return [];
+    return listPhoneExpenses(phoneId);
+  }
+
+  async function addUnitExpense(formData: FormData) {
+    "use server";
+    const actor = await getServerSession(authOptions);
+    if (!canViewCost(actor?.user?.role as "admin" | "manager" | "staff" | undefined)) return { ok: false as const, error: "Only admins and managers can record expenses." };
+    const result = await createPhoneExpense(formData);
+    if (result.ok) {
+      revalidatePath("/expenses");
+      revalidatePath(`/lots/${params.id}`);
+    }
+    return result;
+  }
+
   async function checkImei(imei: string, phoneId: string) {
     "use server";
     return findImeiOwner(imei, phoneId);
@@ -852,6 +872,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
           username={username}
           action={editUnit}
           checkImei={checkImei}
+          expenses={showCost ? { list: listUnitExpenses, add: addUnitExpense, categories: await expenseCategories() } : undefined}
           createVariant={{ action: createVariantForLot, models: models.map((model) => ({ id: model.id, label: `${model.brand} ${model.modelName}` })) }}
         >
         <div className="overflow-x-auto">

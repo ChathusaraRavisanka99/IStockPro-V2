@@ -24,6 +24,7 @@ import { TabPanels } from "@/components/ui/tab-panels";
 import { UnitEditButton, UnitEditProvider, type EditableUnit } from "@/components/items/unit-edit";
 import { editPhoneUnit } from "@/lib/phone-units";
 import { findImeiOwner } from "@/lib/imei";
+import { createPhoneExpense, expenseCategories, listPhoneExpenses } from "@/lib/unit-expenses";
 import { GradeBadge, SpecChips, StatusPill } from "@/components/ui/spec-chips";
 import { Boxes, LineChart, Plus, Search, Smartphone, Wallet } from "lucide-react";
 
@@ -253,6 +254,25 @@ export default async function PhonesPage({ searchParams }: Props) {
       revalidatePath("/items/phone-catalog");
       revalidatePath("/items/phones/price-history");
       revalidatePath("/lots");
+    }
+    return result;
+  }
+
+  async function listUnitExpenses(phoneId: string) {
+    "use server";
+    const actor = await getServerSession(authOptions);
+    if (!canViewCost(actor?.user?.role as "admin" | "manager" | "staff" | undefined)) return [];
+    return listPhoneExpenses(phoneId);
+  }
+
+  async function addUnitExpense(formData: FormData) {
+    "use server";
+    const actor = await getServerSession(authOptions);
+    if (!canViewCost(actor?.user?.role as "admin" | "manager" | "staff" | undefined)) return { ok: false as const, error: "Only admins and managers can record expenses." };
+    const result = await createPhoneExpense(formData);
+    if (result.ok) {
+      revalidatePath("/expenses");
+      revalidatePath("/items/phones");
     }
     return result;
   }
@@ -522,6 +542,7 @@ export default async function PhonesPage({ searchParams }: Props) {
         username={session?.user?.username}
         action={editUnit}
         checkImei={checkImei}
+        expenses={showCost ? { list: listUnitExpenses, add: addUnitExpense, categories: await expenseCategories() } : undefined}
         createVariant={{ action: createVariantFromPicker, models: models.map((model) => ({ id: model.id, label: `${model.brand} ${model.modelName}` })) }}
       >
       <Card className="mt-4">

@@ -1,8 +1,10 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useTransition, type FormEvent, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil } from "lucide-react";
+import { Paperclip, Pencil, Plus, Receipt } from "lucide-react";
+import { formatMoney } from "@/lib/currency";
+import type { UnitExpenseRow } from "@/lib/unit-expenses";
 import { Modal, modalButton, modalField } from "@/components/ui/modal";
 import { VariantPicker, type CreateVariantResult, type VariantPickerOption } from "@/components/items/variant-picker";
 import { ImeiConflictNotice, type ImeiOwner } from "@/components/items/imei-conflict-notice";
@@ -27,6 +29,12 @@ type Shared = {
   action: (formData: FormData) => Promise<ActionResult>;
   checkImei: (imei: string, phoneId: string) => Promise<ImeiOwner | null>;
   createVariant?: { action: (formData: FormData) => Promise<CreateVariantResult>; models: { id: string; label: string }[] };
+  /** Expense register inside the popup — only passed for roles that can see cost. */
+  expenses?: {
+    list: (phoneId: string) => Promise<UnitExpenseRow[]>;
+    add: (formData: FormData) => Promise<{ ok: true; rows: UnitExpenseRow[] } | { ok: false; error: string }>;
+    categories: string[];
+  };
 };
 
 const UnitEditContext = createContext<{ open: (unit: EditableUnit) => void } | null>(null);
@@ -71,6 +79,13 @@ function UnitEditDialog({ unit, shared, onClose }: { unit: EditableUnit; shared:
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const formId = `unit-edit-${unit.id}`;
+  // Expenses save on their own; refresh the page once when the popup closes instead of right
+  // away, so a refresh never interrupts (or resets) edits still being typed here.
+  const expensesChanged = useRef(false);
+  const close = () => {
+    onClose();
+    if (expensesChanged.current) router.refresh();
+  };
   const canGrade = unit.lotStatus === "Cleared";
   const pricesChanged = Boolean(unit.prices && prices && (Object.keys(prices) as (keyof NonNullable<typeof prices>)[]).some((key) => Math.abs(prices[key] - unit.prices![key]) >= 0.005));
   const needsPassword = pricesChanged && unit.lotStatus !== "Collection";
@@ -133,10 +148,10 @@ function UnitEditDialog({ unit, shared, onClose }: { unit: EditableUnit; shared:
       icon={<Pencil className="size-4" />}
       size="lg"
       busy={pending}
-      onClose={onClose}
+      onClose={close}
       footer={
         <>
-          <button type="button" onClick={onClose} disabled={pending} className={modalButton.secondary}>
+          <button type="button" onClick={close} disabled={pending} className={modalButton.secondary}>
             Cancel
           </button>
           <button type="submit" form={formId} disabled={pending || Boolean(imeiOwner)} className={modalButton.primary}>
@@ -145,6 +160,7 @@ function UnitEditDialog({ unit, shared, onClose }: { unit: EditableUnit; shared:
         </>
       }
     >
+      <>
       <form id={formId} onSubmit={onSubmit} className="grid gap-4">
         <input type="hidden" name="id" value={unit.id} />
 
@@ -227,6 +243,142 @@ function UnitEditDialog({ unit, shared, onClose }: { unit: EditableUnit; shared:
 
         {error ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p> : null}
       </form>
+      {shared.expenses ? <UnitExpenses phoneId={unit.id} api={shared.expenses} onChanged={() => (expensesChanged.current = true)} /> : null}
+      </>
     </Modal>
+  );
+}
+
+/**
+ * Expenses linked to this unit (repairs, parts…) with an inline "Add expense" form. Kept outside
+ * the edit <form> and saved on its own, so adding an expense never submits the unit edit.
+ */
+function UnitExpenses({ phoneId, api, onChanged }: { phoneId: string; api: NonNullable<Shared["expenses"]>; onChanged: () => void }) {
+  const [rows, setRows] = useState<UnitExpenseRow[] | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [category, setCategory] = useState("");
+  const [amount, setAmount] = useState("");
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [description, setDescription] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  // Load once per opened unit. The api object is recreated on every parent render (e.g. after
+  // router.refresh), so it lives in a ref rather than the effect deps.
+  const apiRef = useRef(api);
+  apiRef.current = api;
+  useEffect(() => {
+    let cancelled = false;
+    apiRef.current.list(phoneId).then((list) => {
+      if (!cancelled) setRows(list);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [phoneId]);
+
+  const total = (rows ?? []).reduce((sum, row) => sum + row.amount, 0);
+
+  function save() {
+    const formData = new FormData();
+    formData.set("phoneId", phoneId);
+    formData.set("category", category);
+    formData.set("amount", amount);
+    formData.set("expenseDate", date);
+    formData.set("description", description);
+    if (file) formData.set("receiptFile", file);
+    startTransition(async () => {
+      const result = await apiRef.current.add(formData);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setRows(result.rows);
+      setError(null);
+      setAdding(false);
+      setCategory("");
+      setAmount("");
+      setDescription("");
+      setFile(null);
+      onChanged();
+    });
+  }
+
+  return (
+    <section className="mt-5 grid gap-3 border-t border-slate-100 pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <Receipt className="size-3.5" /> Expenses on this unit
+          {rows?.length ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium normal-case text-slate-700">{formatMoney(total)}</span> : null}
+        </p>
+        {!adding ? (
+          <button type="button" onClick={() => setAdding(true)} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+            <Plus className="size-3.5" /> Add expense
+          </button>
+        ) : null}
+      </div>
+
+      {rows === null ? (
+        <p className="text-sm text-slate-400">Loading…</p>
+      ) : rows.length ? (
+        <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+          {rows.map((row) => (
+            <li key={row.id} className="flex items-start justify-between gap-3 px-3 py-2 text-sm">
+              <span className="min-w-0">
+                <span className="font-medium text-slate-900">{row.category}</span>
+                {row.hasReceipt ? <Paperclip className="ml-1 inline size-3.5 text-slate-400" aria-label="Has receipt" /> : null}
+                <span className="block text-xs text-slate-500">
+                  {row.date}
+                  {row.description ? ` · ${row.description}` : ""}
+                </span>
+              </span>
+              <span className="shrink-0 font-medium text-slate-900">{formatMoney(row.amount)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : !adding ? (
+        <p className="text-sm text-slate-500">No expenses recorded for this unit yet. Repairs, parts and similar costs added here show in its cost breakdown and on the Expenses page.</p>
+      ) : null}
+
+      {adding ? (
+        <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 sm:grid-cols-2">
+          <label className={modalField.label}>
+            Category
+            <input list={`expense-categories-${phoneId}`} value={category} onChange={(event) => setCategory(event.target.value)} placeholder="e.g. Screen replacement" className={modalField.input} />
+            <datalist id={`expense-categories-${phoneId}`}>
+              {api.categories.map((option) => (
+                <option key={option} value={option} />
+              ))}
+            </datalist>
+          </label>
+          <label className={modalField.label}>
+            Amount (LKR)
+            <input type="number" min={0} step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} className={modalField.input} />
+          </label>
+          <label className={modalField.label}>
+            Date
+            <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className={modalField.input} />
+          </label>
+          <label className={modalField.label}>
+            Receipt (optional)
+            <input type="file" accept="image/*,application/pdf" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="text-xs text-slate-600 file:mr-2 file:rounded-md file:border-0 file:bg-slate-200 file:px-2 file:py-1 file:text-xs" />
+          </label>
+          <label className={`${modalField.label} sm:col-span-2`}>
+            Description (optional)
+            <input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What was done, who did it…" className={modalField.input} />
+          </label>
+          {error ? <p className="text-xs text-red-700 sm:col-span-2">{error}</p> : null}
+          <div className="flex justify-end gap-2 sm:col-span-2">
+            <button type="button" onClick={() => { setAdding(false); setError(null); }} disabled={pending} className={modalButton.secondary}>
+              Cancel
+            </button>
+            <button type="button" onClick={save} disabled={pending} className={modalButton.primary}>
+              {pending ? "Saving..." : "Save expense"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </section>
   );
 }
