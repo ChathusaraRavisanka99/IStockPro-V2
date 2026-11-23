@@ -20,8 +20,9 @@ export function ColorChip({ color, size = "xs", active }: { color: string; size?
   const light = isLightColor(swatch);
   return (
     <span
-      className={`inline-flex items-center rounded-full font-medium ${SIZE[size]} ${light ? "text-slate-900 ring-1 ring-inset ring-slate-900/15" : "text-white"} ${active ? "outline outline-2 outline-offset-2 outline-slate-900" : ""}`}
-      style={{ backgroundColor: swatch }}
+      className={`inline-flex items-center rounded-full font-medium ${SIZE[size]} ${light ? "ring-1 ring-inset ring-black/15" : ""} ${active ? "outline outline-2 outline-offset-2 outline-slate-900" : ""}`}
+      // Text color is inline (not a theme class) so the chip reads the same in light and dark mode.
+      style={{ backgroundColor: swatch, color: light ? "#0f172a" : "#ffffff" }}
     >
       {color}
     </span>
