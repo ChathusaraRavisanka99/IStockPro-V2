@@ -76,7 +76,7 @@ export async function peekEntity(kind: EntityKind, id: string): Promise<PeekData
         id,
         title: supplier.name,
         subtitle: "Supplier",
-        href: "/suppliers",
+        href: `/suppliers/${supplier.id}`,
         deleted: Boolean(supplier.deletedAt),
         facts: [
           { label: "Phone", value: supplier.phone || "—" },

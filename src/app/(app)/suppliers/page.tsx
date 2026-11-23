@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
@@ -27,8 +28,10 @@ export default async function SuppliersPage({ searchParams }: Props) {
     orderBy: { createdAt: "desc" },
     include: {
       lots: {
+        where: { deletedAt: null },
         include: {
           phones: {
+            where: { deletedAt: null },
             select: { purchasePrice: true },
           },
         },
@@ -148,7 +151,7 @@ export default async function SuppliersPage({ searchParams }: Props) {
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {suppliers.map((supplier) => {
             const units = supplier.lots.reduce((acc, lot) => acc + lot.phones.length, 0);
-            return <Card key={supplier.id}><p className="font-semibold text-slate-900">{supplier.name}</p><p className="mt-1 text-sm text-slate-700">{supplier.phone || supplier.email || "No contact"}</p><p className="mt-3 text-sm text-slate-700">{supplier.lots.length} lots | {units} units</p><div className="mt-3">{supplierActions(supplier, true)}</div></Card>;
+            return <Card key={supplier.id}><Link href={`/suppliers/${supplier.id}`} className="font-semibold text-slate-900 underline">{supplier.name}</Link><p className="mt-1 text-sm text-slate-700">{supplier.phone || supplier.email || "No contact"}</p><p className="mt-3 text-sm text-slate-700">{supplier.lots.length} lots | {units} units</p><div className="mt-3">{supplierActions(supplier, true)}</div></Card>;
           })}
         </div>
       ) : (
@@ -180,7 +183,7 @@ export default async function SuppliersPage({ searchParams }: Props) {
 
                 return (
                   <tr key={supplier.id} className="border-b border-slate-200">
-                    <td className="px-2 py-2 font-medium">{supplier.name}</td>
+                    <td className="px-2 py-2 font-medium"><Link href={`/suppliers/${supplier.id}`} className="underline" title="View supplier stats">{supplier.name}</Link></td>
                     <td className="px-2 py-2">{supplier.phone || supplier.email || "-"}</td>
                     <td className="px-2 py-2">{supplier.lots.length}</td>
                     <td className="px-2 py-2">{units}</td>
