@@ -16,6 +16,7 @@ import { EntityDeleteButton, EntityEditButton } from "@/components/ui/entity-edi
 import { auditChange, diffFields, requireReauthWhen } from "@/lib/entity-guard";
 import type { ActionResult } from "@/components/ui/editable-row";
 import { EntityLink } from "@/components/ui/entity-link";
+import { withErrorLog } from "@/lib/error-log";
 
 const ACCESSORY_CATEGORY_ROUTES: Record<string, string> = {
   Charger: "/items/chargers",
@@ -49,37 +50,38 @@ export default async function ExpensesPage({ searchParams }: { searchParams: { s
 
   async function createExpense(formData: FormData) {
     "use server";
+    return withErrorLog("expenses: createExpense", formData, async () => {
+      const category = String(formData.get("category") || "").trim();
+      const description = String(formData.get("description") || "").trim() || null;
+      const amount = Number(formData.get("amount") || 0);
+      const expenseDate = String(formData.get("expenseDate") || "").trim();
+      const phoneId = String(formData.get("phoneId") || "").trim() || null;
+      const accessoryId = String(formData.get("accessoryId") || "").trim() || null;
 
-    const category = String(formData.get("category") || "").trim();
-    const description = String(formData.get("description") || "").trim() || null;
-    const amount = Number(formData.get("amount") || 0);
-    const expenseDate = String(formData.get("expenseDate") || "").trim();
-    const phoneId = String(formData.get("phoneId") || "").trim() || null;
-    const accessoryId = String(formData.get("accessoryId") || "").trim() || null;
+      if (!category || !expenseDate) return;
 
-    if (!category || !expenseDate) return;
+      let receiptUrl: string | null = null;
+      const receiptFile = formData.get("receiptFile");
+      if (receiptFile instanceof File && receiptFile.size > 0) {
+        const key = buildKey("expenses", receiptFile.name);
+        await uploadFile(Buffer.from(await receiptFile.arrayBuffer()), key, receiptFile.type || "application/octet-stream");
+        receiptUrl = key;
+      }
 
-    let receiptUrl: string | null = null;
-    const receiptFile = formData.get("receiptFile");
-    if (receiptFile instanceof File && receiptFile.size > 0) {
-      const key = buildKey("expenses", receiptFile.name);
-      await uploadFile(Buffer.from(await receiptFile.arrayBuffer()), key, receiptFile.type || "application/octet-stream");
-      receiptUrl = key;
-    }
+      await prisma.expense.create({
+        data: {
+          category,
+          description,
+          amount,
+          expenseDate: new Date(expenseDate),
+          receiptUrl,
+          phoneId,
+          accessoryId,
+        },
+      });
 
-    await prisma.expense.create({
-      data: {
-        category,
-        description,
-        amount,
-        expenseDate: new Date(expenseDate),
-        receiptUrl,
-        phoneId,
-        accessoryId,
-      },
+      revalidatePath("/expenses");
     });
-
-    revalidatePath("/expenses");
   }
 
   // Category/description are non-sensitive; amount and date change the books, so editing them

@@ -28,6 +28,7 @@ import { createPhoneExpense, expenseCategories, listPhoneExpenses } from "@/lib/
 import { GradeBadge, SpecChips, StatusPill } from "@/components/ui/spec-chips";
 import { Boxes, LineChart, Plus, Search, Smartphone, Wallet } from "lucide-react";
 import { EntityLink } from "@/components/ui/entity-link";
+import { withErrorLog } from "@/lib/error-log";
 
 type Props = { searchParams: { search?: string; filter?: string; view?: "list" | "grid"; page?: string; pageSize?: string; options?: "all" | "stock"; model?: string } };
 
@@ -200,38 +201,39 @@ export default async function PhonesPage({ searchParams }: Props) {
 
   async function createPhoneUnit(formData: FormData) {
     "use server";
+    return withErrorLog("items/phones: createPhoneUnit", formData, async () => {
+      const phoneVariantId = String(formData.get("phoneVariantId") || "");
+      const lotId = String(formData.get("lotId") || "");
+      const imei = String(formData.get("imei") || "").trim();
+      const purchasePrice = Number(formData.get("purchasePrice") || 0);
+      const wholesalePrice = Number(formData.get("wholesalePrice") || 0);
+      const retailPrice = Number(formData.get("retailPrice") || 0);
+      const gradeInput = String(formData.get("grade") || "");
+      const grade = (["A", "B", "C"].includes(gradeInput) ? gradeInput : null) as "A" | "B" | "C" | null;
+      const batteryHealthInput = String(formData.get("batteryHealth") || "").trim();
+      const batteryHealth = batteryHealthInput ? Math.max(0, Math.min(100, Number(batteryHealthInput))) : null;
+      const notes = String(formData.get("notes") || "").trim() || null;
 
-    const phoneVariantId = String(formData.get("phoneVariantId") || "");
-    const lotId = String(formData.get("lotId") || "");
-    const imei = String(formData.get("imei") || "").trim();
-    const purchasePrice = Number(formData.get("purchasePrice") || 0);
-    const wholesalePrice = Number(formData.get("wholesalePrice") || 0);
-    const retailPrice = Number(formData.get("retailPrice") || 0);
-    const gradeInput = String(formData.get("grade") || "");
-    const grade = (["A", "B", "C"].includes(gradeInput) ? gradeInput : null) as "A" | "B" | "C" | null;
-    const batteryHealthInput = String(formData.get("batteryHealth") || "").trim();
-    const batteryHealth = batteryHealthInput ? Math.max(0, Math.min(100, Number(batteryHealthInput))) : null;
-    const notes = String(formData.get("notes") || "").trim() || null;
+      if (!phoneVariantId || !lotId || !imei) return;
+      // Only live units count — an IMEI from a deleted unit may be registered again.
+      if (await prisma.phone.findFirst({ where: { imei, deletedAt: null }, select: { id: true } })) return;
 
-    if (!phoneVariantId || !lotId || !imei) return;
-    // Only live units count — an IMEI from a deleted unit may be registered again.
-    if (await prisma.phone.findFirst({ where: { imei, deletedAt: null }, select: { id: true } })) return;
+      await prisma.phone.create({
+        data: {
+          phoneVariantId,
+          lotId,
+          imei,
+          purchasePrice,
+          wholesalePrice,
+          retailPrice,
+          grade,
+          batteryHealth,
+          notes,
+        },
+      });
 
-    await prisma.phone.create({
-      data: {
-        phoneVariantId,
-        lotId,
-        imei,
-        purchasePrice,
-        wholesalePrice,
-        retailPrice,
-        grade,
-        batteryHealth,
-        notes,
-      },
+      revalidatePath("/items/phones");
     });
-
-    revalidatePath("/items/phones");
   }
 
   async function createLotDependency(formData: FormData) {

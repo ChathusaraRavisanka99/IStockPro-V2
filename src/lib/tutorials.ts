@@ -257,6 +257,19 @@ export const TUTORIALS: Tutorial[] = [
     tips: ["After 30 days records are removed permanently — unless sales history still needs them."],
   },
   {
+    id: "errorLog",
+    title: "Error Log",
+    path: "/error-log",
+    access: "Admins and managers",
+    summary: "Every crash or failed save, recorded automatically with what was happening at the time.",
+    steps: [
+      { title: "What gets recorded", body: "Failed saves (sales, payments, lots, quotations, returns, expenses), page crashes and browser errors — with the user, page, time, how long it ran, a safe summary of the submitted data (passwords are never stored) and the technical details." },
+      { title: "Find a problem", body: "Open errors are listed first; repeats of the same failure are grouped with a ×count. Expand Details for developers to see the submitted data and stack trace." },
+      { title: "Match a report", body: "When something fails, the screen shows a reference (e.g. 4PIAGTKW) — the same reference appears in the error message here." },
+      { title: "Hand off and close", body: "Export JSON downloads the open errors for a developer. Once fixed, Mark resolved (with a note); it can be reopened if it happens again." },
+    ],
+  },
+  {
     id: "settings",
     title: "Settings",
     path: "/settings",
@@ -303,6 +316,7 @@ const ROUTES: [RegExp, string][] = [
   [/^\/reports/, "reports"],
   [/^\/recycle-bin/, "recycleBin"],
   [/^\/settings/, "settings"],
+  [/^\/error-log/, "errorLog"],
   [/^\/help/, "help"],
 ];
 

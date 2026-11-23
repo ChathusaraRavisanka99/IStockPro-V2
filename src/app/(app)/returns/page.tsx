@@ -8,6 +8,7 @@ import { parsePage, parsePageSize } from "@/lib/pagination";
 import { ReturnForm } from "@/components/sales/return-form";
 import { formatMoney } from "@/lib/currency";
 import { formatPhoneName } from "@/lib/format-item-name";
+import { withErrorLog } from "@/lib/error-log";
 
 export default async function ReturnsPage({ searchParams }: { searchParams: { search?: string; view?: "list" | "grid"; page?: string; pageSize?: string } }) {
   const search = searchParams.search?.trim() || "";
@@ -60,68 +61,69 @@ export default async function ReturnsPage({ searchParams }: { searchParams: { se
 
   async function createReturn(formData: FormData) {
     "use server";
+    return withErrorLog("returns: createReturn", formData, async () => {
+      const saleId = String(formData.get("saleId") || "");
+      const saleItemId = String(formData.get("saleItemId") || "") || null;
+      const reason = String(formData.get("reason") || "").trim() || null;
+      const condition = String(formData.get("condition") || "Resalable") as "Resalable" | "Repairable" | "Damaged";
+      const requestedQuantity = Number(formData.get("quantity") || 1);
+      const totalCredit = Number(formData.get("totalCredit") || 0);
+      const now = Date.now();
 
-    const saleId = String(formData.get("saleId") || "");
-    const saleItemId = String(formData.get("saleItemId") || "") || null;
-    const reason = String(formData.get("reason") || "").trim() || null;
-    const condition = String(formData.get("condition") || "Resalable") as "Resalable" | "Repairable" | "Damaged";
-    const requestedQuantity = Number(formData.get("quantity") || 1);
-    const totalCredit = Number(formData.get("totalCredit") || 0);
-    const now = Date.now();
+      if (!saleId) return;
 
-    if (!saleId) return;
+      // Re-validate against the live remaining-returnable quantity — never trust a client-submitted
+      // quantity for an inventory-affecting write.
+      const saleItem = saleItemId
+        ? await prisma.saleItem.findUnique({ where: { id: saleItemId }, include: { returnItems: { select: { quantity: true } } } })
+        : null;
+      const remaining = saleItem ? saleItem.quantity - saleItem.returnItems.reduce((sum, item) => sum + item.quantity, 0) : 0;
+      const quantity = saleItem ? Math.max(0, Math.min(Math.round(requestedQuantity) || 0, remaining)) : Math.max(1, Math.round(requestedQuantity) || 1);
+      if (saleItem && quantity <= 0) return;
 
-    // Re-validate against the live remaining-returnable quantity — never trust a client-submitted
-    // quantity for an inventory-affecting write.
-    const saleItem = saleItemId
-      ? await prisma.saleItem.findUnique({ where: { id: saleItemId }, include: { returnItems: { select: { quantity: true } } } })
-      : null;
-    const remaining = saleItem ? saleItem.quantity - saleItem.returnItems.reduce((sum, item) => sum + item.quantity, 0) : 0;
-    const quantity = saleItem ? Math.max(0, Math.min(Math.round(requestedQuantity) || 0, remaining)) : Math.max(1, Math.round(requestedQuantity) || 1);
-    if (saleItem && quantity <= 0) return;
+      const createdReturn = await prisma.return.create({
+        data: {
+          saleId,
+          returnNumber: `RET-${now}`,
+          reason,
+          items: saleItem
+            ? {
+                create: [
+                  {
+                    saleItemId: saleItem.id,
+                    phoneId: saleItem.phoneId,
+                    accessoryId: saleItem.accessoryId,
+                    quantity,
+                    condition,
+                    lineAmount: totalCredit,
+                  },
+                ],
+              }
+            : undefined,
+        },
+      });
 
-    const createdReturn = await prisma.return.create({
-      data: {
-        saleId,
-        returnNumber: `RET-${now}`,
-        reason,
-        items: saleItem
-          ? {
-              create: [
-                {
-                  saleItemId: saleItem.id,
-                  phoneId: saleItem.phoneId,
-                  accessoryId: saleItem.accessoryId,
-                  quantity,
-                  condition,
-                  lineAmount: totalCredit,
-                },
-              ],
-            }
-          : undefined,
-      },
+      await prisma.returnInvoice.create({
+        data: {
+          returnId: createdReturn.id,
+          creditNoteNumber: `CRN-${now}`,
+          totalCredit,
+        },
+      });
+
+      if (saleItem?.phoneId) {
+        await prisma.phone.update({ where: { id: saleItem.phoneId }, data: { status: "Returned" } });
+      } else if (saleItem?.accessoryId) {
+        await prisma.accessory.update({ where: { id: saleItem.accessoryId }, data: { quantity: { increment: quantity }, soldQuantity: { decrement: quantity } } });
+      }
+
+      revalidatePath("/returns");
+      revalidatePath("/items/phones");
+      revalidatePath("/items/chargers");
+      revalidatePath("/items/cables");
+      revalidatePath("/items/other");
+      revalidatePath("/dashboard");
     });
-
-    await prisma.returnInvoice.create({
-      data: {
-        returnId: createdReturn.id,
-        creditNoteNumber: `CRN-${now}`,
-        totalCredit,
-      },
-    });
-
-    if (saleItem?.phoneId) {
-      await prisma.phone.update({ where: { id: saleItem.phoneId }, data: { status: "Returned" } });
-    } else if (saleItem?.accessoryId) {
-      await prisma.accessory.update({ where: { id: saleItem.accessoryId }, data: { quantity: { increment: quantity }, soldQuantity: { decrement: quantity } } });
-    }
-
-    revalidatePath("/returns");
-    revalidatePath("/items/phones");
-    revalidatePath("/items/chargers");
-    revalidatePath("/items/cables");
-    revalidatePath("/items/other");
-    revalidatePath("/dashboard");
   }
 
   async function createSaleDependency(formData: FormData) {

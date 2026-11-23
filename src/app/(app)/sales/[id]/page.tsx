@@ -12,6 +12,7 @@ import { formatMoney } from "@/lib/currency";
 import { formatSaleItemName } from "@/lib/format-item-name";
 import { uploadFile, getSignedDownloadUrl, isStorageKey, buildKey } from "@/lib/storage";
 import { EntityLink } from "@/components/ui/entity-link";
+import { withErrorLog } from "@/lib/error-log";
 
 export default async function SaleDetailPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -41,39 +42,40 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
 
   async function recordPayment(formData: FormData) {
     "use server";
+    return withErrorLog("sales/detail: recordPayment", formData, async () => {
+      if (!invoice) return;
+      const amount = Number(formData.get("amount") || 0);
+      const methodInput = String(formData.get("method") || "Cash");
+      const method = (["Cash", "Card", "BankTransfer", "Cheque", "UPI", "Other"].includes(methodInput) ? methodInput : "Cash") as "Cash" | "Card" | "BankTransfer" | "Cheque" | "UPI" | "Other";
+      const reference = String(formData.get("reference") || "").trim() || null;
+      const paidAtInput = String(formData.get("paidAt") || "").trim();
+      const paidAt = paidAtInput ? new Date(paidAtInput) : new Date();
 
-    if (!invoice) return;
-    const amount = Number(formData.get("amount") || 0);
-    const methodInput = String(formData.get("method") || "Cash");
-    const method = (["Cash", "Card", "BankTransfer", "Cheque", "UPI", "Other"].includes(methodInput) ? methodInput : "Cash") as "Cash" | "Card" | "BankTransfer" | "Cheque" | "UPI" | "Other";
-    const reference = String(formData.get("reference") || "").trim() || null;
-    const paidAtInput = String(formData.get("paidAt") || "").trim();
-    const paidAt = paidAtInput ? new Date(paidAtInput) : new Date();
+      if (!amount || amount <= 0) return;
 
-    if (!amount || amount <= 0) return;
+      let proofImageUrl: string | null = null;
+      const proofFile = formData.get("proofFile");
+      if (proofFile instanceof File && proofFile.size > 0) {
+        const key = buildKey(`payments/${invoice.id}`, proofFile.name);
+        await uploadFile(Buffer.from(await proofFile.arrayBuffer()), key, proofFile.type || "application/octet-stream");
+        proofImageUrl = key;
+      }
 
-    let proofImageUrl: string | null = null;
-    const proofFile = formData.get("proofFile");
-    if (proofFile instanceof File && proofFile.size > 0) {
-      const key = buildKey(`payments/${invoice.id}`, proofFile.name);
-      await uploadFile(Buffer.from(await proofFile.arrayBuffer()), key, proofFile.type || "application/octet-stream");
-      proofImageUrl = key;
-    }
+      await prisma.$transaction(async (tx) => {
+        await tx.payment.create({ data: { invoiceId: invoice.id, amount, method, reference, paidAt, proofImageUrl } });
 
-    await prisma.$transaction(async (tx) => {
-      await tx.payment.create({ data: { invoiceId: invoice.id, amount, method, reference, paidAt, proofImageUrl } });
+        const currentInvoice = await tx.invoice.findUnique({ where: { id: invoice.id } });
+        if (!currentInvoice) return;
 
-      const currentInvoice = await tx.invoice.findUnique({ where: { id: invoice.id } });
-      if (!currentInvoice) return;
+        const newPaid = Number(currentInvoice.paidAmount) + amount;
+        const newStatus = newPaid <= 0 ? "Unpaid" : newPaid >= Number(currentInvoice.totalAmount) ? "Paid" : "PartiallyPaid";
+        await tx.invoice.update({ where: { id: invoice.id }, data: { paidAmount: newPaid, status: newStatus } });
+      });
 
-      const newPaid = Number(currentInvoice.paidAmount) + amount;
-      const newStatus = newPaid <= 0 ? "Unpaid" : newPaid >= Number(currentInvoice.totalAmount) ? "Paid" : "PartiallyPaid";
-      await tx.invoice.update({ where: { id: invoice.id }, data: { paidAmount: newPaid, status: newStatus } });
+      revalidatePath(`/sales/${params.id}`);
+      revalidatePath("/sales");
+      revalidatePath("/reports");
     });
-
-    revalidatePath(`/sales/${params.id}`);
-    revalidatePath("/sales");
-    revalidatePath("/reports");
   }
 
   const statusColor =

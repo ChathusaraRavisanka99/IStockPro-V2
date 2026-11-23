@@ -14,6 +14,7 @@ import { formatMoney } from "@/lib/currency";
 import { formatPhoneName, formatVariantSpecs } from "@/lib/format-item-name";
 import { commentsForItems, type ItemCommentRow } from "@/lib/item-comments";
 import { EntityLink } from "@/components/ui/entity-link";
+import { withErrorLog } from "@/lib/error-log";
 
 type CartLine = { key: string; unitPrice: number; quantity: number };
 
@@ -64,106 +65,131 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
 
   async function createSale(formData: FormData) {
     "use server";
+    return withErrorLog("sales: createSale", formData, async () => {
+      const customerId = String(formData.get("customerId") || "").trim() || null;
+      const saleTypeInput = String(formData.get("saleType") || "Retail");
+      const saleType = (saleTypeInput === "Wholesale" ? "Wholesale" : "Retail") as "Retail" | "Wholesale";
+      const taxTypeInput = String(formData.get("taxType") || "Amount");
+      const taxType = (taxTypeInput === "Percent" ? "Percent" : "Amount") as "Percent" | "Amount";
+      const taxValue = Number(formData.get("taxValue") || 0);
+      const handlingFee = Number(formData.get("handlingFee") || 0);
+      const discount = Number(formData.get("discount") || 0);
 
-    const customerId = String(formData.get("customerId") || "").trim() || null;
-    const saleTypeInput = String(formData.get("saleType") || "Retail");
-    const saleType = (saleTypeInput === "Wholesale" ? "Wholesale" : "Retail") as "Retail" | "Wholesale";
-    const taxTypeInput = String(formData.get("taxType") || "Amount");
-    const taxType = (taxTypeInput === "Percent" ? "Percent" : "Amount") as "Percent" | "Amount";
-    const taxValue = Number(formData.get("taxValue") || 0);
-    const handlingFee = Number(formData.get("handlingFee") || 0);
-    const discount = Number(formData.get("discount") || 0);
-
-    let cartLines: CartLine[] = [];
-    try {
-      cartLines = JSON.parse(String(formData.get("cartItems") || "[]"));
-    } catch {
-      cartLines = [];
-    }
-
-    const now = Date.now();
-
-    await prisma.$transaction(async (tx) => {
-      // Re-validate quantities against live stock inside the transaction — never trust
-      // client-submitted quantities for inventory-affecting writes. Phones are serialized
-      // (one unit per record) so quantity is always forced to 1; accessories are capped at
-      // whatever is actually still in stock at submit time.
-      const resolvedLines: { itemType: "phone" | "accessory"; itemId: string; quantity: number; unitPrice: number }[] = [];
-      for (const line of cartLines) {
-        const [itemType, itemId] = line.key.split(":");
-        if (itemType === "phone") {
-          const phone = await tx.phone.findUnique({ where: { id: itemId } });
-          if (!phone || phone.status !== "InStock") continue;
-          resolvedLines.push({ itemType: "phone", itemId, quantity: 1, unitPrice: line.unitPrice });
-        } else if (itemType === "accessory") {
-          const accessory = await tx.accessory.findUnique({ where: { id: itemId } });
-          if (!accessory) continue;
-          const quantity = Math.max(0, Math.min(Math.round(line.quantity) || 0, accessory.quantity));
-          if (quantity <= 0) continue;
-          resolvedLines.push({ itemType: "accessory", itemId, quantity, unitPrice: line.unitPrice });
-        }
+      let cartLines: CartLine[] = [];
+      try {
+        cartLines = JSON.parse(String(formData.get("cartItems") || "[]"));
+      } catch {
+        cartLines = [];
       }
 
-      // A cart that resolves to nothing (never had items, or every line failed live-stock
-      // validation above) must not produce a sale + invoice — that's a phantom $0 record.
-      if (!resolvedLines.length) return;
+      const now = Date.now();
 
-      const subtotal = resolvedLines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
-      // Recompute the tax split from the server-validated subtotal — never trust a
-      // client-submitted tax amount, since quantities may have just been clamped above.
-      const taxPercent = taxType === "Percent" ? taxValue : subtotal > 0 ? (taxValue / subtotal) * 100 : 0;
-      const taxAmount = taxType === "Percent" ? (subtotal * taxValue) / 100 : taxValue;
-      const totalAmount = subtotal + taxAmount + handlingFee - discount;
+      // The whole sale is one transaction. It used to look up and update every cart line one by
+      // one (~2 round trips per phone); with the hosted database's latency a 10+ phone bill ran
+      // past Prisma's 5 s interactive-transaction limit and crashed. Stock is now read in two
+      // queries, phones are marked Sold in one guarded updateMany, and the limit is raised.
+      await prisma.$transaction(async (tx) => {
+        // Re-validate quantities against live stock inside the transaction — never trust
+        // client-submitted quantities for inventory-affecting writes. Phones are serialized
+        // (one unit per record) so quantity is always forced to 1; accessories are capped at
+        // whatever is actually still in stock at submit time.
+        const parsedLines = cartLines.map((line) => {
+          const [itemType, itemId] = line.key.split(":");
+          return { itemType, itemId, line };
+        });
+        const phoneIds = Array.from(new Set(parsedLines.filter((entry) => entry.itemType === "phone").map((entry) => entry.itemId)));
+        const accessoryIds = Array.from(new Set(parsedLines.filter((entry) => entry.itemType === "accessory").map((entry) => entry.itemId)));
+        const [livePhones, liveAccessories] = await Promise.all([
+          phoneIds.length ? tx.phone.findMany({ where: { id: { in: phoneIds }, status: "InStock", deletedAt: null }, select: { id: true } }) : Promise.resolve([]),
+          accessoryIds.length ? tx.accessory.findMany({ where: { id: { in: accessoryIds }, deletedAt: null }, select: { id: true, quantity: true } }) : Promise.resolve([]),
+        ]);
+        const inStockPhones = new Set(livePhones.map((phone) => phone.id));
+        const accessoryStock = new Map(liveAccessories.map((item) => [item.id, item.quantity]));
 
-      const sale = await tx.sale.create({
-        data: {
-          saleNumber: `SAL-${now}`,
-          customerId,
-          saleType,
-          subtotal,
-          taxType,
-          taxPercent,
-          taxAmount,
-          handlingFee,
-          discount,
-          totalAmount,
-          createdById: session?.user?.id || "system",
-          items: {
-            create: resolvedLines.map((line) => ({
-              phoneId: line.itemType === "phone" ? line.itemId : null,
-              accessoryId: line.itemType === "accessory" ? line.itemId : null,
-              quantity: line.quantity,
-              unitPrice: line.unitPrice,
-              lineTotal: line.unitPrice * line.quantity,
-            })),
+        const resolvedLines: { itemType: "phone" | "accessory"; itemId: string; quantity: number; unitPrice: number }[] = [];
+        const usedPhones = new Set<string>();
+        for (const { itemType, itemId, line } of parsedLines) {
+          if (itemType === "phone") {
+            if (!inStockPhones.has(itemId) || usedPhones.has(itemId)) continue;
+            usedPhones.add(itemId);
+            resolvedLines.push({ itemType: "phone", itemId, quantity: 1, unitPrice: line.unitPrice });
+          } else if (itemType === "accessory") {
+            const available = accessoryStock.get(itemId);
+            if (available === undefined) continue;
+            const quantity = Math.max(0, Math.min(Math.round(line.quantity) || 0, available));
+            if (quantity <= 0) continue;
+            accessoryStock.set(itemId, available - quantity);
+            resolvedLines.push({ itemType: "accessory", itemId, quantity, unitPrice: line.unitPrice });
+          }
+        }
+
+        // A cart that resolves to nothing (never had items, or every line failed live-stock
+        // validation above) must not produce a sale + invoice — that's a phantom $0 record.
+        if (!resolvedLines.length) return;
+
+        const subtotal = resolvedLines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+        // Recompute the tax split from the server-validated subtotal — never trust a
+        // client-submitted tax amount, since quantities may have just been clamped above.
+        const taxPercent = taxType === "Percent" ? taxValue : subtotal > 0 ? (taxValue / subtotal) * 100 : 0;
+        const taxAmount = taxType === "Percent" ? (subtotal * taxValue) / 100 : taxValue;
+        const totalAmount = subtotal + taxAmount + handlingFee - discount;
+
+        const sale = await tx.sale.create({
+          data: {
+            saleNumber: `SAL-${now}`,
+            customerId,
+            saleType,
+            subtotal,
+            taxType,
+            taxPercent,
+            taxAmount,
+            handlingFee,
+            discount,
+            totalAmount,
+            createdById: session?.user?.id || "system",
+            items: {
+              create: resolvedLines.map((line) => ({
+                phoneId: line.itemType === "phone" ? line.itemId : null,
+                accessoryId: line.itemType === "accessory" ? line.itemId : null,
+                quantity: line.quantity,
+                unitPrice: line.unitPrice,
+                lineTotal: line.unitPrice * line.quantity,
+              })),
+            },
           },
-        },
-      });
+        });
 
-      await tx.invoice.create({
-        data: {
-          saleId: sale.id,
-          invoiceNumber: `INV-${now}`,
-          totalAmount,
-          status: "Unpaid",
-        },
-      });
+        await tx.invoice.create({
+          data: {
+            saleId: sale.id,
+            invoiceNumber: `INV-${now}`,
+            totalAmount,
+            status: "Unpaid",
+          },
+        });
 
-      for (const line of resolvedLines) {
-        if (line.itemType === "phone") {
-          await tx.phone.update({ where: { id: line.itemId }, data: { status: "Sold" } });
-        } else {
-          await tx.accessory.update({ where: { id: line.itemId }, data: { quantity: { decrement: line.quantity }, soldQuantity: { increment: line.quantity } } });
+        const soldPhoneIds = resolvedLines.filter((line) => line.itemType === "phone").map((line) => line.itemId);
+        if (soldPhoneIds.length) {
+          // Guarded by status so a unit sold elsewhere a moment ago can't be sold twice.
+          const marked = await tx.phone.updateMany({ where: { id: { in: soldPhoneIds }, status: "InStock" }, data: { status: "Sold" } });
+          if (marked.count !== soldPhoneIds.length) {
+            throw new Error(`Stock changed while saving: ${soldPhoneIds.length - marked.count} phone(s) in this bill were sold or moved by someone else. Nothing was saved — reload and try again.`);
+          }
         }
-      }
-    });
+        for (const line of resolvedLines) {
+          if (line.itemType === "accessory") {
+            await tx.accessory.update({ where: { id: line.itemId }, data: { quantity: { decrement: line.quantity }, soldQuantity: { increment: line.quantity } } });
+          }
+        }
+      }, { maxWait: 10_000, timeout: 30_000 });
 
-    revalidatePath("/sales");
-    revalidatePath("/items/phones");
-    revalidatePath("/items/chargers");
-    revalidatePath("/items/cables");
-    revalidatePath("/items/other");
-    revalidatePath("/dashboard");
+      revalidatePath("/sales");
+      revalidatePath("/items/phones");
+      revalidatePath("/items/chargers");
+      revalidatePath("/items/cables");
+      revalidatePath("/items/other");
+      revalidatePath("/dashboard");
+    });
   }
 
   async function createCustomerDependency(formData: FormData) {
