@@ -11,6 +11,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { canViewCost } from "@/lib/rbac";
 import { LotAnalytics, type LotAnalyticsRow, type LotSort } from "@/components/dashboard/lot-analytics";
+import { EntityLink } from "@/components/ui/entity-link";
 
 const LOT_SORTS: LotSort[] = ["recent", "sell-through", "stock", "outstanding", "age"];
 
@@ -87,6 +88,45 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
 
   const insights = await getDashboardInsights();
 
+  // Money still owed on sales: every unpaid / part-paid invoice on a non-voided sale.
+  const openInvoices = await prisma.invoice.findMany({
+    where: { status: { in: ["Unpaid", "PartiallyPaid"] }, sale: { status: { not: "Voided" } } },
+    select: {
+      invoiceNumber: true,
+      totalAmount: true,
+      paidAmount: true,
+      dueDate: true,
+      sale: { select: { id: true, saleNumber: true, saleDate: true, customerId: true, customer: { select: { name: true, phone: true } } } },
+    },
+  });
+  const unpaidSales = openInvoices
+    .map((invoice) => ({
+      saleId: invoice.sale.id,
+      saleNumber: invoice.sale.saleNumber,
+      customerId: invoice.sale.customerId,
+      customer: invoice.sale.customer?.name ?? null,
+      paid: Number(invoice.paidAmount),
+      due: Math.max(0, Number(invoice.totalAmount) - Number(invoice.paidAmount)),
+      ageDays: Math.max(0, Math.floor((Date.now() - invoice.sale.saleDate.getTime()) / 86_400_000)),
+      overdue: Boolean(invoice.dueDate && invoice.dueDate.getTime() < Date.now()),
+    }))
+    .filter((row) => row.due > 0.004)
+    .sort((a, b) => b.ageDays - a.ageDays || b.due - a.due);
+  const unpaidTotal = unpaidSales.reduce((sum, row) => sum + row.due, 0);
+  const debtorMap = new Map<string, { customerId: string | null; name: string; phone: string | null; due: number; sales: number; oldestDays: number }>();
+  for (const invoice of openInvoices) {
+    const due = Math.max(0, Number(invoice.totalAmount) - Number(invoice.paidAmount));
+    if (due <= 0.004) continue;
+    const key = invoice.sale.customerId ?? "walk-in";
+    const entry = debtorMap.get(key) ?? { customerId: invoice.sale.customerId, name: invoice.sale.customer?.name ?? "Walk-in (no customer)", phone: invoice.sale.customer?.phone ?? null, due: 0, sales: 0, oldestDays: 0 };
+    entry.due += due;
+    entry.sales += 1;
+    entry.oldestDays = Math.max(entry.oldestDays, Math.floor((Date.now() - invoice.sale.saleDate.getTime()) / 86_400_000));
+    debtorMap.set(key, entry);
+  }
+  const debtors = Array.from(debtorMap.values()).sort((a, b) => b.due - a.due);
+  const debtorMax = Math.max(1, ...debtors.map((row) => row.due));
+
   const lowStockPhoneModels = phoneModels
     .map((model) => ({ id: model.id, label: `${model.brand} ${model.modelName}`, inStock: model.variants.reduce((acc, variant) => acc + variant._count.phones, 0), threshold: model.lowStockThreshold }))
     .filter((model) => model.inStock <= model.threshold)
@@ -116,7 +156,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
       : []),
     { id: "in-stock-phones", title: "Phones in stock", value: String(inStockPhones), icon: "phones", helper: `Retail value ${formatMoney(insights.stockRetailValue)}`, href: "/items/phones?filter=InStock" },
     { id: "low-stock", title: "Low stock alerts", value: String(lowStockTotal), icon: "alert", attention: lowStockTotal > 0, helper: lowStockTotal ? "Models/accessories at or below threshold" : "All stock above thresholds", href: "#low-stock" },
-    { id: "pending-invoices", title: "Invoices pending", value: String(pendingInvoices), icon: "invoices", attention: pendingInvoices > 0, helper: "Unpaid or partially paid", href: "/sales?filter2=Unpaid" },
+    { id: "pending-invoices", title: "Invoices pending", value: String(pendingInvoices), icon: "invoices", attention: pendingInvoices > 0, helper: unpaidTotal > 0 ? `${formatMoney(unpaidTotal)} still owed` : "Unpaid or partially paid", href: "#unpaid" },
     { id: "sales-count", title: "Completed sales", value: String(completedSales), icon: "receipt", helper: "All time", href: "/sales" },
     { id: "returns-count", title: "Returns", value: String(returnsCount), icon: "returns", helper: "All recorded returns", href: "/returns" },
     ...(showCost ? [{ id: "inventory-value", title: "Inventory cost", value: formatMoney(Number(inventoryValue._sum.purchasePrice ?? 0)), icon: "value" as const, helper: "Purchase cost of in-stock phones" }] : []),
@@ -174,7 +214,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
             <SalesTrendChart data={insights.trend} showProfit={showCost} />
           </DataTableShell>
         </div>
-        <DataTableShell title="Top sellers" help="Best-selling phone variants and accessories over the last 30 days, by revenue.">
+        <DataTableShell title="Top sellers" help="Best-selling phone variants and accessories over the last 30 days, by revenue." toolbar={<Link href="/reports" className="text-sm text-slate-600 underline">Reports</Link>}>
           {insights.topSellers.length ? (
             <ol className="grid gap-3 text-sm">
               {insights.topSellers.map((row, index) => (
@@ -203,13 +243,91 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
 
       <LotAnalytics lots={lotRows} showCost={showCost} sort={lotSort} />
 
+      <div id="unpaid" className="mt-6 grid scroll-mt-6 gap-4 xl:grid-cols-2">
+        <DataTableShell
+          title={`Unpaid sales${unpaidSales.length ? ` (${unpaidSales.length})` : ""}`}
+          help="Sales whose invoice is unpaid or only partly paid (voided sales excluded), oldest first. Click the sale number for a quick look; open it from there to record a payment."
+          toolbar={
+            <>
+              <span className="text-sm text-slate-600">Owed <span className="font-semibold text-slate-900">{formatMoney(unpaidTotal)}</span></span>
+              <Link href="/sales?filter2=Unpaid" className="text-sm text-slate-600 underline">All</Link>
+            </>
+          }
+        >
+          {unpaidSales.length ? (
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <th className="px-2 py-2">Sale</th>
+                  <th className="px-2 py-2">Customer</th>
+                  <th className="px-2 py-2 text-right">Paid</th>
+                  <th className="px-2 py-2 text-right">Due</th>
+                  <th className="px-2 py-2 text-right">Age</th>
+                </tr>
+              </thead>
+              <tbody>
+                {unpaidSales.slice(0, 10).map((row) => (
+                  <tr key={row.saleId} className="border-b border-slate-100">
+                    <td className="whitespace-nowrap px-2 py-2 font-medium"><EntityLink kind="sale" id={row.saleId}>{row.saleNumber}</EntityLink></td>
+                    <td className="px-2 py-2">{row.customerId ? <EntityLink kind="customer" id={row.customerId}>{row.customer ?? "Customer"}</EntityLink> : <span className="text-slate-500">Walk-in</span>}</td>
+                    <td className="whitespace-nowrap px-2 py-2 text-right text-slate-600" data-sort={row.paid}>{formatMoney(row.paid)}</td>
+                    <td className="whitespace-nowrap px-2 py-2 text-right font-semibold text-slate-900" data-sort={row.due}>{formatMoney(row.due)}</td>
+                    <td className="whitespace-nowrap px-2 py-2 text-right" data-sort={row.ageDays}>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${row.overdue || row.ageDays > 30 ? "bg-red-50 text-red-700" : row.ageDays > 7 ? "bg-amber-50 text-amber-800" : "bg-slate-100 text-slate-700"}`}>
+                        {row.ageDays}d{row.overdue ? " · overdue" : ""}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="text-sm text-slate-500">✓ Every sale is fully paid.</p>
+          )}
+          {unpaidSales.length > 10 ? (
+            <p className="mt-2 text-xs text-slate-500">
+              Showing the 10 oldest of {unpaidSales.length}. <Link href="/sales?filter2=Unpaid" className="underline">See all unpaid sales</Link>
+            </p>
+          ) : null}
+        </DataTableShell>
+
+        <DataTableShell
+          title={`Customers who owe${debtors.length ? ` (${debtors.length})` : ""}`}
+          help="Customers with unpaid or part-paid sales, biggest balance first. Click a name to see the customer and their contact details."
+          toolbar={<Link href="/customers" className="text-sm text-slate-600 underline">Customers</Link>}
+        >
+          {debtors.length ? (
+            <ul className="grid gap-2.5 text-sm">
+              {debtors.slice(0, 10).map((row) => (
+                <li key={row.customerId ?? "walk-in"}>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0 truncate">
+                      {row.customerId ? <EntityLink kind="customer" id={row.customerId}>{row.name}</EntityLink> : <span className="text-slate-600">{row.name}</span>}
+                      <span className="ml-1.5 text-xs text-slate-500">
+                        {row.sales} sale{row.sales === 1 ? "" : "s"} · oldest {row.oldestDays}d{row.phone ? ` · ${row.phone}` : ""}
+                      </span>
+                    </span>
+                    <span className="shrink-0 font-semibold text-slate-900">{formatMoney(row.due)}</span>
+                  </div>
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <div className={`h-full rounded-full ${row.oldestDays > 30 ? "bg-[#e5484d]" : "bg-[#f5a524]"}`} style={{ width: `${(row.due / debtorMax) * 100}%` }} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-slate-500">✓ No customer owes anything.</p>
+          )}
+        </DataTableShell>
+      </div>
+
       <div className="mt-6 grid gap-4 xl:grid-cols-3">
         <DataTableShell title="Recent sales" help="The latest completed sales." toolbar={<Link href="/sales" className="text-sm text-slate-600 underline">All sales</Link>}>
           {insights.recentSales.length ? (
             <ul className="divide-y divide-slate-100 text-sm">
               {insights.recentSales.map((sale) => (
                 <li key={sale.id}>
-                  <Link href={`/sales/${sale.id}`} className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-slate-50">
+                  <Link href={`/sales/${sale.id}`} className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-slate-50">
                     <span className="min-w-0">
                       <span className="block truncate font-medium text-slate-900">{sale.customer}</span>
                       <span className="text-xs text-slate-500">
@@ -227,14 +345,14 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
           )}
         </DataTableShell>
 
-        <DataTableShell title="Most stock on hand" help="Phone models with the most in-stock units right now.">
+        <DataTableShell title="Most stock on hand" help="Phone models with the most in-stock units right now. Click a model for its details, or the number to list those units." toolbar={<Link href="/items/phone-catalog" className="text-sm text-slate-600 underline">Catalog</Link>}>
           {topStock.length ? (
             <ul className="grid gap-2.5 text-sm">
               {topStock.map((row) => (
                 <li key={row.id}>
                   <div className="flex justify-between gap-3">
-                    <span className="truncate text-slate-800">{row.label}</span>
-                    <span className="font-semibold text-slate-900">{row.inStock}</span>
+                    <span className="min-w-0 truncate text-slate-800"><EntityLink kind="model" id={row.id}>{row.label}</EntityLink></span>
+                    <Link href={`/items/phones?filter=InStock&model=${encodeURIComponent(row.label)}`} className="font-semibold text-slate-900 hover:underline" title="See these units">{row.inStock}</Link>
                   </div>
                   <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
                     <div className="h-full rounded-full bg-[#1baf7a]" style={{ width: `${(row.inStock / topStockMax) * 100}%` }} />
@@ -248,13 +366,13 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
         </DataTableShell>
 
         <div id="low-stock" className="scroll-mt-6">
-          <DataTableShell title={`Low stock watchlist${lowStockTotal ? ` (${lowStockTotal})` : ""}`} help="Phone models and accessories at or below their low-stock threshold — time to reorder. Most urgent first.">
+          <DataTableShell title={`Low stock watchlist${lowStockTotal ? ` (${lowStockTotal})` : ""}`} help="Phone models and accessories at or below their low-stock threshold — time to reorder. Most urgent first. Click a name to see its details." toolbar={<Link href="/lots" className="text-sm text-slate-600 underline">Lots</Link>}>
             {lowStockTotal ? (
               <ul className="grid gap-2 text-sm">
                 {[...lowStockPhoneModels.map((row) => ({ ...row, kind: "Phone" })), ...lowStockAccessories.map((row) => ({ ...row, kind: "Accessory" }))].map((row) => (
                   <li key={row.kind + row.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2">
                     <span className="min-w-0">
-                      <span className="block truncate text-slate-800">{row.label}</span>
+                      <span className="block truncate text-slate-800"><EntityLink kind={row.kind === "Phone" ? "model" : "accessory"} id={row.id}>{row.label}</EntityLink></span>
                       <span className="text-xs text-slate-500">{row.kind} · threshold {row.threshold}</span>
                     </span>
                     <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${row.inStock === 0 ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-800"}`}>
