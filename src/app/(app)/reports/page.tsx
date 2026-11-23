@@ -9,6 +9,9 @@ import { formatMoney } from "@/lib/currency";
 import { RevenueTrendChart } from "@/components/reports/revenue-trend-chart";
 import { SalesByItemChart } from "@/components/reports/sales-by-item-chart";
 import { InventoryValuationChart } from "@/components/reports/inventory-valuation-chart";
+import Link from "next/link";
+import { computeReportExtras } from "@/lib/report-extras";
+import { PeriodComparison, ReportBreakdowns } from "@/components/reports/report-breakdowns";
 
 const AGING_DAYS = 60;
 
@@ -43,7 +46,18 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
   }
 
   const { from, to } = parseRange(searchParams);
-  const data = await computeReportData(from, to);
+  const [data, extras] = await Promise.all([computeReportData(from, to), computeReportExtras(from, to)]);
+  const now = new Date();
+  const presets = [
+    { label: "Today", from: now, to: now },
+    { label: "Last 7 days", from: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6), to: now },
+    { label: "This month", from: new Date(now.getFullYear(), now.getMonth(), 1), to: now },
+    { label: "Last month", from: new Date(now.getFullYear(), now.getMonth() - 1, 1), to: new Date(now.getFullYear(), now.getMonth(), 0) },
+    { label: "Last 3 months", from: new Date(now.getFullYear(), now.getMonth() - 2, 1), to: now },
+    { label: "This year", from: new Date(now.getFullYear(), 0, 1), to: now },
+  ].map((preset) => ({ label: preset.label, from: toDateInputValue(preset.from), to: toDateInputValue(preset.to) }));
+  const fromValue = toDateInputValue(from);
+  const toValue = toDateInputValue(to);
   const { financial: f, inventory: inv, salesByItem, dailyRevenue } = data;
   const exportQuery = new URLSearchParams({ from: toDateInputValue(from), to: toDateInputValue(to) }).toString();
 
@@ -74,9 +88,32 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
           <button type="submit" className="btn btn-md btn-primary">Apply Range</button>
           <a href={`/api/reports/export?${exportQuery}`} className="btn btn-md btn-secondary">Download Report</a>
         </form>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {presets.map((preset) => (
+            <Link key={preset.label} href={`/reports?from=${preset.from}&to=${preset.to}`} className={`btn btn-sm ${preset.from === fromValue && preset.to === toValue ? "btn-primary" : "btn-secondary"}`}>
+              {preset.label}
+            </Link>
+          ))}
+        </div>
       </Card>
 
-      <h2 className="mb-2 mt-2 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-500">
+      <nav className="mb-4 flex flex-wrap gap-1.5 text-xs print:hidden" aria-label="Report sections">
+        {[
+          { href: "#overview", label: "Overview" },
+          { href: "#trend", label: "Trend & P&L" },
+          { href: "#breakdowns", label: "Sales breakdowns" },
+          { href: "#balances", label: "Receivables & payables" },
+          { href: "#inventory", label: "Inventory" },
+        ].map((link) => (
+          <a key={link.href} href={link.href} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-700 hover:bg-slate-50">
+            {link.label}
+          </a>
+        ))}
+      </nav>
+
+      <PeriodComparison comparison={extras.comparison} showCost />
+
+      <h2 id="overview" className="mb-2 mt-2 flex scroll-mt-6 items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-500">
         Financial Overview ({toDateInputValue(from)} to {toDateInputValue(to)})
         <InfoHelp size="sm" title="Financial Overview">
           Key totals for the selected date range: revenue, cost of goods sold, gross/net profit, expenses, taxes, and refunds. Net Profit is revenue minus COGS, returns, operating expenses, and taxes.
@@ -128,7 +165,7 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
         </Card>
       </div>
 
-      <Card className="mt-4">
+      <Card id="trend" className="mt-4 scroll-mt-6">
         <h3 className="mb-3 flex items-center gap-1.5 text-base font-semibold">
           Revenue &amp; Gross Profit Trend
           <InfoHelp size="sm" title="Revenue &amp; Gross Profit Trend">
@@ -193,7 +230,13 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
         </Card>
       </div>
 
-      <h2 className="mb-2 mt-6 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-500">
+      <h2 id="breakdowns" className="mb-2 mt-6 flex scroll-mt-6 items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-500">
+        Sales breakdowns ({fromValue} to {toValue})
+        <InfoHelp size="sm" title="Sales breakdowns">Where the revenue in the selected range came from: brands, models, customers, staff and sale type, plus cash collected by payment method and expenses by category.</InfoHelp>
+      </h2>
+      <ReportBreakdowns extras={extras} showCost fromValue={fromValue} toValue={toValue} />
+
+      <h2 id="balances" className="mb-2 mt-6 flex scroll-mt-6 items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-500">
         Receivables &amp; Payables (current)
         <InfoHelp size="sm" title="Receivables &amp; Payables">
           A live snapshot, not scoped to the date range above: what customers still owe you on unpaid/partial invoices, and what you still owe suppliers across lots that aren&apos;t fully paid off.
@@ -212,7 +255,7 @@ export default async function ReportsPage({ searchParams }: { searchParams?: { f
         </Card>
       </div>
 
-      <h2 className="mb-2 mt-6 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-500">
+      <h2 id="inventory" className="mb-2 mt-6 flex scroll-mt-6 items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-500">
         Inventory Valuation (current)
         <InfoHelp size="sm" title="Inventory Valuation">
           What&apos;s currently sitting in stock is worth, at cost and at retail — also a live snapshot, not scoped to the date range above.
