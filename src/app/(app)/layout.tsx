@@ -12,6 +12,7 @@ import { LiteSuggestion, ModeSwitch } from "@/components/ui/mode-switch";
 import { getUiMode } from "@/lib/ui-mode";
 import { Suspense } from "react";
 import { ReturnToBanner } from "@/components/ui/return-to-banner";
+import { TableSorter } from "@/components/ui/table-sorter";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     return (
       <>
         <BrowserErrorReporter />
+        <TableSorter />
         <LiteShell name={userName} role={session.user.role}>
           <Suspense fallback={null}>
             <ReturnToBanner />
@@ -55,6 +57,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
       <BrowserErrorReporter />
+        <TableSorter />
       <main className="min-w-0 p-3 sm:p-6 lg:p-8 print:p-0">
         <MobileNav name={userName} role={session.user.role} />
         <LiteSuggestion />
