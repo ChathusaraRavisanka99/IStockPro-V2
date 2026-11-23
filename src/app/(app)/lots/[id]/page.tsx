@@ -33,6 +33,7 @@ import { editPhoneUnit } from "@/lib/phone-units";
 import { createPhoneExpense, expenseCategories, listPhoneExpenses } from "@/lib/unit-expenses";
 import { UnitEditProvider } from "@/components/items/unit-edit";
 import { EntityLink } from "@/components/ui/entity-link";
+import { withErrorLog } from "@/lib/error-log";
 
 function computeGoodsCost(phones: { purchasePrice: unknown }[], accessoryItems: { unitCost: unknown; quantity: number }[]) {
   return phones.reduce((sum, phone) => sum + Number(phone.purchasePrice), 0) + accessoryItems.reduce((sum, item) => sum + Number(item.unitCost) * item.quantity, 0);
@@ -162,158 +163,162 @@ export default async function LotDetailPage({ params }: { params: { id: string }
 
   async function registerPhonesBatch(formData: FormData) {
     "use server";
-
-    let batch: BatchLine[] = [];
-    try {
-      batch = JSON.parse(String(formData.get("batchItems") || "[]"));
-    } catch {
-      batch = [];
-    }
-    if (!batch.length) return;
-
-    await prisma.$transaction(async (tx) => {
-      // De-dupe within the submitted batch itself (keep first occurrence of each IMEI),
-      // then drop anything that already exists in the database. Never trust the client's
-      // "no duplicates" check alone — re-validate here so two IMEIs can never collide.
-      const seen = new Set<string>();
-      const deduped = batch.filter((line) => {
-        const key = line.imei?.trim().toLowerCase();
-        if (!line.variantId || !key || seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-
-      const existing = await tx.phone.findMany({
-        where: { imei: { in: deduped.map((line) => line.imei.trim()) }, deletedAt: null },
-        select: { imei: true },
-      });
-      const existingSet = new Set(existing.map((phone) => phone.imei.toLowerCase()));
-      const toCreate = deduped.filter((line) => !existingSet.has(line.imei.trim().toLowerCase()));
-
-      if (toCreate.length) {
-        await tx.phone.createMany({
-          data: toCreate.map((line) => ({
-            phoneVariantId: line.variantId,
-            lotId: params.id,
-            imei: line.imei.trim(),
-            purchasePrice: line.purchasePrice,
-            wholesalePrice: line.wholesalePrice,
-            retailPrice: line.retailPrice,
-            tagCost: line.tagCost || 0,
-            batteryCost: line.batteryCost || 0,
-            grade: (["A", "B", "C"].includes(line.grade) ? line.grade : null) as "A" | "B" | "C" | null,
-            batteryHealth: line.batteryHealth,
-            notes: line.notes,
-          })),
-        });
+    return withErrorLog("lots/detail: registerPhonesBatch", formData, async () => {
+      let batch: BatchLine[] = [];
+      try {
+        batch = JSON.parse(String(formData.get("batchItems") || "[]"));
+      } catch {
+        batch = [];
       }
-    });
+      if (!batch.length) return;
 
-    revalidatePath(`/lots/${params.id}`);
-    revalidatePath("/lots");
-    revalidatePath("/items/phones");
-    revalidatePath("/dashboard");
+      await prisma.$transaction(async (tx) => {
+        // De-dupe within the submitted batch itself (keep first occurrence of each IMEI),
+        // then drop anything that already exists in the database. Never trust the client's
+        // "no duplicates" check alone — re-validate here so two IMEIs can never collide.
+        const seen = new Set<string>();
+        const deduped = batch.filter((line) => {
+          const key = line.imei?.trim().toLowerCase();
+          if (!line.variantId || !key || seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        const existing = await tx.phone.findMany({
+          where: { imei: { in: deduped.map((line) => line.imei.trim()) }, deletedAt: null },
+          select: { imei: true },
+        });
+        const existingSet = new Set(existing.map((phone) => phone.imei.toLowerCase()));
+        const toCreate = deduped.filter((line) => !existingSet.has(line.imei.trim().toLowerCase()));
+
+        if (toCreate.length) {
+          await tx.phone.createMany({
+            data: toCreate.map((line) => ({
+              phoneVariantId: line.variantId,
+              lotId: params.id,
+              imei: line.imei.trim(),
+              purchasePrice: line.purchasePrice,
+              wholesalePrice: line.wholesalePrice,
+              retailPrice: line.retailPrice,
+              tagCost: line.tagCost || 0,
+              batteryCost: line.batteryCost || 0,
+              grade: (["A", "B", "C"].includes(line.grade) ? line.grade : null) as "A" | "B" | "C" | null,
+              batteryHealth: line.batteryHealth,
+              notes: line.notes,
+            })),
+          });
+        }
+      });
+
+      revalidatePath(`/lots/${params.id}`);
+      revalidatePath("/lots");
+      revalidatePath("/items/phones");
+      revalidatePath("/dashboard");
+    });
   }
 
   async function recordLotPayment(formData: FormData) {
     "use server";
+    return withErrorLog("lots/detail: recordLotPayment", formData, async () => {
+      const amount = Number(formData.get("amount") || 0);
+      const methodInput = String(formData.get("method") || "");
+      const method = (["Cash", "Card", "BankTransfer", "Cheque", "UPI", "Other"].includes(methodInput) ? methodInput : null) as "Cash" | "Card" | "BankTransfer" | "Cheque" | "UPI" | "Other" | null;
+      const reference = String(formData.get("reference") || "").trim() || null;
+      const paidAtInput = String(formData.get("paidAt") || "").trim();
+      const paidAt = paidAtInput ? new Date(paidAtInput) : new Date();
 
-    const amount = Number(formData.get("amount") || 0);
-    const methodInput = String(formData.get("method") || "");
-    const method = (["Cash", "Card", "BankTransfer", "Cheque", "UPI", "Other"].includes(methodInput) ? methodInput : null) as "Cash" | "Card" | "BankTransfer" | "Cheque" | "UPI" | "Other" | null;
-    const reference = String(formData.get("reference") || "").trim() || null;
-    const paidAtInput = String(formData.get("paidAt") || "").trim();
-    const paidAt = paidAtInput ? new Date(paidAtInput) : new Date();
+      if (!amount || amount <= 0) return;
 
-    if (!amount || amount <= 0) return;
+      let proofImageUrl: string | null = null;
+      const proofFile = formData.get("proofFile");
+      if (proofFile instanceof File && proofFile.size > 0) {
+        const key = buildKey(`lot-payments/${params.id}`, proofFile.name);
+        await uploadFile(Buffer.from(await proofFile.arrayBuffer()), key, proofFile.type || "application/octet-stream");
+        proofImageUrl = key;
+      }
 
-    let proofImageUrl: string | null = null;
-    const proofFile = formData.get("proofFile");
-    if (proofFile instanceof File && proofFile.size > 0) {
-      const key = buildKey(`lot-payments/${params.id}`, proofFile.name);
-      await uploadFile(Buffer.from(await proofFile.arrayBuffer()), key, proofFile.type || "application/octet-stream");
-      proofImageUrl = key;
-    }
+      await prisma.$transaction(async (tx) => {
+        await tx.lotPayment.create({ data: { lotId: params.id, amount, method, reference, paidAt, proofImageUrl } });
 
-    await prisma.$transaction(async (tx) => {
-      await tx.lotPayment.create({ data: { lotId: params.id, amount, method, reference, paidAt, proofImageUrl } });
+        const currentLot = await tx.lot.findUnique({
+          where: { id: params.id },
+          include: {
+            phones: { where: { deletedAt: null }, select: { purchasePrice: true } },
+            accessoryItems: { select: { unitCost: true, quantity: true } },
+          },
+        });
+        if (!currentLot) return;
 
-      const currentLot = await tx.lot.findUnique({
-        where: { id: params.id },
-        include: {
-          phones: { where: { deletedAt: null }, select: { purchasePrice: true } },
-          accessoryItems: { select: { unitCost: true, quantity: true } },
-        },
+        const newAmountPaid = Number(currentLot.amountPaid) + amount;
+        const currentGoodsCost = computeGoodsCost(currentLot.phones, currentLot.accessoryItems);
+        const currentTotalCost =
+          Number(currentLot.shippingCost) + Number(currentLot.taxCost) + Number(currentLot.customsCost) + Number(currentLot.otherCost) + currentGoodsCost;
+        const newStatus = newAmountPaid <= 0 ? "Unpaid" : newAmountPaid >= currentTotalCost && currentTotalCost > 0 ? "Paid" : "Partial";
+
+        await tx.lot.update({ where: { id: params.id }, data: { amountPaid: newAmountPaid, paymentStatus: newStatus } });
       });
-      if (!currentLot) return;
 
-      const newAmountPaid = Number(currentLot.amountPaid) + amount;
-      const currentGoodsCost = computeGoodsCost(currentLot.phones, currentLot.accessoryItems);
-      const currentTotalCost =
-        Number(currentLot.shippingCost) + Number(currentLot.taxCost) + Number(currentLot.customsCost) + Number(currentLot.otherCost) + currentGoodsCost;
-      const newStatus = newAmountPaid <= 0 ? "Unpaid" : newAmountPaid >= currentTotalCost && currentTotalCost > 0 ? "Paid" : "Partial";
-
-      await tx.lot.update({ where: { id: params.id }, data: { amountPaid: newAmountPaid, paymentStatus: newStatus } });
+      revalidatePath(`/lots/${params.id}`);
+      revalidatePath("/lots");
     });
-
-    revalidatePath(`/lots/${params.id}`);
-    revalidatePath("/lots");
   }
 
   async function moveToShipped(formData: FormData) {
     "use server";
+    return withErrorLog("lots/detail: moveToShipped", formData, async () => {
+      if (lot!.status !== "Collection") return;
+      const shippingCost = Number(formData.get("shippingCost") || 0);
 
-    if (lot!.status !== "Collection") return;
-    const shippingCost = Number(formData.get("shippingCost") || 0);
-
-    const fxDetails: Record<string, { foreignAmount: number; rate: number }> = {};
-    const raw = String(formData.get("__fx_shippingCost") || "");
-    if (raw) {
-      try {
-        fxDetails.shippingCost = JSON.parse(raw);
-      } catch {
-        // ignore malformed payload
-      }
-    }
-
-    await prisma.lot.update({
-      where: { id: params.id },
-      data: { shippingCost, status: "Shipped", fxDetails: Object.keys(fxDetails).length ? (fxDetails as Prisma.InputJsonValue) : undefined },
-    });
-
-    revalidatePath(`/lots/${params.id}`);
-    revalidatePath("/lots");
-  }
-
-  async function markLotCleared(formData: FormData) {
-    "use server";
-
-    const taxCost = Number(formData.get("taxCost") || 0);
-    const customsCost = Number(formData.get("customsCost") || 0);
-    const otherCost = Number(formData.get("otherCost") || 0);
-
-    const fxUpdates: Record<string, { foreignAmount: number; rate: number }> = {};
-    for (const field of ["taxCost", "customsCost", "otherCost"]) {
-      const raw = String(formData.get(`__fx_${field}`) || "");
+      const fxDetails: Record<string, { foreignAmount: number; rate: number }> = {};
+      const raw = String(formData.get("__fx_shippingCost") || "");
       if (raw) {
         try {
-          fxUpdates[field] = JSON.parse(raw);
+          fxDetails.shippingCost = JSON.parse(raw);
         } catch {
           // ignore malformed payload
         }
       }
-    }
 
-    const currentLot = await prisma.lot.findUnique({ where: { id: params.id }, select: { fxDetails: true } });
-    const mergedFx = { ...(currentLot?.fxDetails as Record<string, unknown> | null), ...fxUpdates };
+      await prisma.lot.update({
+        where: { id: params.id },
+        data: { shippingCost, status: "Shipped", fxDetails: Object.keys(fxDetails).length ? (fxDetails as Prisma.InputJsonValue) : undefined },
+      });
 
-    await prisma.lot.update({
-      where: { id: params.id },
-      data: { taxCost, customsCost, otherCost, status: "Cleared", fxDetails: Object.keys(mergedFx).length ? (mergedFx as Prisma.InputJsonValue) : undefined },
+      revalidatePath(`/lots/${params.id}`);
+      revalidatePath("/lots");
     });
+  }
 
-    revalidatePath(`/lots/${params.id}`);
-    revalidatePath("/lots");
+  async function markLotCleared(formData: FormData) {
+    "use server";
+    return withErrorLog("lots/detail: markLotCleared", formData, async () => {
+      const taxCost = Number(formData.get("taxCost") || 0);
+      const customsCost = Number(formData.get("customsCost") || 0);
+      const otherCost = Number(formData.get("otherCost") || 0);
+
+      const fxUpdates: Record<string, { foreignAmount: number; rate: number }> = {};
+      for (const field of ["taxCost", "customsCost", "otherCost"]) {
+        const raw = String(formData.get(`__fx_${field}`) || "");
+        if (raw) {
+          try {
+            fxUpdates[field] = JSON.parse(raw);
+          } catch {
+            // ignore malformed payload
+          }
+        }
+      }
+
+      const currentLot = await prisma.lot.findUnique({ where: { id: params.id }, select: { fxDetails: true } });
+      const mergedFx = { ...(currentLot?.fxDetails as Record<string, unknown> | null), ...fxUpdates };
+
+      await prisma.lot.update({
+        where: { id: params.id },
+        data: { taxCost, customsCost, otherCost, status: "Cleared", fxDetails: Object.keys(mergedFx).length ? (mergedFx as Prisma.InputJsonValue) : undefined },
+      });
+
+      revalidatePath(`/lots/${params.id}`);
+      revalidatePath("/lots");
+    });
   }
 
   async function editShippingCost(formData: FormData): Promise<ActionResult> {
@@ -603,35 +608,36 @@ export default async function LotDetailPage({ params }: { params: { id: string }
 
   async function addAccessoryToLot(formData: FormData) {
     "use server";
+    return withErrorLog("lots/detail: addAccessoryToLot", formData, async () => {
+      const accessoryId = String(formData.get("accessoryId") || "");
+      const quantity = Math.max(0, Math.round(Number(formData.get("quantity") || 0)));
+      const unitCost = Math.max(0, Number(formData.get("unitCost") || 0));
+      if (!accessoryId || quantity <= 0) return;
 
-    const accessoryId = String(formData.get("accessoryId") || "");
-    const quantity = Math.max(0, Math.round(Number(formData.get("quantity") || 0)));
-    const unitCost = Math.max(0, Number(formData.get("unitCost") || 0));
-    if (!accessoryId || quantity <= 0) return;
+      await prisma.$transaction(async (tx) => {
+        // Same accessory at the same unit cost is the same batch — merge into it rather
+        // than listing it twice. A different cost is a genuinely different purchase batch
+        // (prices change over time), so that gets its own line.
+        const existing = await tx.lotAccessoryItem.findFirst({ where: { lotId: params.id, accessoryId, unitCost } });
+        if (existing) {
+          await tx.lotAccessoryItem.update({ where: { id: existing.id }, data: { quantity: { increment: quantity } } });
+        } else {
+          await tx.lotAccessoryItem.create({ data: { lotId: params.id, accessoryId, quantity, unitCost } });
+        }
 
-    await prisma.$transaction(async (tx) => {
-      // Same accessory at the same unit cost is the same batch — merge into it rather
-      // than listing it twice. A different cost is a genuinely different purchase batch
-      // (prices change over time), so that gets its own line.
-      const existing = await tx.lotAccessoryItem.findFirst({ where: { lotId: params.id, accessoryId, unitCost } });
-      if (existing) {
-        await tx.lotAccessoryItem.update({ where: { id: existing.id }, data: { quantity: { increment: quantity } } });
-      } else {
-        await tx.lotAccessoryItem.create({ data: { lotId: params.id, accessoryId, quantity, unitCost } });
-      }
+        // The batches above already keep each distinct cost as its own line — that's the
+        // real cost record. The accessory's own purchasePrice is a separate, manually-set
+        // reference value and stays untouched here; it's never auto-computed from batches.
+        await tx.accessory.update({ where: { id: accessoryId }, data: { quantity: { increment: quantity } } });
+      });
 
-      // The batches above already keep each distinct cost as its own line — that's the
-      // real cost record. The accessory's own purchasePrice is a separate, manually-set
-      // reference value and stays untouched here; it's never auto-computed from batches.
-      await tx.accessory.update({ where: { id: accessoryId }, data: { quantity: { increment: quantity } } });
+      revalidatePath(`/lots/${params.id}`);
+      revalidatePath("/items/chargers");
+      revalidatePath("/items/cables");
+      revalidatePath("/items/handsfree");
+      revalidatePath("/items/other");
+      revalidatePath("/dashboard");
     });
-
-    revalidatePath(`/lots/${params.id}`);
-    revalidatePath("/items/chargers");
-    revalidatePath("/items/cables");
-    revalidatePath("/items/handsfree");
-    revalidatePath("/items/other");
-    revalidatePath("/dashboard");
   }
 
   async function removeAccessoryFromLot(formData: FormData) {

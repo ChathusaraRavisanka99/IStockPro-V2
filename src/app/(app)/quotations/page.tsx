@@ -14,6 +14,7 @@ import { formatMoney } from "@/lib/currency";
 import { formatPhoneName } from "@/lib/format-item-name";
 import { QuotationRowActions } from "@/components/quotations/quotation-row-actions";
 import { EntityLink } from "@/components/ui/entity-link";
+import { withErrorLog } from "@/lib/error-log";
 
 type CartLine = { key: string; unitPrice: number; quantity: number };
 
@@ -68,109 +69,111 @@ export default async function QuotationsPage({ searchParams }: { searchParams: {
 
   async function createQuotation(formData: FormData) {
     "use server";
+    return withErrorLog("quotations: createQuotation", formData, async () => {
+      const customerId = String(formData.get("customerId") || "").trim() || null;
+      const customerEmail = String(formData.get("customerEmail") || "").trim() || null;
+      const customerPhone = String(formData.get("customerPhone") || "").trim() || null;
+      const saleTypeInput = String(formData.get("saleType") || "Retail");
+      const saleType = (saleTypeInput === "Wholesale" ? "Wholesale" : "Retail") as "Retail" | "Wholesale";
+      const taxTypeInput = String(formData.get("taxType") || "Percent");
+      const taxType = (taxTypeInput === "Amount" ? "Amount" : "Percent") as "Percent" | "Amount";
+      const taxValue = Number(formData.get("taxValue") || 0);
+      const handlingFee = Number(formData.get("handlingFee") || 0);
+      const validDays = Number(formData.get("validDays") || 7);
+      const notes = String(formData.get("notes") || "").trim() || null;
 
-    const customerId = String(formData.get("customerId") || "").trim() || null;
-    const customerEmail = String(formData.get("customerEmail") || "").trim() || null;
-    const customerPhone = String(formData.get("customerPhone") || "").trim() || null;
-    const saleTypeInput = String(formData.get("saleType") || "Retail");
-    const saleType = (saleTypeInput === "Wholesale" ? "Wholesale" : "Retail") as "Retail" | "Wholesale";
-    const taxTypeInput = String(formData.get("taxType") || "Percent");
-    const taxType = (taxTypeInput === "Amount" ? "Amount" : "Percent") as "Percent" | "Amount";
-    const taxValue = Number(formData.get("taxValue") || 0);
-    const handlingFee = Number(formData.get("handlingFee") || 0);
-    const validDays = Number(formData.get("validDays") || 7);
-    const notes = String(formData.get("notes") || "").trim() || null;
+      let cartLines: CartLine[] = [];
+      try {
+        cartLines = JSON.parse(String(formData.get("cartItems") || "[]"));
+      } catch {
+        cartLines = [];
+      }
 
-    let cartLines: CartLine[] = [];
-    try {
-      cartLines = JSON.parse(String(formData.get("cartItems") || "[]"));
-    } catch {
-      cartLines = [];
-    }
+      // An empty cart must not produce a phantom $0 quotation with no line items.
+      if (!cartLines.length) return;
 
-    // An empty cart must not produce a phantom $0 quotation with no line items.
-    if (!cartLines.length) return;
+      const subtotal = cartLines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+      const taxPercent = taxType === "Percent" ? taxValue : subtotal > 0 ? (taxValue / subtotal) * 100 : 0;
+      const taxAmount = taxType === "Percent" ? (subtotal * taxValue) / 100 : taxValue;
+      const totalAmount = subtotal + taxAmount + handlingFee;
 
-    const subtotal = cartLines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
-    const taxPercent = taxType === "Percent" ? taxValue : subtotal > 0 ? (taxValue / subtotal) * 100 : 0;
-    const taxAmount = taxType === "Percent" ? (subtotal * taxValue) / 100 : taxValue;
-    const totalAmount = subtotal + taxAmount + handlingFee;
-
-    await prisma.quotation.create({
-      data: {
-        quoteNumber: `QTN-${Date.now()}`,
-        customerId,
-        customerEmail,
-        customerPhone,
-        saleType,
-        subtotal,
-        taxType,
-        taxPercent,
-        taxAmount,
-        handlingFee,
-        totalAmount,
-        notes,
-        validUntil: new Date(Date.now() + validDays * 86400000),
-        status: "Draft",
-        items: {
-          create: cartLines.map((line) => {
-            const [itemType, itemId] = line.key.split(":");
-            return {
-              description: itemType === "variant" ? "Phone variant" : "Phone model",
-              phoneModelId: itemType === "model" ? itemId : null,
-              phoneVariantId: itemType === "variant" ? itemId : null,
-              quantity: line.quantity,
-              unitPrice: line.unitPrice,
-              lineTotal: line.unitPrice * line.quantity,
-            };
-          }),
+      await prisma.quotation.create({
+        data: {
+          quoteNumber: `QTN-${Date.now()}`,
+          customerId,
+          customerEmail,
+          customerPhone,
+          saleType,
+          subtotal,
+          taxType,
+          taxPercent,
+          taxAmount,
+          handlingFee,
+          totalAmount,
+          notes,
+          validUntil: new Date(Date.now() + validDays * 86400000),
+          status: "Draft",
+          items: {
+            create: cartLines.map((line) => {
+              const [itemType, itemId] = line.key.split(":");
+              return {
+                description: itemType === "variant" ? "Phone variant" : "Phone model",
+                phoneModelId: itemType === "model" ? itemId : null,
+                phoneVariantId: itemType === "variant" ? itemId : null,
+                quantity: line.quantity,
+                unitPrice: line.unitPrice,
+                lineTotal: line.unitPrice * line.quantity,
+              };
+            }),
+          },
         },
-      },
-    });
+      });
 
-    revalidatePath("/quotations");
+      revalidatePath("/quotations");
+    });
   }
 
   async function convertQuotationToSale(formData: FormData) {
     "use server";
+    return withErrorLog("quotations: convertQuotationToSale", formData, async () => {
+      const quotationId = String(formData.get("quotationId") || "");
+      const quotation = await prisma.quotation.findUnique({ where: { id: quotationId } });
+      if (!quotation) return;
 
-    const quotationId = String(formData.get("quotationId") || "");
-    const quotation = await prisma.quotation.findUnique({ where: { id: quotationId } });
-    if (!quotation) return;
+      const now = Date.now();
+      const sale = await prisma.sale.create({
+        data: {
+          saleNumber: `SAL-${now}`,
+          customerId: quotation.customerId,
+          saleType: quotation.saleType,
+          subtotal: quotation.subtotal,
+          taxType: quotation.taxType,
+          taxPercent: quotation.taxPercent,
+          taxAmount: quotation.taxAmount,
+          handlingFee: quotation.handlingFee,
+          discount: 0,
+          totalAmount: quotation.totalAmount,
+          createdById: session?.user?.id || "system",
+        },
+      });
 
-    const now = Date.now();
-    const sale = await prisma.sale.create({
-      data: {
-        saleNumber: `SAL-${now}`,
-        customerId: quotation.customerId,
-        saleType: quotation.saleType,
-        subtotal: quotation.subtotal,
-        taxType: quotation.taxType,
-        taxPercent: quotation.taxPercent,
-        taxAmount: quotation.taxAmount,
-        handlingFee: quotation.handlingFee,
-        discount: 0,
-        totalAmount: quotation.totalAmount,
-        createdById: session?.user?.id || "system",
-      },
+      await prisma.invoice.create({
+        data: {
+          invoiceNumber: `INV-${now}`,
+          saleId: sale.id,
+          totalAmount: quotation.totalAmount,
+          status: "Unpaid",
+        },
+      });
+
+      await prisma.quotation.update({
+        where: { id: quotation.id },
+        data: { status: "Converted", convertedSaleId: sale.id },
+      });
+
+      revalidatePath("/quotations");
+      revalidatePath("/sales");
     });
-
-    await prisma.invoice.create({
-      data: {
-        invoiceNumber: `INV-${now}`,
-        saleId: sale.id,
-        totalAmount: quotation.totalAmount,
-        status: "Unpaid",
-      },
-    });
-
-    await prisma.quotation.update({
-      where: { id: quotation.id },
-      data: { status: "Converted", convertedSaleId: sale.id },
-    });
-
-    revalidatePath("/quotations");
-    revalidatePath("/sales");
   }
 
   async function createCustomerDependency(formData: FormData) {
