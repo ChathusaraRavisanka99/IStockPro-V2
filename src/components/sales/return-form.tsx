@@ -1,37 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { SearchableSelect, type QuickAdd } from "@/components/ui/searchable-select";
 import { formatMoney } from "@/lib/currency";
-
-type SaleItemOption = {
-  id: string;
-  label: string;
-  quantity: number;
-  unitPrice: number;
-};
-
-type SaleOption = {
-  id: string;
-  label: string;
-  items: SaleItemOption[];
-};
+import { SalePickerDialog } from "@/components/sales/sale-picker-dialog";
+import type { ReturnableSale } from "@/lib/return-sale-search";
 
 type Props = {
-  sales: SaleOption[];
   action: (formData: FormData) => void | Promise<void>;
-  quickAdd?: QuickAdd;
+  /** "+ Add sale" in the picker: records a sale by total only. */
+  quickAddSale?: (formData: FormData) => void | Promise<unknown>;
 };
 
 const CONDITIONS = ["Resalable", "Repairable", "Damaged"];
 
-export function ReturnForm({ sales, action, quickAdd }: Props) {
-  const [saleId, setSaleId] = useState("");
+export function ReturnForm({ action, quickAddSale }: Props) {
+  const [selectedSale, setSelectedSale] = useState<ReturnableSale | null>(null);
+  const [picking, setPicking] = useState(false);
   const [saleItemId, setSaleItemId] = useState("");
   const [amount, setAmount] = useState("0");
   const [quantity, setQuantity] = useState("1");
 
-  const selectedSale = sales.find((sale) => sale.id === saleId);
   const selectedItem = selectedSale?.items.find((item) => item.id === saleItemId);
 
   useEffect(() => {
@@ -51,21 +39,47 @@ export function ReturnForm({ sales, action, quickAdd }: Props) {
   }
 
   return (
-    <form action={action} className="grid gap-3">
-      <div className="grid gap-3 md:grid-cols-3">
-        <SearchableSelect
-          name="saleId"
-          required
-          placeholder="Select sale"
-          options={sales.map((sale) => ({ value: sale.id, label: sale.label }))}
-          onChange={(value) => {
-            setSaleId(value);
+    <form
+      action={async (formData) => {
+        await action(formData);
+        setSelectedSale(null);
+        setSaleItemId("");
+        setAmount("0");
+        setQuantity("1");
+      }}
+      className="grid gap-3"
+    >
+      <input type="hidden" name="saleId" value={selectedSale?.id ?? ""} />
+      {picking ? (
+        <SalePickerDialog
+          quickAddSale={quickAddSale}
+          onClose={() => setPicking(false)}
+          onPick={(sale) => {
+            setSelectedSale(sale);
             setSaleItemId("");
             setAmount("0");
             setQuantity("1");
+            setPicking(false);
           }}
-          quickAdd={quickAdd}
         />
+      ) : null}
+      <div className="grid gap-3 md:grid-cols-3">
+        <button
+          type="button"
+          onClick={() => setPicking(true)}
+          className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-sm"
+          title="Search sales by number, customer, IMEI or date"
+        >
+          {selectedSale ? (
+            <span className="min-w-0 truncate">
+              <span className="font-medium text-slate-900">{selectedSale.saleNumber}</span>
+              <span className="text-slate-500"> · {selectedSale.date} · {selectedSale.customer ?? "Walk-in"}</span>
+            </span>
+          ) : (
+            <span className="text-slate-500">Select sale…</span>
+          )}
+          <span className="shrink-0 text-xs text-slate-500">{selectedSale ? "Change" : "Search"}</span>
+        </button>
         <input name="reason" placeholder="Reason" className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
         <select name="condition" defaultValue="Resalable" className="rounded-lg border border-slate-300 bg-white px-3 py-2">
           {CONDITIONS.map((condition) => (
@@ -108,7 +122,9 @@ export function ReturnForm({ sales, action, quickAdd }: Props) {
           Refund amount
           <input name="totalCredit" type="number" step="0.01" min={0} value={amount} onChange={(event) => setAmount(event.target.value)} required className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2" />
         </label>
-        <button className="btn btn-md btn-primary self-end">Create Return + Credit Note</button>
+        <button className="btn btn-md btn-primary self-end" disabled={!selectedSale} title={selectedSale ? undefined : "Pick a sale first"}>
+          Create Return + Credit Note
+        </button>
       </div>
     </form>
   );
