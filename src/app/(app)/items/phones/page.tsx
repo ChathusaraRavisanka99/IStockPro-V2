@@ -25,7 +25,7 @@ import { UnitEditButton, UnitEditProvider, type EditableUnit } from "@/component
 import { editPhoneUnit } from "@/lib/phone-units";
 import { findImeiOwner } from "@/lib/imei";
 import { createPhoneExpense, expenseCategories, listPhoneExpenses } from "@/lib/unit-expenses";
-import { GradeBadge, SpecChips, StatusPill } from "@/components/ui/spec-chips";
+import { GradeBadge, PriceMissing, SpecChips, StatusPill } from "@/components/ui/spec-chips";
 import { Boxes, LineChart, Plus, Search, Smartphone, Wallet } from "lucide-react";
 import { EntityLink } from "@/components/ui/entity-link";
 import { withErrorLog } from "@/lib/error-log";
@@ -92,7 +92,7 @@ export default async function PhonesPage({ searchParams }: Props) {
   };
   const [phones, phoneTotal] = showCost
     ? await prisma.$transaction([prisma.phone.findMany({ where: phoneWhere, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize, include: { phoneVariant: { include: { phoneModel: true } }, lot: true } }), prisma.phone.count({ where: phoneWhere })])
-    : await prisma.$transaction([prisma.phone.findMany({ where: phoneWhere, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize, select: { id: true, imei: true, status: true, grade: true, batteryHealth: true, notes: true, createdAt: true, phoneVariant: { include: { phoneModel: true } }, lot: true } }), prisma.phone.count({ where: phoneWhere })]);
+    : await prisma.$transaction([prisma.phone.findMany({ where: phoneWhere, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize, select: { id: true, imei: true, status: true, grade: true, retailPrice: true, batteryHealth: true, notes: true, createdAt: true, phoneVariant: { include: { phoneModel: true } }, lot: true } }), prisma.phone.count({ where: phoneWhere })]);
 
   // Expenses (and the popup they feed) are cost-sensitive, so only fetch/show them for
   // roles that can already view cost — matches the Purchase Price column gating below.
@@ -568,7 +568,10 @@ export default async function PhonesPage({ searchParams }: Props) {
                       <span className="block truncate font-semibold text-slate-900">{phone.phoneVariant.phoneModel.brand} {phone.phoneVariant.phoneModel.modelName}</span>
                       <span className="block truncate text-sm text-slate-600"><EntityLink kind="variant" id={phone.phoneVariant.id} className="truncate text-left text-slate-600 underline decoration-slate-300 decoration-dotted underline-offset-2 hover:decoration-slate-900">{phone.phoneVariant.variantName}</EntityLink></span>
                     </span>
-                    <StatusPill status={phone.status} />
+                    <span className="flex flex-col items-end gap-1">
+                      <StatusPill status={phone.status} />
+                      {phone.status === "InStock" ? <PriceMissing retail={(phone as { retailPrice?: unknown }).retailPrice} wholesale={showCost ? (phone as { wholesalePrice?: unknown }).wholesalePrice : undefined} /> : null}
+                    </span>
                   </div>
                   <SpecChips color={phone.phoneVariant.color} storage={phone.phoneVariant.storage} ram={phone.phoneVariant.ram} className="mt-1.5 flex" />
                   <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
@@ -664,7 +667,10 @@ export default async function PhonesPage({ searchParams }: Props) {
                     </td>
                     <td className="px-2 py-2.5"><EntityLink kind="lot" id={phone.lot.id}>{phone.lot.lotNumber}</EntityLink></td>
                     <td className="px-2 py-2.5"><GradeBadge grade={phone.grade} /></td>
-                    <td className="px-2 py-2.5"><StatusPill status={phone.status} /></td>
+                    <td className="px-2 py-2.5">
+                      <StatusPill status={phone.status} />
+                      {phone.status === "InStock" ? <PriceMissing retail={(phone as { retailPrice?: unknown }).retailPrice} wholesale={showCost ? (phone as { wholesalePrice?: unknown }).wholesalePrice : undefined} className="mt-1 flex" /> : null}
+                    </td>
                     {showCost ? <td className="px-2 py-2">{formatMoney(purchasePrice)}</td> : null}
                     <NoModalCell className="px-2 py-2">
                       <div className="flex flex-wrap gap-1.5">

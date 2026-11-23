@@ -10,6 +10,8 @@ import { BrowserErrorReporter } from "@/components/ui/browser-error-reporter";
 import { LiteShell } from "@/components/ui/lite-shell";
 import { LiteSuggestion, ModeSwitch } from "@/components/ui/mode-switch";
 import { getUiMode } from "@/lib/ui-mode";
+import { Suspense } from "react";
+import { ReturnToBanner } from "@/components/ui/return-to-banner";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +31,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <>
         <BrowserErrorReporter />
         <LiteShell name={userName} role={session.user.role}>
+          <Suspense fallback={null}>
+            <ReturnToBanner />
+          </Suspense>
           {children}
         </LiteShell>
       </>
@@ -54,6 +59,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <MobileNav name={userName} role={session.user.role} />
         <LiteSuggestion />
         <div className="glass-panel rounded-2xl border border-white/90 p-3 text-slate-950 shadow-[0_25px_60px_rgba(15,23,42,0.1)] sm:rounded-3xl sm:p-6 lg:p-8 print:rounded-none print:border-0 print:bg-white print:p-0 print:shadow-none">
+          <Suspense fallback={null}>
+            <ReturnToBanner />
+          </Suspense>
           {children}
         </div>
       </main>

@@ -78,3 +78,16 @@ export function GradeBadge({ grade }: { grade: string | null }) {
   if (!grade) return <span className="text-xs text-slate-400">Not graded</span>;
   return <span className={`inline-flex size-6 items-center justify-center rounded-md text-xs font-bold ${GRADE_STYLES[grade] ?? "bg-slate-200 text-slate-700"}`} title={`Grade ${grade}`}>{grade}</span>;
 }
+
+/** Amber "price not set" flags for stock that would otherwise sell at LKR 0. */
+export function PriceMissing({ retail, wholesale, showWholesale = true, className = "" }: { retail: unknown; wholesale?: unknown; showWholesale?: boolean; className?: string }) {
+  const noRetail = !(Number(retail ?? 0) > 0);
+  const noWholesale = showWholesale && wholesale !== undefined && !(Number(wholesale ?? 0) > 0);
+  if (!noRetail && !noWholesale) return null;
+  return (
+    <span className={`inline-flex flex-wrap gap-1 ${className}`}>
+      {noRetail ? <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-900 ring-1 ring-inset ring-amber-200" title="Retail price is 0 — set it before selling">⚠ No retail price</span> : null}
+      {noWholesale ? <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-900 ring-1 ring-inset ring-amber-200" title="Wholesale price is 0">⚠ No wholesale price</span> : null}
+    </span>
+  );
+}
