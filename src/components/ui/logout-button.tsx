@@ -2,6 +2,7 @@
 
 import { signOut } from "next-auth/react";
 import { LogOut } from "lucide-react";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 type Props = {
   name?: string | null;
@@ -11,6 +12,10 @@ type Props = {
 export function LogoutButton({ name, role }: Props) {
   return (
     <div className="border-t border-white/70 pt-3 dark:border-slate-700/60">
+      <div className="mb-3 px-1">
+        <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Theme</p>
+        <ThemeToggle />
+      </div>
       {name ? (
         <p className="truncate px-3 pb-2 text-xs font-medium text-slate-600">
           {name}
