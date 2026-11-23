@@ -6,6 +6,7 @@ import { CostRow, CostCard } from "@/components/ui/cost-breakdown-modal";
 import { useEditableRow, type ActionResult } from "@/components/ui/editable-row";
 import { ItemCommentsButton } from "@/components/items/item-comments";
 import { EntityDeleteButton, EntityEditButton } from "@/components/ui/entity-editor";
+import { PriceMissing } from "@/components/ui/spec-chips";
 
 type Accessory = {
   id: string;
@@ -121,7 +122,10 @@ export function AccessoryTableRow({ item, updateAction, archiveAction, username 
         })),
       }}
     >
-      <td className="px-2 py-2">{item.name}</td>
+      <td className="px-2 py-2">
+        {item.name}
+        {item.quantity > 0 ? <PriceMissing retail={item.retailPrice} wholesale={item.wholesalePrice} className="mt-1 flex" /> : null}
+      </td>
       <td className="px-2 py-2">{item.sku}</td>
       <td className="px-2 py-2 text-xs text-slate-600">
         {[item.connectorType, item.voltage, item.fastCharging ? "Fast charging" : null].filter(Boolean).join(" · ") || "-"}
@@ -205,6 +209,7 @@ export function AccessoryGridCard({ item, updateAction, archiveAction, username 
       }}
     >
       <p className="font-semibold text-slate-900">{item.name}</p>
+      {item.quantity > 0 ? <PriceMissing retail={item.retailPrice} wholesale={item.wholesalePrice} className="mt-1 flex" /> : null}
       <p className="mt-1 text-sm text-slate-700">{item.sku}</p>
       {item.connectorType || item.fastCharging || item.voltage ? (
         <p className="mt-1 text-xs text-slate-600">

@@ -93,7 +93,7 @@ export default async function PhoneCatalogPage({ searchParams = {} }: { searchPa
   });
   filtered.sort((a, b) => a.modelLabel.localeCompare(b.modelLabel) || compareSizes(a.storage ?? "", b.storage ?? "") || (a.color ?? "").localeCompare(b.color ?? ""));
 
-  const priceRange = (min: number | null, max: number | null) => (min === null ? "—" : min === max ? formatMoney(min) : `${formatMoney(min)} – ${formatMoney(max)}`);
+  const priceRange = (min: number | null, max: number | null) => (min === null ? "⚠ No price set" : min === max ? formatMoney(min) : `${formatMoney(min)} – ${formatMoney(max)}`);
   const extraSpecs = (variant: (typeof variants)[number]) =>
     ([
       ["Screen", variant.screenSize],

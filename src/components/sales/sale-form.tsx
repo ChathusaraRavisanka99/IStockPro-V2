@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { History, X } from "lucide-react";
 import { SearchableSelect, type QuickAdd } from "@/components/ui/searchable-select";
 import { CartBuilder, repriceLines, type CartLine, type CartItemOption } from "@/components/ui/cart-builder";
 import { SaleTypeToggle } from "@/components/ui/sale-type-toggle";
@@ -23,13 +24,89 @@ export function SaleForm({ customers, customerQuickAdd, items, action }: Props) 
   const [handlingFee, setHandlingFee] = useState("0");
   const [discount, setDiscount] = useState("0");
 
+  // The bill in progress is kept in this browser tab, so stepping away (e.g. "Edit full details"
+  // on an item) and coming back doesn't lose it. After submitting, the last bill is offered back
+  // once instead of being silently dropped — in case saving failed.
+  const DRAFT_KEY = "istockpro-sale-draft";
+  const restored = useRef(false);
+  const [lastSubmitted, setLastSubmitted] = useState<{ lines: CartLine[] } | null>(null);
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft.submitted) setLastSubmitted(draft);
+        else if (Array.isArray(draft.lines)) {
+          setLines(draft.lines);
+          if (draft.saleType) setSaleType(draft.saleType);
+          if (draft.taxMode) setTaxMode(draft.taxMode);
+          if (draft.taxValue !== undefined) setTaxValue(draft.taxValue);
+          if (draft.handlingFee !== undefined) setHandlingFee(draft.handlingFee);
+          if (draft.discount !== undefined) setDiscount(draft.discount);
+        }
+      }
+    } catch {
+      // storage unavailable
+    }
+    restored.current = true;
+  }, []);
+  useEffect(() => {
+    if (!restored.current) return;
+    try {
+      if (lines.length) sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ lines, saleType, taxMode, taxValue, handlingFee, discount }));
+      else if (!lastSubmitted) sessionStorage.removeItem(DRAFT_KEY);
+    } catch {
+      // ignore
+    }
+  }, [lines, saleType, taxMode, taxValue, handlingFee, discount, lastSubmitted]);
+
+  function restoreLast() {
+    if (!lastSubmitted) return;
+    // Only items still in stock can come back.
+    const available = new Set(items.map((item) => item.value));
+    setLines(lastSubmitted.lines.filter((line) => available.has(line.key)));
+    setLastSubmitted(null);
+  }
+  function discardLast() {
+    setLastSubmitted(null);
+    try {
+      sessionStorage.removeItem(DRAFT_KEY);
+    } catch {
+      // ignore
+    }
+  }
+
   const subtotal = useMemo(() => lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0), [lines]);
   const taxAmount = taxMode === "Percent" ? (subtotal * (Number(taxValue) || 0)) / 100 : Number(taxValue) || 0;
   const total = subtotal + taxAmount + (Number(handlingFee) || 0) - (Number(discount) || 0);
 
   return (
-    <form action={action} className="grid gap-4 lg:grid-cols-[1fr_280px]">
+    <form
+      action={action}
+      onSubmit={() => {
+        try {
+          sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ lines, submitted: true }));
+        } catch {
+          // ignore
+        }
+      }}
+      className="grid gap-4 lg:grid-cols-[1fr_280px]"
+    >
       <div className="grid content-start gap-3">
+        {lastSubmitted && !lines.length ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+            <History className="size-4 shrink-0" />
+            <span className="min-w-0 flex-1">
+              Your last bill ({lastSubmitted.lines.length} item{lastSubmitted.lines.length === 1 ? "" : "s"}) was submitted. If it didn&apos;t save, restore it here.
+            </span>
+            <button type="button" onClick={restoreLast} className="btn btn-xs btn-primary">
+              Restore bill
+            </button>
+            <button type="button" onClick={discardLast} aria-label="Dismiss" className="rounded p-1 text-sky-700 hover:bg-sky-100">
+              <X className="size-4" />
+            </button>
+          </div>
+        ) : null}
         <SearchableSelect name="customerId" placeholder="Walk-in customer" options={customers} quickAdd={customerQuickAdd} />
 
         <SaleTypeToggle

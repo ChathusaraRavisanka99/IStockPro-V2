@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ScanLine } from "lucide-react";
 import { Modal, modalButton, modalField } from "@/components/ui/modal";
-import { GradeBadge, SpecChips, StatusPill } from "@/components/ui/spec-chips";
+import { GradeBadge, PriceMissing, SpecChips, StatusPill } from "@/components/ui/spec-chips";
 import { ImeiConflictNotice, type ImeiOwner } from "@/components/items/imei-conflict-notice";
 import { UnitEditButton, type EditableUnit } from "@/components/items/unit-edit";
 import { formatMoney } from "@/lib/currency";
@@ -254,7 +254,10 @@ export function PhoneCostEditor({ phone, showCost, canGrade, requireReauth, user
       </td>
       <td className="px-2 py-2"><GradeBadge grade={phone.grade} /></td>
       <td className="px-2 py-2">{phone.batteryHealth !== null ? `${phone.batteryHealth}%` : "-"}</td>
-      <td className="px-2 py-2"><StatusPill status={phone.status} /></td>
+      <td className="px-2 py-2">
+        <StatusPill status={phone.status} />
+        {phone.status === "InStock" ? <PriceMissing retail={phone.retailPrice} wholesale={showCost ? phone.wholesalePrice : undefined} className="mt-1 flex" /> : null}
+      </td>
       {showCost ? <td className="px-2 py-2">{formatMoney(purchasePrice)}</td> : null}
       {showCost ? <td className="px-2 py-2">{formatMoney(tagCost)}</td> : null}
       {showCost ? <td className="px-2 py-2">{formatMoney(batteryCost)}</td> : null}

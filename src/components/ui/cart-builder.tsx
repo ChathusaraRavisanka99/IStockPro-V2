@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { EntityLink } from "@/components/ui/entity-link";
+import { updateItemPricesAction } from "@/lib/item-price-actions";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { ItemAddDialog } from "@/components/ui/item-add-dialog";
 import { formatMoney } from "@/lib/currency";
@@ -20,6 +23,8 @@ export type CartItemOption = {
   cost?: { unitCost: number; totalCost: number; breakdown?: { label: string; amount: number }[] };
   /** Latest internal (seller-only) comments — shown in the add popup, never on documents. */
   comments?: { id: string; author: string; at: string; text: string }[];
+  /** Lets managers set this item's retail/wholesale price (and notes) from the add popup. */
+  priceEdit?: { kind: "phone" | "accessory"; id: string; requiresPassword: boolean; detailsHref: string };
 };
 type ItemOption = CartItemOption;
 
@@ -48,8 +53,29 @@ type Props = {
   priceMode?: "Retail" | "Wholesale";
 };
 
-export function CartBuilder({ items, lines, onChange, fieldName = "cartItems", showNotes = false, priceMode = "Retail" }: Props) {
+export function CartBuilder({ items: serverItems, lines, onChange, fieldName = "cartItems", showNotes = false, priceMode = "Retail" }: Props) {
+  const router = useRouter();
+  // Prices just set from the popup apply immediately (the page refresh catches up after).
+  const [overrides, setOverrides] = useState<Record<string, { price: number; wholesalePrice: number; notes: string | null }>>({});
+  const items = serverItems.map((option) => (overrides[option.value] ? { ...option, ...overrides[option.value] } : option));
   const priceFor = (option: ItemOption) => priceForMode(option, priceMode);
+
+  async function savePrices(option: ItemOption, values: { retailPrice: number; wholesalePrice: number; notes: string | null; confirmUsername?: string; confirmPassword?: string }) {
+    if (!option.priceEdit) return { ok: false as const, error: "This item's prices can't be edited here." };
+    const result = await updateItemPricesAction({ kind: option.priceEdit.kind, id: option.priceEdit.id, ...values });
+    if (result.ok) {
+      const before = priceFor(option);
+      const next = { price: result.retailPrice, wholesalePrice: result.wholesalePrice, notes: result.notes };
+      setOverrides((current) => ({ ...current, [option.value]: next }));
+      // A cart line still at the old list price follows the new price; hand-edited lines stay.
+      const after = priceForMode({ ...option, ...next }, priceMode);
+      if (lines.some((line) => line.key === option.value && line.unitPrice === before)) {
+        onChange(lines.map((line) => (line.key === option.value && line.unitPrice === before ? { ...line, unitPrice: after, notes: next.notes } : line)));
+      }
+      router.refresh();
+    }
+    return result;
+  }
 
   const [pickerKey, setPickerKey] = useState("");
   const [pickerQty, setPickerQty] = useState("1");
@@ -139,7 +165,7 @@ export function CartBuilder({ items, lines, onChange, fieldName = "cartItems", s
             const remaining = option.maxQuantity !== undefined ? Math.max(0, option.maxQuantity - inCart) : undefined;
             return {
               value: option.value,
-              label: `${option.label} - ${formatMoney(priceFor(option))}${remaining !== undefined ? ` (${remaining} available)` : ""}`,
+              label: `${option.label} - ${priceFor(option) > 0 ? formatMoney(priceFor(option)) : `⚠ no ${priceMode.toLowerCase()} price`}${remaining !== undefined ? ` (${remaining} available)` : ""}`,
             };
           })}
           onChange={setPickerKey}
@@ -171,6 +197,15 @@ export function CartBuilder({ items, lines, onChange, fieldName = "cartItems", s
           remaining={pickerRemaining}
           notes={showNotes ? pickerItem.notes : null}
           comments={showNotes ? pickerItem.comments : undefined}
+          priceEditor={
+            pickerItem.priceEdit
+              ? {
+                  requiresPassword: pickerItem.priceEdit.requiresPassword,
+                  detailsHref: pickerItem.priceEdit.detailsHref,
+                  onSave: (values) => savePrices(pickerItem, values),
+                }
+              : undefined
+          }
           onConfirm={addToCart}
           onCancel={() => setDialogOpen(false)}
         />
@@ -198,7 +233,13 @@ export function CartBuilder({ items, lines, onChange, fieldName = "cartItems", s
               {lines.map((line) => (
                 <tr key={line.key} className="border-b border-slate-100 last:border-0">
                   <td className="px-3 py-2">
-                    {line.label}
+                    {line.key.startsWith("phone:") || line.key.startsWith("accessory:") ? (
+                      <EntityLink kind={line.key.startsWith("phone:") ? "phone" : "accessory"} id={line.key.split(":")[1]}>
+                        {line.label}
+                      </EntityLink>
+                    ) : (
+                      line.label
+                    )}
                     {showNotes && line.notes ? <p className="mt-0.5 text-xs italic text-amber-700">Note: {line.notes}</p> : null}
                   </td>
                   <td className="px-3 py-2">
@@ -223,8 +264,9 @@ export function CartBuilder({ items, lines, onChange, fieldName = "cartItems", s
                       step="0.01"
                       value={line.unitPrice}
                       onChange={(event) => updateLine(line.key, { unitPrice: Math.max(0, Number(event.target.value) || 0) })}
-                      className="w-24 rounded-lg border border-slate-300 bg-white px-2 py-1"
+                      className={`w-24 rounded-lg border bg-white px-2 py-1 ${line.unitPrice <= 0 ? "border-amber-400" : "border-slate-300"}`}
                     />
+                    {line.unitPrice <= 0 ? <p className="mt-0.5 text-xs font-medium text-amber-700">⚠ No price</p> : null}
                   </td>
                   <td className="px-3 py-2 font-medium text-slate-900">{formatMoney(line.unitPrice * line.quantity)}</td>
                   <td className="px-3 py-2 text-right">
