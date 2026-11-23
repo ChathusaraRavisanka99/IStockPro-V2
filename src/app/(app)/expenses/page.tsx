@@ -17,6 +17,7 @@ import { auditChange, diffFields, requireReauthWhen } from "@/lib/entity-guard";
 import type { ActionResult } from "@/components/ui/editable-row";
 import { EntityLink } from "@/components/ui/entity-link";
 import { withErrorLog } from "@/lib/error-log";
+import { ExpenseStats } from "@/components/expenses/expense-stats";
 
 const ACCESSORY_CATEGORY_ROUTES: Record<string, string> = {
   Charger: "/items/chargers",
@@ -25,7 +26,8 @@ const ACCESSORY_CATEGORY_ROUTES: Record<string, string> = {
   Other: "/items/other",
 };
 
-export default async function ExpensesPage({ searchParams }: { searchParams: { search?: string; page?: string; pageSize?: string } }) {
+export default async function ExpensesPage({ searchParams }: { searchParams: { search?: string; page?: string; pageSize?: string; view?: string; from?: string; to?: string } }) {
+  const statsView = searchParams.view === "stats";
   const session = await getServerSession(authOptions);
   const search = searchParams.search?.trim() || "";
   const page = parsePage(searchParams.page);
@@ -184,6 +186,15 @@ export default async function ExpensesPage({ searchParams }: { searchParams: { s
         </form>
       </Card>
 
+      <div className="mb-4 inline-flex rounded-xl border border-slate-200 bg-white p-1 text-sm" role="tablist" aria-label="Expenses view">
+        <Link href="/expenses" role="tab" aria-selected={!statsView} className={`rounded-lg px-3 py-1.5 ${!statsView ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"}`}>List</Link>
+        <Link href="/expenses?view=stats" role="tab" aria-selected={statsView} className={`rounded-lg px-3 py-1.5 ${statsView ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"}`}>Stats</Link>
+      </div>
+
+      {statsView ? (
+        <ExpenseStats from={searchParams.from} to={searchParams.to} />
+      ) : (
+      <>
       <ListControls search={search} placeholder="Search expense category or description" showViewToggle={false} />
 
       <Card>
@@ -268,6 +279,8 @@ export default async function ExpensesPage({ searchParams }: { searchParams: { s
         </div>
       </Card>
       <Pagination page={page} pageSize={pageSize} total={total} query={search ? { search } : {}} />
+      </>
+      )}
     </div>
   );
 }
