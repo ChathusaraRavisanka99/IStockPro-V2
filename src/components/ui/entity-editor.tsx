@@ -6,12 +6,13 @@ import { AlertTriangle, ArrowRight, Ban, Pencil, ShieldAlert, Trash2 } from "luc
 import { Modal, modalButton, modalField } from "@/components/ui/modal";
 import { formatMoney } from "@/lib/currency";
 import type { ActionResult } from "@/components/ui/editable-row";
+import { SearchableSelect, type QuickAdd } from "@/components/ui/searchable-select";
 
 export type EditorField = {
   name: string;
   label: string;
   value: string;
-  type?: "text" | "number" | "date" | "textarea" | "select" | "email" | "tel";
+  type?: "text" | "number" | "date" | "textarea" | "select" | "searchable" | "email" | "tel";
   options?: { value: string; label: string }[];
   /** Changing this field requires the review + password step. */
   sensitive?: boolean;
@@ -21,12 +22,14 @@ export type EditorField = {
   money?: boolean;
   /** Full-width in the form grid. */
   wide?: boolean;
+  /** For type "searchable": "+ Add …" inline creation (return { value } to auto-select it). */
+  quickAdd?: QuickAdd;
 };
 
 const display = (field: EditorField, value: string) => {
   if (value === "") return "—";
   if (field.money) return formatMoney(Number(value));
-  if (field.type === "select") return field.options?.find((option) => option.value === value)?.label ?? value;
+  if (field.type === "select" || field.type === "searchable") return field.options?.find((option) => option.value === value)?.label ?? value;
   return value;
 };
 const changed = (field: EditorField, next: string) => {
@@ -180,6 +183,14 @@ export function EntityEditButton({
                   </span>
                   {field.type === "textarea" ? (
                     <textarea value={current(field)} onChange={(event) => setValues((v) => ({ ...v, [field.name]: event.target.value }))} rows={3} placeholder={field.placeholder} className={modalField.input} />
+                  ) : field.type === "searchable" ? (
+                    <SearchableSelect
+                      value={current(field)}
+                      options={field.options ?? []}
+                      placeholder={field.placeholder ?? "Select"}
+                      quickAdd={field.quickAdd}
+                      onChange={(next) => setValues((v) => ({ ...v, [field.name]: next }))}
+                    />
                   ) : field.type === "select" ? (
                     <select value={current(field)} onChange={(event) => setValues((v) => ({ ...v, [field.name]: event.target.value }))} required={field.required} className={modalField.input}>
                       {field.options?.map((option) => (

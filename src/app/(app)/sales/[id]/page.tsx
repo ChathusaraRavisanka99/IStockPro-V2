@@ -89,6 +89,27 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
 
   // Changing who a sale belongs to rewrites a financial record (invoice "bill to", customer
   // history, receivables), so it always goes through the review + password step and is logged.
+  // Register a customer straight from the Change-customer popup; returns its id so the picker
+  // selects it immediately.
+  async function registerCustomer(formData: FormData) {
+    "use server";
+    return withErrorLog("sales/detail: registerCustomer", formData, async () => {
+      const name = String(formData.get("name") || "").trim();
+      if (!name) return undefined;
+      const customer = await prisma.customer.create({
+        data: {
+          name,
+          phone: String(formData.get("phone") || "").trim() || null,
+          email: String(formData.get("email") || "").trim() || null,
+          address: String(formData.get("address") || "").trim() || null,
+        },
+      });
+      revalidatePath(`/sales/${params.id}`);
+      revalidatePath("/customers");
+      return { value: customer.id };
+    });
+  }
+
   async function changeSaleCustomer(formData: FormData): Promise<ActionResult> {
     "use server";
     return withErrorLog("sales/detail: changeSaleCustomer", formData, async () => {
@@ -163,9 +184,20 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
                     name: "customerId",
                     label: "Customer",
                     value: sale.customerId ?? "",
-                    type: "select",
+                    type: "searchable",
                     sensitive: true,
                     wide: true,
+                    placeholder: "Search customers…",
+                    quickAdd: {
+                      label: "Customer",
+                      action: registerCustomer,
+                      fields: [
+                        { name: "name", label: "Name", required: true },
+                        { name: "phone", label: "Phone" },
+                        { name: "email", label: "Email" },
+                        { name: "address", label: "Address" },
+                      ],
+                    },
                     options: [{ value: "", label: "Walk-in customer" }, ...customerOptions.map((customer) => ({ value: customer.id, label: customer.phone ? `${customer.name} · ${customer.phone}` : customer.name }))],
                   },
                 ]}

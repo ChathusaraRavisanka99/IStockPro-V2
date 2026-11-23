@@ -19,7 +19,8 @@ export type QuickAddField = {
 
 export type QuickAdd = {
   label: string;
-  action: (formData: FormData) => void | Promise<void>;
+  /** Return { value } to auto-select the record that was just created. */
+  action: (formData: FormData) => void | Promise<void | { value: string } | unknown>;
   fields: QuickAddField[];
 };
 
@@ -130,7 +131,10 @@ export function SearchableSelect({ name, value, defaultValue = "", placeholder =
     setSubmitting(true);
     const formData = new FormData();
     quickAdd.fields.forEach((field) => formData.append(field.name, addValues[field.name] ?? ""));
-    await quickAdd.action(formData);
+    const created = await quickAdd.action(formData);
+    if (created && typeof created === "object" && "value" in created && typeof (created as { value: unknown }).value === "string") {
+      selectOption((created as { value: string }).value);
+    }
     // The action is invoked directly here rather than via a real form submission, so
     // Next.js has no reason to refetch this route's data on its own even though the
     // server action's revalidatePath() marked it stale — without this, the newly
