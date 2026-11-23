@@ -13,6 +13,9 @@ import { formatSaleItemName } from "@/lib/format-item-name";
 import { uploadFile, getSignedDownloadUrl, isStorageKey, buildKey } from "@/lib/storage";
 import { EntityLink } from "@/components/ui/entity-link";
 import { withErrorLog } from "@/lib/error-log";
+import { EntityEditButton } from "@/components/ui/entity-editor";
+import { auditChange, requireReauthWhen } from "@/lib/entity-guard";
+import type { ActionResult } from "@/components/ui/editable-row";
 
 export default async function SaleDetailPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -78,6 +81,43 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
     });
   }
 
+  const customerOptions = await prisma.customer.findMany({
+    where: { OR: [{ deletedAt: null }, ...(sale.customerId ? [{ id: sale.customerId }] : [])] },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, phone: true },
+  });
+
+  // Changing who a sale belongs to rewrites a financial record (invoice "bill to", customer
+  // history, receivables), so it always goes through the review + password step and is logged.
+  async function changeSaleCustomer(formData: FormData): Promise<ActionResult> {
+    "use server";
+    return withErrorLog("sales/detail: changeSaleCustomer", formData, async () => {
+      const guard = await requireReauthWhen(formData, true);
+      if (!guard.ok) return guard;
+      const current = await prisma.sale.findUnique({ where: { id: params.id }, select: { customerId: true, customer: { select: { name: true } } } });
+      if (!current) return { ok: false, error: "Sale not found." };
+      const customerId = String(formData.get("customerId") || "") || null;
+      if (customerId === current.customerId) return { ok: true };
+      let newName = "Walk-in";
+      if (customerId) {
+        const customer = await prisma.customer.findUnique({ where: { id: customerId }, select: { name: true, deletedAt: true } });
+        if (!customer || customer.deletedAt) return { ok: false, error: "That customer doesn't exist or is deleted." };
+        newName = customer.name;
+      }
+      await prisma.sale.update({ where: { id: params.id }, data: { customerId } });
+      const actor = await getServerSession(authOptions);
+      await auditChange("SensitiveEdit", "Sale", params.id, actor?.user?.id, {
+        changes: [{ field: "customer", before: current.customer?.name ?? "Walk-in", after: newName }],
+      });
+      revalidatePath(`/sales/${params.id}`);
+      revalidatePath("/sales");
+      revalidatePath("/customers");
+      if (current.customerId) revalidatePath(`/customers/${current.customerId}`);
+      if (customerId) revalidatePath(`/customers/${customerId}`);
+      return { ok: true };
+    });
+  }
+
   const statusColor =
     invoice?.status === "Paid"
       ? "bg-green-100 text-green-800"
@@ -109,6 +149,29 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
           <p className="text-xs font-semibold uppercase text-slate-500">Customer</p>
           <p className="mt-2 font-semibold text-slate-900">{sale.customer ? <EntityLink kind="customer" id={sale.customer.id}>{sale.customer.name}</EntityLink> : "Walk-in customer"}</p>
           <p className="mt-1 text-sm text-slate-700">{sale.customer?.phone || sale.customer?.email || "No contact details"}</p>
+          {sale.status !== "Voided" ? (
+            <div className="mt-3">
+              <EntityEditButton
+                title="Change customer"
+                subtitle={`Sale ${sale.saleNumber}`}
+                label="Change customer"
+                username={session?.user?.username}
+                action={changeSaleCustomer}
+                note="The sale, invoice and receipt will show the new customer, and the sale moves to their purchase history. You'll review the change and confirm with your password."
+                fields={[
+                  {
+                    name: "customerId",
+                    label: "Customer",
+                    value: sale.customerId ?? "",
+                    type: "select",
+                    sensitive: true,
+                    wide: true,
+                    options: [{ value: "", label: "Walk-in customer" }, ...customerOptions.map((customer) => ({ value: customer.id, label: customer.phone ? `${customer.name} · ${customer.phone}` : customer.name }))],
+                  },
+                ]}
+              />
+            </div>
+          ) : null}
         </Card>
         <Card>
           <p className="text-xs font-semibold uppercase text-slate-500">Sale</p>
