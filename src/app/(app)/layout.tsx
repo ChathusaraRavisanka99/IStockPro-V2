@@ -13,6 +13,7 @@ import { getUiMode } from "@/lib/ui-mode";
 import { Suspense } from "react";
 import { ReturnToBanner } from "@/components/ui/return-to-banner";
 import { TableSorter } from "@/components/ui/table-sorter";
+import { BackNav } from "@/components/ui/back-nav";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <TableSorter />
         <LiteShell name={userName} role={session.user.role}>
           <Suspense fallback={null}>
+            <BackNav />
             <ReturnToBanner />
           </Suspense>
           {children}
@@ -63,6 +65,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <LiteSuggestion />
         <div className="glass-panel rounded-2xl border border-white/90 p-3 text-slate-950 shadow-[0_25px_60px_rgba(15,23,42,0.1)] sm:rounded-3xl sm:p-6 lg:p-8 print:rounded-none print:border-0 print:bg-white print:p-0 print:shadow-none">
           <Suspense fallback={null}>
+            <BackNav />
             <ReturnToBanner />
           </Suspense>
           {children}
