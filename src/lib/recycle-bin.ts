@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { SOFT_DELETE_RETENTION_DAYS } from "@/lib/purge";
+import { formatPhoneName } from "@/lib/format-item-name";
 
 export type RecycleKind = "lot" | "phone" | "variant" | "model" | "customer" | "supplier" | "accessory";
 
@@ -233,4 +234,99 @@ export async function restoreItem(kind: RecycleKind, id: string): Promise<Restor
     if (!described) throw error;
     return { ok: false, error: "The database blocked this restore:", issues: [described] };
   }
+}
+
+/** One deleted unit of a deleted lot, as offered in the "choose what to restore" popup. */
+export type LotRestoreUnit = {
+  id: string;
+  imei: string;
+  name: string;
+  status: string;
+  soldIn: string[];
+  /** Deleted in the same action as the lot (vs archived separately earlier). */
+  withLot: boolean;
+  /** Why this unit can't come back right now (it can still be left deleted). */
+  blocked: string | null;
+};
+
+/**
+ * What a deleted lot can be restored with: its deleted units, each flagged if a constraint
+ * (IMEI now used by a live unit, its variant/model deleted) blocks it. `lotIssues` are
+ * problems with the lot itself, which block the whole restore.
+ */
+export async function lotRestoreOptions(lotId: string): Promise<{ lotIssues: RestoreIssue[]; units: LotRestoreUnit[] }> {
+  const lot = await prisma.lot.findUnique({ where: { id: lotId } });
+  if (!lot?.deletedAt) return { lotIssues: [{ level: "block", message: "This lot is no longer in the recycle bin." }], units: [] };
+  const lotIssues = (await checkRestore("lot", lotId)).filter((issue) => issue.level === "block");
+  const phones = await prisma.phone.findMany({
+    where: { lotId, deletedAt: { not: null } },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      imei: true,
+      status: true,
+      deletedAt: true,
+      phoneVariant: { include: { phoneModel: true } },
+      saleItems: { select: { sale: { select: { saleNumber: true } } } },
+    },
+  });
+  const holders = await liveImeiHolders(phones.map((phone) => phone.imei), phones.map((phone) => phone.id));
+  return {
+    lotIssues,
+    units: phones.map((phone) => {
+      const holder = holders.get(phone.imei);
+      const model = phone.phoneVariant.phoneModel;
+      const blocked = holder
+        ? `IMEI is now used by a live unit in lot ${holder.lotNumber}.`
+        : model.deletedAt
+          ? `Its model ${model.brand} ${model.modelName} is deleted — restore the model first.`
+          : phone.phoneVariant.deletedAt
+            ? `Its variant "${phone.phoneVariant.variantName}" is deleted — restore the variant first.`
+            : null;
+      return {
+        id: phone.id,
+        imei: phone.imei,
+        name: formatPhoneName(phone.phoneVariant),
+        status: phone.status,
+        soldIn: phone.saleItems.map((line) => line.sale.saleNumber),
+        withLot: phone.deletedAt!.getTime() === lot.deletedAt!.getTime(),
+        blocked,
+      };
+    }),
+  };
+}
+
+/**
+ * Restores a lot plus exactly the chosen units (units can't come back without their lot, so
+ * the lot is always included). Everything is re-checked against live data first.
+ */
+export async function restoreLotSelection(lotId: string, unitIds: string[]): Promise<RestoreResult> {
+  const { lotIssues, units } = await lotRestoreOptions(lotId);
+  if (lotIssues.length) return { ok: false, error: "The lot itself can't be restored yet:", issues: lotIssues };
+  const byId = new Map(units.map((unit) => [unit.id, unit]));
+  const ids = Array.from(new Set(unitIds));
+  const chosen = ids.map((id) => byId.get(id));
+  const problems: RestoreIssue[] = [];
+  for (let index = 0; index < chosen.length; index++) {
+    const unit = chosen[index];
+    if (!unit) problems.push({ level: "block", message: `Unit ${ids[index]} isn't a deleted unit of this lot any more.` });
+    else if (unit.blocked) problems.push({ level: "block", message: `${unit.name} (IMEI ${unit.imei}): ${unit.blocked}` });
+  }
+  if (problems.length) return { ok: false, error: "Some of the chosen units can't be restored — untick them or fix the problem first:", issues: problems };
+  const lot = await prisma.lot.findUniqueOrThrow({ where: { id: lotId } });
+  try {
+    await prisma.$transaction([
+      prisma.lot.update({ where: { id: lotId }, data: { deletedAt: null, lotNumber: originalLotNumber(lot.lotNumber) } }),
+      prisma.phone.updateMany({ where: { id: { in: chosen.map((unit) => unit!.id) }, lotId }, data: { deletedAt: null } }),
+    ]);
+  } catch (error) {
+    const described = describeDbError(error);
+    if (!described) throw error;
+    return { ok: false, error: "The database blocked this restore:", issues: [described] };
+  }
+  const left = units.length - chosen.length;
+  return {
+    ok: true,
+    message: `Lot ${originalLotNumber(lot.lotNumber)} restored with ${chosen.length} unit${chosen.length === 1 ? "" : "s"}${left ? ` — ${left} left in the Recycle Bin` : ""}.`,
+  };
 }

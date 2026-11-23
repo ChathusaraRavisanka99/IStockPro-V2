@@ -167,7 +167,7 @@ export default async function LotsPage({ searchParams }: Props) {
         fields={{ id: lot.id }}
         action={deleteLot}
         confirmLabel="Delete lot"
-        blockedReason={soldLines ? `Units from this lot appear on ${soldLines} sale line${soldLines === 1 ? "" : "s"}, so it can't be deleted — sales history must keep pointing at it. Archive individual unsold units instead.` : null}
+        blockedReason={soldLines ? `Units from this lot appear on ${soldLines} sale line${soldLines === 1 ? "" : "s"}, so it can only be deleted together with those units — open the lot and use "Delete lot + everything", which lists everything affected first.` : null}
         consequences={[
           "The lot disappears from the lot list, dashboard and reports.",
           lot.phones.length ? `Its ${lot.phones.length} unit${lot.phones.length === 1 ? "" : "s"} are archived and leave stock — ${inStock} in stock right now.` : "It has no units.",

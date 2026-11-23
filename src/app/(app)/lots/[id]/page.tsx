@@ -25,7 +25,7 @@ import type { CreateVariantResult } from "@/components/items/variant-picker";
 import { EntityDeleteButton, EntityEditButton } from "@/components/ui/entity-editor";
 import { auditChange, diffFields, requireReauthWhen } from "@/lib/entity-guard";
 import { formatVariantSpecs } from "@/lib/format-item-name";
-import { recomputeLotPayments, softDeleteLot, toggleLotBookmark } from "@/lib/lots";
+import { lotDeleteImpact, recomputeLotPayments, softDeleteLot, toggleLotBookmark } from "@/lib/lots";
 import { BookmarkButton } from "@/components/items/bookmark-button";
 import { priceChangeLogs } from "@/lib/price-history";
 import { findImeiOwner, liveImeiOwners } from "@/lib/imei";
@@ -62,6 +62,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
   ]);
   if (!lot || lot.deletedAt) notFound();
   const supplierOptions = await prisma.supplier.findMany({ where: { OR: [{ deletedAt: null }, { id: lot.supplierId }] }, orderBy: { name: "asc" }, select: { id: true, name: true } });
+  const deleteImpact = await lotDeleteImpact(lot.id);
   const bookmarked = Boolean(await prisma.lotBookmark.findUnique({ where: { userId_lotId: { userId: session.user.id, lotId: lot.id } } }));
 
   const [lotSaleItems, lotReturnItems, phoneExpenseRows, accessoryExpenseRows] = await Promise.all([
@@ -544,9 +545,14 @@ export default async function LotDetailPage({ params }: { params: { id: string }
     "use server";
     const check = await checkReauth(formData);
     if (!check.ok) return check;
-    const result = await softDeleteLot(params.id);
+    const cascade = formData.get("cascade") === "1";
+    const impact = await lotDeleteImpact(params.id);
+    const result = await softDeleteLot(params.id, { cascade });
     if (!result.ok) return result;
+    const actor = await getServerSession(authOptions);
+    await auditChange("SensitiveDelete", "Lot", params.id, actor?.user?.id, { cascade, units: result.units, soldUnits: impact?.sold ?? 0, deleted: impact?.deleted ?? [], kept: impact?.kept ?? [] });
     revalidatePath("/lots");
+    revalidatePath("/recycle-bin");
     revalidatePath("/items/phones");
     revalidatePath("/dashboard");
     return { ok: true };
@@ -709,24 +715,21 @@ export default async function LotDetailPage({ params }: { params: { id: string }
           ]}
         />
         <EntityDeleteButton
-          label="Delete lot"
-          title={`Delete lot ${lot.lotNumber}?`}
+          label={deleteImpact?.sold ? "Delete lot + everything" : "Delete lot"}
+          title={deleteImpact?.sold ? `Delete lot ${lot.lotNumber} and everything in it?` : `Delete lot ${lot.lotNumber}?`}
           sensitive
           username={username}
-          fields={{ id: lot.id }}
+          fields={{ id: lot.id, cascade: deleteImpact?.sold ? "1" : "0" }}
           action={deleteLot}
-          confirmLabel="Delete lot"
+          confirmLabel={deleteImpact?.sold ? "Delete lot and its units" : "Delete lot"}
           redirectTo="/lots"
           buttonClassName="btn btn-sm btn-danger"
-          blockedReason={lotSaleItems.length ? `${lotSaleItems.length} sale line${lotSaleItems.length === 1 ? "" : "s"} already include units from this lot, so it can't be deleted — sales history must keep pointing at it. Archive individual unsold units instead.` : null}
           consequences={[
-            `The lot disappears from the lot list, dashboard and reports${lot.status !== "Collection" ? ` (it is currently ${lot.status})` : ""}.`,
-            units ? `Its ${units} unit${units === 1 ? "" : "s"} are archived and leave stock — ${inStockCount} of them are in stock right now.` : "It has no units.",
-            lot.payments.length ? `Its ${lot.payments.length} supplier payment${lot.payments.length === 1 ? "" : "s"} (${formatMoney(lot.amountPaid)}) stay attached to the deleted lot.` : "No supplier payments are recorded.",
-            lot.accessoryItems.length ? `${lot.accessoryItems.length} accessory batch${lot.accessoryItems.length === 1 ? "" : "es"} stay attached to it.` : "No accessory batches are attached.",
-            `The lot number ${lot.lotNumber} is freed for reuse.`,
-            "It stays in the Recycle Bin for 30 days (restoring brings the units back), then is deleted permanently.",
+            ...(deleteImpact?.deleted ?? []),
+            ...(deleteImpact?.sold ? [`${deleteImpact.sold} of these units were sold — they're deleted too, but the sales keep showing them.`] : []),
+            "Everything deleted here stays in the Recycle Bin for 30 days. There you can restore the lot with all, some or none of its units.",
           ]}
+          kept={deleteImpact?.kept}
         />
         </div>
       </div>

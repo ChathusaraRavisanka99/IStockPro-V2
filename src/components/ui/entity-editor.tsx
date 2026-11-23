@@ -2,7 +2,7 @@
 
 import { useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowRight, Ban, Pencil, ShieldAlert, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, Ban, Pencil, ShieldAlert, Trash2, ShieldCheck } from "lucide-react";
 import { Modal, modalButton, modalField } from "@/components/ui/modal";
 import { formatMoney } from "@/lib/currency";
 import type { ActionResult } from "@/components/ui/editable-row";
@@ -263,6 +263,7 @@ export function EntityEditButton({
 export function EntityDeleteButton({
   title,
   consequences,
+  kept,
   sensitive,
   blockedReason,
   fields,
@@ -275,6 +276,8 @@ export function EntityDeleteButton({
 }: {
   title: string;
   consequences: string[];
+  /** Related records that are deliberately NOT deleted (shown as a second list). */
+  kept?: string[];
   sensitive?: boolean;
   blockedReason?: string | null;
   fields: Record<string, string>;
@@ -360,6 +363,19 @@ export function EntityDeleteButton({
                   ))}
                 </ul>
               </div>
+              {kept?.length ? (
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Kept — not deleted</p>
+                  <ul className="grid gap-1.5">
+                    {kept.map((line) => (
+                      <li key={line} className="flex items-start gap-2 text-sm text-slate-700">
+                        <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-emerald-600" />
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               {sensitive ? <PasswordFields username={username} /> : null}
               {error ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p> : null}
             </form>

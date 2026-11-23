@@ -8,7 +8,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { RestoreButton, RestoreIssueList } from "@/components/ui/restore-button";
 import { formatPhoneName } from "@/lib/format-item-name";
 import { SOFT_DELETE_RETENTION_DAYS } from "@/lib/purge";
-import { checkRestore, daysLeft, originalLotNumber, restoreItem, retentionCutoff, type RecycleKind, type RestoreIssue, type RestoreResult } from "@/lib/recycle-bin";
+import { checkRestore, daysLeft, lotRestoreOptions, originalLotNumber, restoreItem, restoreLotSelection, retentionCutoff, type RecycleKind, type RestoreIssue, type RestoreResult } from "@/lib/recycle-bin";
+import { LotRestoreDialog } from "@/components/ui/lot-restore-dialog";
 
 const KINDS: RecycleKind[] = ["lot", "phone", "variant", "model", "customer", "supplier", "accessory"];
 
@@ -51,9 +52,16 @@ export default async function RecycleBinPage({ searchParams }: { searchParams: {
     prisma.accessory.findMany({ where: recent }),
   ]);
 
+  // Units deleted in the same action as their (still deleted) lot are restored from the lot's
+  // "Restore…" popup, so they're listed under the lot instead of as separate rows.
+  const lotDeletedAt = new Map(lots.map((lot) => [lot.id, lot.deletedAt!.getTime()]));
+  const withLot = (phone: (typeof phones)[number]) => lotDeletedAt.get(phone.lotId) === phone.deletedAt!.getTime();
+  const unitsWithLot = new Map<string, number>();
+  for (const phone of phones) if (withLot(phone)) unitsWithLot.set(phone.lotId, (unitsWithLot.get(phone.lotId) ?? 0) + 1);
+
   const rows: Row[] = [
-    ...lots.map((lot) => ({ kind: "lot" as const, id: lot.id, title: `Lot ${originalLotNumber(lot.lotNumber)}`, detail: `${lot.supplier.name} · ${lot._count.phones} unit(s) · started ${lot.purchaseDate.toISOString().slice(0, 10)}`, deletedAt: lot.deletedAt! })),
-    ...phones.map((phone) => ({ kind: "phone" as const, id: phone.id, title: `IMEI ${phone.imei}`, detail: `${formatPhoneName(phone.phoneVariant)} · lot ${originalLotNumber(phone.lot.lotNumber)} · ${phone.status}`, deletedAt: phone.deletedAt! })),
+    ...lots.map((lot) => ({ kind: "lot" as const, id: lot.id, title: `Lot ${originalLotNumber(lot.lotNumber)}`, detail: `${lot.supplier.name} · ${lot._count.phones} unit(s)${unitsWithLot.get(lot.id) ? ` · ${unitsWithLot.get(lot.id)} deleted with it` : ""} · started ${lot.purchaseDate.toISOString().slice(0, 10)}`, deletedAt: lot.deletedAt! })),
+    ...phones.filter((phone) => !withLot(phone)).map((phone) => ({ kind: "phone" as const, id: phone.id, title: `IMEI ${phone.imei}`, detail: `${formatPhoneName(phone.phoneVariant)} · lot ${originalLotNumber(phone.lot.lotNumber)} · ${phone.status}`, deletedAt: phone.deletedAt! })),
     ...variants.map((variant) => ({ kind: "variant" as const, id: variant.id, title: formatPhoneName(variant), detail: "Phone variant", deletedAt: variant.deletedAt! })),
     ...models.map((model) => ({ kind: "model" as const, id: model.id, title: `${model.brand} ${model.modelName}`, detail: "Phone model", deletedAt: model.deletedAt! })),
     ...customers.map((customer) => ({ kind: "customer" as const, id: customer.id, title: customer.name, detail: [customer.phone, customer.email].filter(Boolean).join(" · ") || "Customer", deletedAt: customer.deletedAt! })),
@@ -69,6 +77,8 @@ export default async function RecycleBinPage({ searchParams }: { searchParams: {
         .map(async (row) => [`${row.kind}-${row.id}`, await checkRestore(row.kind, row.id)] as const)
     )
   );
+
+  const lotOptions = new Map(await Promise.all(lots.map(async (lot) => [lot.id, await lotRestoreOptions(lot.id)] as const)));
 
   const counts = KINDS.map((kind) => ({ kind, count: rows.filter((row) => row.kind === kind).length }));
   const visible = typeFilter ? rows.filter((row) => row.kind === typeFilter) : rows;
@@ -87,6 +97,20 @@ export default async function RecycleBinPage({ searchParams }: { searchParams: {
     return result;
   }
 
+  async function restoreLot(formData: FormData): Promise<RestoreResult> {
+    "use server";
+    const actor = await getServerSession(authOptions);
+    if (!canViewCost(actor?.user?.role as "admin" | "manager" | "staff" | undefined)) return { ok: false, error: "Not allowed." };
+    const lotId = String(formData.get("lotId") || "");
+    const unitIds = formData.getAll("unitId").map(String).filter(Boolean);
+    const result = await restoreLotSelection(lotId, unitIds);
+    if (result.ok) {
+      await prisma.auditLog.create({ data: { action: "Restore", entityType: "lot", entityId: lotId, userId: actor?.user?.id || null, details: { unitIds } } });
+      for (const path of ["/recycle-bin", "/lots", "/items/phones", "/items/phone-catalog", "/dashboard"]) revalidatePath(path);
+    }
+    return result;
+  }
+
   return (
     <div>
       <PageHeader
@@ -94,8 +118,8 @@ export default async function RecycleBinPage({ searchParams }: { searchParams: {
         subtitle={`Deleted records you can still recover — each is permanently removed ${SOFT_DELETE_RETENTION_DAYS} days after deletion`}
         help={
           <p>
-            Anything deleted or archived in the last {SOFT_DELETE_RETENTION_DAYS} days is listed here. Restore puts it back exactly as it was. Restoring a lot also brings back the units that were
-            deleted with it. Anything that would break a rule (an IMEI or lot number now used by another record, or a lot/variant/model that is still deleted) is listed under the item in red before you restore — fix it, or restore the parent first.
+            Anything deleted or archived in the last {SOFT_DELETE_RETENTION_DAYS} days is listed here. Restore puts it back exactly as it was. Restoring a lot opens a list of its deleted units so you can bring back all, some or none of them (units
+            can&apos;t come back without their lot). Anything that would break a rule (an IMEI or lot number now used by another record, or a lot/variant/model that is still deleted) is listed under the item in red before you restore — fix it, or restore the parent first.
           </p>
         }
       />
@@ -141,7 +165,11 @@ export default async function RecycleBinPage({ searchParams }: { searchParams: {
                     <td className="whitespace-nowrap px-2 py-2">{row.deletedAt.toISOString().slice(0, 16).replace("T", " ")}</td>
                     <td className={`whitespace-nowrap px-2 py-2 ${left <= 3 ? "font-medium text-red-700" : "text-slate-700"}`}>{left} day{left === 1 ? "" : "s"}</td>
                     <td className="px-2 py-2">
-                      <RestoreButton kind={row.kind} id={row.id} label={row.title} action={restore} />
+                      {row.kind === "lot" && lotOptions.get(row.id) ? (
+                        <LotRestoreDialog lotId={row.id} title={row.title} lotIssues={lotOptions.get(row.id)!.lotIssues} units={lotOptions.get(row.id)!.units} action={restoreLot} />
+                      ) : (
+                        <RestoreButton kind={row.kind} id={row.id} label={row.title} action={restore} />
+                      )}
                     </td>
                   </tr>
                 );
