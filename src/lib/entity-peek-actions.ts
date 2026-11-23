@@ -280,6 +280,12 @@ export async function peekEntity(kind: EntityKind, id: string): Promise<PeekData
           { label: "Items", value: String(sale._count.items) },
           { label: "Total", value: formatMoney(sale.totalAmount) },
           { label: "Invoice", value: sale.invoice ? `${sale.invoice.invoiceNumber} · ${sale.invoice.status}` : "—" },
+          ...(sale.invoice
+            ? [
+                { label: "Paid", value: formatMoney(sale.invoice.paidAmount) },
+                { label: "Balance due", value: formatMoney(Math.max(0, Number(sale.totalAmount) - Number(sale.invoice.paidAmount))) },
+              ]
+            : []),
         ],
         editHint: "Sales aren't edited after they're completed — open the sale to record payments or void it.",
         username: actor.username,

@@ -10,6 +10,9 @@ import { PageHeader } from "@/components/ui/page-header";
 import { InfoHelp } from "@/components/ui/info-help";
 import { Card } from "@/components/ui/card";
 import { importBackup, type ImportSummary } from "@/lib/backup";
+import { COMPANY_FIELDS, COMPANY_PROFILE_ACTION, companyContactLines, getCompanyLogoUrl, getCompanyProfile, type CompanyProfile } from "@/lib/company";
+import { buildKey, uploadFile } from "@/lib/storage";
+import { logAppError } from "@/lib/error-log";
 
 const ROLE_LEGEND: { role: UserRole; label: string; description: string }[] = [
   { role: "admin", label: "Admin", description: "Full access: manage users and roles, view purchase costs and margins, void invoices, and access every report." },
@@ -25,6 +28,8 @@ type SettingsSearchParams = {
   pwSuccess?: string;
   resetError?: string;
   resetSuccess?: string;
+  companySaved?: string;
+  companyError?: string;
 };
 
 export default async function SettingsPage({ searchParams }: { searchParams?: SettingsSearchParams }) {
@@ -37,6 +42,41 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
     prisma.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 20, include: { user: true } }),
     prisma.auditLog.findFirst({ where: { action: "BackupImport" }, orderBy: { createdAt: "desc" } }),
   ]);
+
+  const company = await getCompanyProfile();
+  const companyLogoUrl = await getCompanyLogoUrl(company);
+
+  // Company details printed on receipts, invoices and quotations (admins only). All optional;
+  // each save appends a new CompanyProfile row so earlier versions stay in the audit log.
+  async function saveCompanyProfile(formData: FormData) {
+    "use server";
+    const actor = await getServerSession(authOptions);
+    if (!canManageUsers(actor?.user?.role as "admin" | "manager" | "staff" | undefined)) redirect("/settings?companyError=Only admins can change company details.");
+    const current = await getCompanyProfile();
+    const next: CompanyProfile = {};
+    for (const field of COMPANY_FIELDS) {
+      const value = String(formData.get(field.key) || "").trim().slice(0, field.multiline ? 400 : 120);
+      if (value) next[field.key] = value;
+    }
+    if (next.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(next.email)) redirect("/settings?companyError=That email address doesn't look right.");
+    let logoKey = current.logoKey;
+    if (formData.get("removeLogo") === "1") logoKey = undefined;
+    const logo = formData.get("logo");
+    if (logo instanceof File && logo.size > 0) {
+      if (!["image/png", "image/jpeg"].includes(logo.type)) redirect("/settings?companyError=The logo must be a PNG or JPG image.");
+      if (logo.size > 2 * 1024 * 1024) redirect("/settings?companyError=The logo must be 2 MB or smaller.");
+      try {
+        logoKey = await uploadFile(Buffer.from(await logo.arrayBuffer()), buildKey("company", logo.name), logo.type);
+      } catch (error) {
+        const ref = await logAppError("server-action", { where: "settings: saveCompanyProfile (logo upload)", error }, actor?.user?.id);
+        redirect(`/settings?companyError=${encodeURIComponent(`Couldn't upload the logo${ref ? ` (error ref ${ref})` : ""}.`)}`);
+      }
+    }
+    if (logoKey) next.logoKey = logoKey;
+    await prisma.auditLog.create({ data: { action: COMPANY_PROFILE_ACTION, entityType: "Company", entityId: "profile", userId: actor?.user?.id ?? null, details: next as object } });
+    revalidatePath("/settings");
+    redirect("/settings?companySaved=1");
+  }
 
   async function createUser(formData: FormData) {
     "use server";
@@ -186,6 +226,77 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Se
           </p>
         }
       />
+
+      <Card className="mb-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-1.5 text-lg font-semibold">
+            Company details
+            <InfoHelp size="sm" title="Company details">
+              <p>Your business details printed on receipts, invoice PDFs and quotations: name, tagline, address, contact details, contact person, registration number, a footer note and an optional logo.</p>
+              <p>Everything is optional. Anything left blank keeps the documents exactly as they look now. The logo must be a PNG or JPG, 2 MB or smaller (a wide logo on a white or transparent background prints best).</p>
+            </InfoHelp>
+          </h2>
+          {!isAdmin ? <span className="text-xs text-slate-500">Only admins can change these.</span> : null}
+        </div>
+        {searchParams?.companySaved ? <p className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">Company details saved — receipts, invoices and quotations now use them.</p> : null}
+        {searchParams?.companyError ? <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{searchParams.companyError}</p> : null}
+        <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+          <form action={saveCompanyProfile} className="grid gap-3 sm:grid-cols-2">
+            {COMPANY_FIELDS.map((field) => (
+              <label key={field.key} className={`grid gap-1 text-xs font-medium text-slate-600 ${field.multiline ? "sm:col-span-2" : ""}`}>
+                {field.label} <span className="font-normal text-slate-400">(optional)</span>
+                {field.multiline ? (
+                  <textarea name={field.key} defaultValue={company[field.key] ?? ""} placeholder={field.placeholder} rows={2} disabled={!isAdmin} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:opacity-70" />
+                ) : (
+                  <input name={field.key} type={field.key === "email" ? "email" : "text"} defaultValue={company[field.key] ?? ""} placeholder={field.placeholder} disabled={!isAdmin} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:opacity-70" />
+                )}
+              </label>
+            ))}
+            <div className="grid gap-2 sm:col-span-2">
+              <span className="text-xs font-medium text-slate-600">Logo <span className="font-normal text-slate-400">(optional · PNG or JPG, max 2 MB)</span></span>
+              <div className="flex flex-wrap items-center gap-3">
+                {companyLogoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={companyLogoUrl} alt="Current logo" className="h-12 max-w-[160px] rounded border border-slate-200 bg-white object-contain p-1" />
+                ) : (
+                  <span className="text-xs text-slate-500">No logo set</span>
+                )}
+                {isAdmin ? <input name="logo" type="file" accept="image/png,image/jpeg" className="text-xs text-slate-600 file:mr-2 file:rounded-md file:border-0 file:bg-slate-200 file:px-2 file:py-1 file:text-xs" /> : null}
+                {isAdmin && company.logoKey ? (
+                  <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                    <input type="checkbox" name="removeLogo" value="1" /> Remove logo
+                  </label>
+                ) : null}
+              </div>
+            </div>
+            {isAdmin ? (
+              <div className="sm:col-span-2">
+                <button className="btn btn-md btn-primary">Save company details</button>
+              </div>
+            ) : null}
+          </form>
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Preview (document header)</p>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 text-slate-900">
+              <div className="mb-3 h-1.5 rounded bg-[#10233f]" />
+              <div className="flex items-start gap-3">
+                {companyLogoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={companyLogoUrl} alt="" className="h-10 max-w-[90px] object-contain" />
+                ) : null}
+                <div className="min-w-0">
+                  <p className="text-lg font-bold text-[#10233f]">{company.name || "IStockPro"}</p>
+                  <p className="text-xs text-slate-500">{company.tagline || "Inventory and retail management"}</p>
+                  {companyContactLines(company).map((line) => (
+                    <p key={line} className="text-[11px] text-slate-600">{line}</p>
+                  ))}
+                </div>
+              </div>
+              {company.footerNote ? <p className="mt-3 border-t border-slate-200 pt-2 text-center text-[11px] text-slate-500">{company.footerNote}</p> : null}
+            </div>
+          </div>
+        </div>
+      </Card>
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card className="min-w-0 xl:col-span-2">

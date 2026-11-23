@@ -10,6 +10,7 @@ import { SpecChips } from "@/components/ui/spec-chips";
 import { formatMoney } from "@/lib/currency";
 import { quotationLineLabel } from "@/lib/format-item-name";
 import { EntityLink } from "@/components/ui/entity-link";
+import { companyContactLines, getCompanyLogoUrl, getCompanyProfile } from "@/lib/company";
 
 const STATUS_STYLES: Record<string, string> = {
   Draft: "bg-slate-100 text-slate-700",
@@ -30,6 +31,8 @@ export default async function QuotationDetailPage({ params }: { params: { id: st
   });
   if (!quotation) notFound();
 
+  const company = await getCompanyProfile();
+  const logoUrl = await getCompanyLogoUrl(company);
   const contactPhone = quotation.customer?.phone || quotation.customerPhone;
   const contactEmail = quotation.customer?.email || quotation.customerEmail;
   const validUntil = quotation.validUntil?.toISOString().slice(0, 10);
@@ -65,9 +68,18 @@ export default async function QuotationDetailPage({ params }: { params: { id: st
         <div className="h-1.5 bg-[#10233f]" aria-hidden="true" />
         <div className="p-4 sm:p-8">
           <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-2xl font-bold tracking-tight text-[#10233f]">IStockPro</p>
-              <p className="text-sm text-slate-500">Phones &amp; accessories</p>
+            <div className="flex items-start gap-3">
+              {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoUrl} alt="" className="h-12 max-w-[120px] object-contain" />
+              ) : null}
+              <div>
+                <p className="text-2xl font-bold tracking-tight text-[#10233f]">{company.name || "IStockPro"}</p>
+                <p className="text-sm text-slate-500">{company.tagline || "Phones & accessories"}</p>
+                {companyContactLines(company).map((line) => (
+                  <p key={line} className="whitespace-pre-line text-xs text-slate-600">{line}</p>
+                ))}
+              </div>
             </div>
             <div className="sm:text-right">
               <p className="text-xl font-bold tracking-wide text-[#10233f]">QUOTATION</p>
@@ -185,7 +197,8 @@ export default async function QuotationDetailPage({ params }: { params: { id: st
           </section>
 
           <footer className="mt-8 border-t border-slate-200 pt-4 text-center text-xs text-slate-500">
-            IStockPro · Thank you for your interest. Prices are subject to stock availability until the quotation is accepted.
+            {company.name || "IStockPro"} · Thank you for your interest. Prices are subject to stock availability until the quotation is accepted.
+            {company.footerNote ? <span className="mt-1 block whitespace-pre-line">{company.footerNote}</span> : null}
           </footer>
         </div>
       </article>
