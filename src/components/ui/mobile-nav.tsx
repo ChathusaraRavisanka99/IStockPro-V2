@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { AppNav } from "@/components/ui/app-nav";
 import { LogoutButton } from "@/components/ui/logout-button";
+import { ModeSwitch } from "@/components/ui/mode-switch";
 
 type Props = {
   name?: string | null;
@@ -70,7 +71,8 @@ export function MobileNav({ name, role }: Props) {
                   </button>
                 </div>
                 <AppNav />
-                <div className="mt-auto">
+                <div className="mt-auto grid gap-3">
+                  <ModeSwitch mode="full" />
                   <LogoutButton name={name} role={role} />
                 </div>
               </div>
