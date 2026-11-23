@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { ReceiptActions } from "@/components/sales/receipt-actions";
 import { formatMoney } from "@/lib/currency";
 import { formatSaleItemName } from "@/lib/format-item-name";
+import { companyContactLines, getCompanyLogoUrl, getCompanyProfile } from "@/lib/company";
 
 export default async function ReceiptPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -16,6 +17,9 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
     include: { customer: true, invoice: true, items: { include: { phone: { include: { phoneVariant: { include: { phoneModel: true } } } }, accessory: true } } },
   });
   if (!sale) notFound();
+  const company = await getCompanyProfile();
+  const logoUrl = await getCompanyLogoUrl(company);
+  const contactLines = companyContactLines(company);
 
   return (
     <main className="mx-auto max-w-3xl p-6">
@@ -25,7 +29,20 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
       </div>
       <section className="receipt-paper rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-8">
         <div className="flex items-start justify-between border-b border-slate-200 pb-5">
-          <div><h1 className="text-2xl font-semibold text-slate-950">IStockPro</h1><p className="text-sm text-slate-600">Sales receipt</p></div>
+          <div className="flex items-start gap-3">
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt="" className="h-12 max-w-[120px] object-contain" />
+            ) : null}
+            <div>
+              <h1 className="text-2xl font-semibold text-slate-950">{company.name || "IStockPro"}</h1>
+              {company.tagline ? <p className="text-xs text-slate-500">{company.tagline}</p> : null}
+              <p className="text-sm text-slate-600">Sales receipt</p>
+              {contactLines.map((line) => (
+                <p key={line} className="whitespace-pre-line text-xs text-slate-600">{line}</p>
+              ))}
+            </div>
+          </div>
           <div className="text-right text-sm text-slate-700"><p className="font-semibold text-slate-950">{sale.saleNumber}</p><p>{sale.saleDate.toISOString().slice(0, 10)}</p></div>
         </div>
         <div className="grid gap-2 border-b border-slate-200 py-5 text-sm text-slate-700 sm:grid-cols-2">
@@ -47,6 +64,7 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
           <p className="flex justify-between border-t border-slate-300 pt-2 text-base font-semibold text-slate-950"><span>Total</span><span>{formatMoney(Number(sale.totalAmount))}</span></p>
         </div>
         <p className="mt-8 text-center text-xs text-slate-500">Thank you for your business.</p>
+        {company.footerNote ? <p className="mt-1 whitespace-pre-line text-center text-xs text-slate-500">{company.footerNote}</p> : null}
       </section>
     </main>
   );

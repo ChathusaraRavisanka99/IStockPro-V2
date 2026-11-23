@@ -65,7 +65,18 @@ export default async function LotDetailPage({ params }: { params: { id: string }
   const bookmarked = Boolean(await prisma.lotBookmark.findUnique({ where: { userId_lotId: { userId: session.user.id, lotId: lot.id } } }));
 
   const [lotSaleItems, lotReturnItems, phoneExpenseRows, accessoryExpenseRows] = await Promise.all([
-    prisma.saleItem.findMany({ where: { phone: { lotId: lot.id } }, select: { quantity: true, unitPrice: true, phoneId: true } }),
+    prisma.saleItem.findMany({
+      where: { phone: { lotId: lot.id } },
+      select: {
+        id: true,
+        quantity: true,
+        unitPrice: true,
+        phoneId: true,
+        sale: { select: { id: true, saleNumber: true, saleDate: true, status: true, saleType: true, customerId: true, customer: { select: { name: true } } } },
+        phone: { select: { imei: true, purchasePrice: true, tagCost: true, batteryCost: true, repairCost: true, phoneVariant: { select: { variantName: true, color: true, storage: true, ram: true, phoneModel: { select: { brand: true, modelName: true } } } } } },
+      },
+      orderBy: { sale: { saleDate: "desc" } },
+    }),
     prisma.returnItem.findMany({ where: { phone: { lotId: lot.id } }, select: { phoneId: true, condition: true } }),
     // Expenses (and the popup they feed) are cost-sensitive — only fetch for roles that
     // can already view cost, matching this page's Purchase/Tag/Battery Cost columns.
@@ -1089,6 +1100,71 @@ export default async function LotDetailPage({ params }: { params: { id: string }
           </table>
         </div>
         </UnitEditProvider>
+      </Card>
+
+      <Card className="mt-4">
+        <h2 className="mb-1 flex items-center gap-1.5 text-lg font-semibold">
+          Sold Items From This Lot
+          <InfoHelp size="sm" title="Sold Items From This Lot">
+            Every sale line that sold a phone from this lot, newest first. Click the sale number to see the sale in a popup — use <b>Open</b> in the popup for the full sale page (payments, receipt, invoice). Click the customer or phone to see their details.
+            {showCost ? " Profit is the sold price minus the unit's own costs and its share of the lot's landed charges." : ""}
+          </InfoHelp>
+        </h2>
+        <p className="mb-3 text-sm text-slate-600">
+          {lotSaleItems.length} sale line{lotSaleItems.length === 1 ? "" : "s"} · {formatMoney(lotSaleItems.reduce((sum, item) => sum + Number(item.unitPrice) * item.quantity, 0))} sold
+        </p>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <th className="px-2 py-2">Sale</th>
+                <th className="px-2 py-2">Date</th>
+                <th className="px-2 py-2">Customer</th>
+                <th className="px-2 py-2">Phone</th>
+                <th className="px-2 py-2">IMEI</th>
+                <th className="px-2 py-2 text-right">Sold for</th>
+                {showCost ? <th className="px-2 py-2 text-right">Profit</th> : null}
+                <th className="px-2 py-2">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lotSaleItems.map((item) => {
+                const variant = item.phone?.phoneVariant;
+                const soldFor = Number(item.unitPrice) * item.quantity;
+                const unitCost = item.phone ? Number(item.phone.purchasePrice) + Number(item.phone.tagCost) + Number(item.phone.batteryCost) + Number(item.phone.repairCost) + landedPerUnit : 0;
+                const profit = soldFor - unitCost * item.quantity;
+                const returned = Boolean(item.phoneId && returnedPhoneIds.has(item.phoneId));
+                return (
+                  <tr key={item.id} className="border-b border-slate-100 align-top">
+                    <td className="whitespace-nowrap px-2 py-2 font-medium"><EntityLink kind="sale" id={item.sale.id}>{item.sale.saleNumber}</EntityLink></td>
+                    <td className="whitespace-nowrap px-2 py-2 text-slate-700">{item.sale.saleDate.toISOString().slice(0, 10)}</td>
+                    <td className="px-2 py-2">{item.sale.customerId ? <EntityLink kind="customer" id={item.sale.customerId}>{item.sale.customer?.name ?? "Customer"}</EntityLink> : <span className="text-slate-500">Walk-in</span>}</td>
+                    <td className="px-2 py-2">
+                      {item.phoneId && variant ? (
+                        <EntityLink kind="phone" id={item.phoneId}>{variant.phoneModel.brand} {variant.phoneModel.modelName} {variant.variantName}</EntityLink>
+                      ) : "—"}
+                      {variant ? <span className="block text-xs text-slate-500">{formatVariantSpecs(variant)}</span> : null}
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-2 font-mono text-xs text-slate-700">{item.phone?.imei ?? "—"}</td>
+                    <td className="whitespace-nowrap px-2 py-2 text-right">{formatMoney(soldFor)}</td>
+                    {showCost ? <td className={`whitespace-nowrap px-2 py-2 text-right font-medium ${profit >= 0 ? "text-emerald-700" : "text-red-700"}`}>{formatMoney(profit)}</td> : null}
+                    <td className="whitespace-nowrap px-2 py-2">
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">{item.sale.status}</span>
+                      {returned ? <span className="ml-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900">Returned</span> : null}
+                    </td>
+                  </tr>
+                );
+              })}
+              {lotSaleItems.length === 0 ? (
+                <tr>
+                  <td className="px-2 py-4 text-slate-600" colSpan={showCost ? 8 : 7}>
+                    Nothing from this lot has been sold yet.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
       <Card className="mt-4">

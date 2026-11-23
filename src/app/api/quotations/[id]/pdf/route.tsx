@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Document, Font, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Font, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 
 // Never hyphenate words (emails, IMEIs, model names) across lines.
 Font.registerHyphenationCallback((word) => [word]);
@@ -8,6 +8,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatMoney } from "@/lib/currency";
 import { quotationLineLabel } from "@/lib/format-item-name";
+import { companyContactLines, getCompanyLogoForPdf, getCompanyProfile } from "@/lib/company";
 
 // Same visual language as the invoice PDF (src/app/api/sales/[id]/invoice/route.tsx).
 const styles = StyleSheet.create({
@@ -36,6 +37,9 @@ const styles = StyleSheet.create({
   totalLine: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5 },
   total: { flexDirection: "row", justifyContent: "space-between", paddingTop: 9, marginTop: 5, borderTop: "2 solid #10233f", fontFamily: "Helvetica-Bold", fontSize: 13, color: "#10233f" },
   validity: { marginTop: 10, padding: 7, backgroundColor: "#e0f2fe", color: "#075985", textAlign: "center", fontFamily: "Helvetica-Bold" },
+  brandRow: { flexDirection: "row", maxWidth: 320 },
+  logo: { height: 44, maxWidth: 110, marginRight: 10, objectFit: "contain" },
+  contact: { color: "#526176", marginTop: 2, fontSize: 8.5 },
   footer: { borderTop: "1 solid #dbe3ed", marginTop: 34, paddingTop: 14, color: "#64748b", textAlign: "center", lineHeight: 1.4 },
 });
 
@@ -49,18 +53,26 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   });
   if (!quotation) return NextResponse.json({ error: "Quotation not found" }, { status: 404 });
 
+  const company = await getCompanyProfile();
+  const logo = await getCompanyLogoForPdf(company);
+  const brandName = company.name || "IStockPro";
   const phone = quotation.customer?.phone || quotation.customerPhone;
   const email = quotation.customer?.email || quotation.customerEmail;
   const validUntil = quotation.validUntil?.toISOString().slice(0, 10);
 
   const buffer = await renderToBuffer(
-    <Document title={`Quotation ${quotation.quoteNumber}`} author="IStockPro">
+    <Document title={`Quotation ${quotation.quoteNumber}`} author={brandName}>
       <Page size="A4" style={styles.page}>
         <View style={styles.topBar} />
         <View style={styles.header}>
-          <View>
-            <Text style={styles.brand}>IStockPro</Text>
-            <Text style={styles.tagline}>Phones & accessories</Text>
+          <View style={styles.brandRow}>
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
+            {logo ? <Image src={logo} style={styles.logo} /> : null}
+            <View>
+              <Text style={styles.brand}>{brandName}</Text>
+              <Text style={styles.tagline}>{company.tagline || "Phones & accessories"}</Text>
+              {companyContactLines(company).map((line) => <Text key={line} style={styles.contact}>{line}</Text>)}
+            </View>
           </View>
           <View>
             <Text style={styles.title}>QUOTATION</Text>
@@ -142,7 +154,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
           </View>
         </View>
         <Text style={styles.footer}>
-          IStockPro | Thank you for your interest.{"\n"}Prices are subject to stock availability until the quotation is accepted. This is a computer-generated quotation.
+          {brandName} | Thank you for your interest.{"\n"}Prices are subject to stock availability until the quotation is accepted. This is a computer-generated quotation.{company.footerNote ? `\n${company.footerNote}` : ""}
         </Text>
       </Page>
     </Document>,

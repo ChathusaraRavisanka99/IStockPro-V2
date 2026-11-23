@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { Document, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatMoney } from "@/lib/currency";
 import { formatSaleItemName } from "@/lib/format-item-name";
+import { companyContactLines, getCompanyLogoForPdf, getCompanyProfile } from "@/lib/company";
 
 const styles = StyleSheet.create({
   page: { padding: 42, fontFamily: "Helvetica", fontSize: 10, color: "#172033" },
@@ -31,6 +32,9 @@ const styles = StyleSheet.create({
   totalLine: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5 },
   total: { flexDirection: "row", justifyContent: "space-between", paddingTop: 9, marginTop: 5, borderTop: "2 solid #10233f", fontFamily: "Helvetica-Bold", fontSize: 13, color: "#10233f" },
   status: { marginTop: 10, padding: 7, backgroundColor: "#dcfce7", color: "#166534", textAlign: "center", fontFamily: "Helvetica-Bold" },
+  brandRow: { flexDirection: "row", maxWidth: 320 },
+  logo: { height: 44, maxWidth: 110, marginRight: 10, objectFit: "contain" },
+  contact: { color: "#526176", marginTop: 2, fontSize: 8.5 },
   footer: { borderTop: "1 solid #dbe3ed", marginTop: 34, paddingTop: 14, color: "#64748b", textAlign: "center", lineHeight: 1.4 },
 });
 
@@ -43,13 +47,24 @@ export async function GET(_request: Request, { params }: { params: { id: string 
     include: { customer: true, invoice: true, items: { include: { phone: { include: { phoneVariant: { include: { phoneModel: true } } } }, accessory: true } } },
   });
   if (!sale) return NextResponse.json({ error: "Sale not found" }, { status: 404 });
+  const company = await getCompanyProfile();
+  const logo = await getCompanyLogoForPdf(company);
+  const brandName = company.name || "IStockPro";
 
   const buffer = await renderToBuffer(
-    <Document title={sale.invoice?.invoiceNumber || sale.saleNumber} author="IStockPro">
+    <Document title={sale.invoice?.invoiceNumber || sale.saleNumber} author={brandName}>
       <Page size="A4" style={styles.page}>
         <View style={styles.topBar} />
         <View style={styles.header}>
-          <View><Text style={styles.brand}>IStockPro</Text><Text style={styles.tagline}>Inventory and retail management</Text></View>
+          <View style={styles.brandRow}>
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
+            {logo ? <Image src={logo} style={styles.logo} /> : null}
+            <View>
+              <Text style={styles.brand}>{brandName}</Text>
+              <Text style={styles.tagline}>{company.tagline || "Inventory and retail management"}</Text>
+              {companyContactLines(company).map((line) => <Text key={line} style={styles.contact}>{line}</Text>)}
+            </View>
+          </View>
           <View><Text style={styles.invoiceTitle}>INVOICE</Text><Text style={styles.invoiceNumber}>{sale.invoice?.invoiceNumber || sale.saleNumber}</Text></View>
         </View>
         <View style={styles.infoGrid}>
@@ -60,8 +75,8 @@ export async function GET(_request: Request, { params }: { params: { id: string 
         <View style={styles.tableHeader}><Text style={styles.item}>Description</Text><Text style={styles.qty}>Qty</Text><Text style={styles.rate}>Unit Price</Text><Text style={styles.amount}>Amount</Text></View>
         {sale.items.map((item) => <View key={item.id} style={styles.row}><Text style={styles.item}>{formatSaleItemName(item)}</Text><Text style={styles.qty}>{item.quantity}</Text><Text style={styles.rate}>{formatMoney(Number(item.unitPrice))}</Text><Text style={styles.amount}>{formatMoney(Number(item.lineTotal))}</Text></View>)}
         {!sale.items.length ? <View style={styles.row}><Text style={styles.item}>Summary sale without item lines</Text><Text style={styles.qty}>-</Text><Text style={styles.rate}>-</Text><Text style={styles.amount}>-</Text></View> : null}
-        <View style={styles.totalsArea}><View style={styles.paymentNote}><Text style={styles.label}>Notes</Text><Text>Thank you for choosing IStockPro. Please retain this invoice for your records.</Text></View><View style={styles.totals}><View style={styles.totalLine}><Text>Subtotal</Text><Text>{formatMoney(Number(sale.subtotal))}</Text></View><View style={styles.totalLine}><Text>Tax</Text><Text>{formatMoney(Number(sale.taxAmount))}</Text></View><View style={styles.totalLine}><Text>Discount</Text><Text>-{formatMoney(Number(sale.discount))}</Text></View><View style={styles.total}><Text>Total Due</Text><Text>{formatMoney(Number(sale.totalAmount))}</Text></View><Text style={styles.status}>{sale.invoice?.status || "Unpaid"}</Text></View></View>
-        <Text style={styles.footer}>IStockPro | Thank you for your business.{"\n"}This is a computer-generated invoice and does not require a signature.</Text>
+        <View style={styles.totalsArea}><View style={styles.paymentNote}><Text style={styles.label}>Notes</Text><Text>Thank you for choosing {brandName}. Please retain this invoice for your records.</Text></View><View style={styles.totals}><View style={styles.totalLine}><Text>Subtotal</Text><Text>{formatMoney(Number(sale.subtotal))}</Text></View><View style={styles.totalLine}><Text>Tax</Text><Text>{formatMoney(Number(sale.taxAmount))}</Text></View><View style={styles.totalLine}><Text>Discount</Text><Text>-{formatMoney(Number(sale.discount))}</Text></View><View style={styles.total}><Text>Total Due</Text><Text>{formatMoney(Number(sale.totalAmount))}</Text></View><Text style={styles.status}>{sale.invoice?.status || "Unpaid"}</Text></View></View>
+        <Text style={styles.footer}>{brandName} | Thank you for your business.{"\n"}This is a computer-generated invoice and does not require a signature.{company.footerNote ? `\n${company.footerNote}` : ""}</Text>
       </Page>
     </Document>,
   );
