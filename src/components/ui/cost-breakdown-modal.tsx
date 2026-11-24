@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { phoneSaleLinks, type PhoneSaleLink } from "@/lib/phone-sale-links";
 import { formatMoney } from "@/lib/currency";
 import { Modal, modalButton } from "@/components/ui/modal";
 import Link from "next/link";
@@ -20,6 +21,8 @@ export type CostBreakdownData = {
   /** What's added on top of unitCost to reach totalCost (e.g. tag cost, battery cost).
    * Only rendered when unitCost and totalCost actually differ; zero-amount entries are hidden. */
   costBreakdown?: { label: string; amount: number }[];
+  /** For a sold (or returned) phone: its id, so the popup shows the sale it went in with links. */
+  salesForPhoneId?: string;
 };
 
 function ProfitTile({ label, price, cost }: { label: string; price: number; cost: number }) {
@@ -51,9 +54,74 @@ function CostBreakdownDialog({ data, onClose }: { data: CostBreakdownData; onClo
   const totalExpenses = (data.expenses ?? []).reduce((sum, expense) => sum + expense.amount, 0);
   const nonZeroCostBreakdown = (data.costBreakdown ?? []).filter((entry) => entry.amount !== 0);
   const showCostBreakdown = data.unitCost !== data.totalCost && nonZeroCostBreakdown.length > 0;
+  const [sales, setSales] = useState<PhoneSaleLink[] | null>(null);
+  useEffect(() => {
+    if (!data.salesForPhoneId) return;
+    let cancelled = false;
+    phoneSaleLinks(data.salesForPhoneId)
+      .then((rows) => !cancelled && setSales(rows))
+      .catch(() => !cancelled && setSales([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [data.salesForPhoneId]);
+  const latestSale = sales?.[0];
 
   return (
-    <Modal title={data.name} subtitle="Cost, pricing and profit" onClose={onClose} footer={<button type="button" onClick={onClose} className={modalButton.secondary}>Close</button>}>
+    <Modal
+      title={data.name}
+      subtitle="Cost, pricing and profit"
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" onClick={onClose} className={modalButton.secondary}>Close</button>
+          {latestSale ? (
+            <Link href={`/sales/${latestSale.saleId}`} onClick={onClose} className={`${modalButton.primary} inline-flex items-center gap-1.5`}>
+              Open sale {latestSale.saleNumber} <ArrowUpRight className="size-4" />
+            </Link>
+          ) : null}
+        </>
+      }
+    >
+      {data.salesForPhoneId ? (
+        <section className="mb-4">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Sold in</p>
+          {sales === null ? (
+            <p className="text-sm text-slate-500">Loading sale…</p>
+          ) : sales.length ? (
+            <ul className="grid gap-1.5">
+              {sales.map((sale) => {
+                const profit = sale.price - data.totalCost;
+                return (
+                  <li key={sale.saleId} className="rounded-xl border border-sky-200 bg-sky-50/60 px-3 py-2 text-sm">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <Link href={`/sales/${sale.saleId}`} onClick={onClose} className="inline-flex items-center gap-1 font-semibold text-slate-900 underline decoration-slate-300 underline-offset-2 hover:decoration-slate-900">
+                        Sale {sale.saleNumber} <ArrowUpRight className="size-3.5" />
+                      </Link>
+                      <span className="font-semibold text-slate-900">{formatMoney(sale.price)}</span>
+                    </div>
+                    <p className="text-xs text-slate-600">
+                      {sale.date} ·{" "}
+                      {sale.customerId ? (
+                        <Link href={`/customers/${sale.customerId}`} onClick={onClose} className="underline">{sale.customer}</Link>
+                      ) : (
+                        "Walk-in customer"
+                      )}
+                      {sale.status !== "Completed" ? ` · ${sale.status}` : ""}
+                      {data.totalCost > 0 ? (
+                        <span className={profit >= 0 ? "text-emerald-700" : "text-red-700"}> · actual profit {formatMoney(profit)}</span>
+                      ) : null}
+                    </p>
+                    {sale.returns.length ? <p className="text-xs font-medium text-amber-800">Returned: {sale.returns.join(", ")}</p> : null}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="text-sm text-slate-500">No sale found for this unit.</p>
+          )}
+        </section>
+      ) : null}
       <div className="grid grid-cols-2 gap-2">
         <ProfitTile label="Retail profit" price={data.retailPrice} cost={data.totalCost} />
         <ProfitTile label="Wholesale profit" price={data.wholesalePrice} cost={data.totalCost} />

@@ -694,6 +694,7 @@ export default async function PhonesPage({ searchParams }: Props) {
                     className="border-b border-slate-200"
                     data={{
                       name: `${formatPhoneName(phone.phoneVariant)} - IMEI ${phone.imei}`,
+                      salesForPhoneId: phone.status === "Sold" || phone.status === "Returned" ? phone.id : undefined,
                       unitCost: purchasePrice,
                       totalCost,
                       wholesalePrice: Number(costFields.wholesalePrice ?? 0),

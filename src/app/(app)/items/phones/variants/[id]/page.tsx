@@ -209,6 +209,7 @@ export default async function PhoneVariantDetailPage({ params }: { params: { id:
                     className="border-b border-slate-200"
                     data={{
                       name: `${variant.phoneModel.brand} ${variant.phoneModel.modelName} - ${variant.variantName} - IMEI ${phone.imei}`,
+                      salesForPhoneId: phone.status === "Sold" || phone.status === "Returned" ? phone.id : undefined,
                       unitCost,
                       totalCost,
                       wholesalePrice: Number(phone.wholesalePrice ?? 0),

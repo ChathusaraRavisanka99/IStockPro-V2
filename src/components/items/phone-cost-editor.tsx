@@ -291,6 +291,7 @@ export function PhoneCostEditor({ phone, showCost, canGrade, requireReauth, user
       className="border-b border-slate-200"
       data={{
         name: `${phone.phoneVariant.phoneModel.brand} ${phone.phoneVariant.phoneModel.modelName} - ${phone.phoneVariant.variantName} - IMEI ${phone.imei}`,
+        salesForPhoneId: phone.status === "Sold" || phone.status === "Returned" ? phone.id : undefined,
         unitCost: purchasePrice,
         totalCost,
         wholesalePrice: Number(phone.wholesalePrice ?? 0),
