@@ -17,7 +17,11 @@ import { EntityEditButton } from "@/components/ui/entity-editor";
 import { auditChange, requireReauthWhen } from "@/lib/entity-guard";
 import type { ActionResult } from "@/components/ui/editable-row";
 
-export default async function SaleDetailPage({ params }: { params: { id: string } }) {
+import { SaleDeleteDialog } from "@/components/sales/sale-delete-dialog";
+import { deleteSale, loadSaleForDelete, saleDeleteImpact, type LineChoice } from "@/lib/sale-delete";
+import { canVoidInvoices } from "@/lib/rbac";
+import { checkReauth } from "@/lib/reauth";
+export default async function SaleDetailPage({ params, searchParams }: { params: { id: string }; searchParams?: { delete?: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) notFound();
   const canManagePayments = canViewCost(session.user?.role as "admin" | "manager" | "staff" | undefined);
@@ -31,6 +35,32 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
     },
   });
   if (!sale) notFound();
+  const canDeleteSale = canVoidInvoices(session.user?.role as "admin" | "manager" | "staff" | undefined);
+  const forDelete = canDeleteSale ? await loadSaleForDelete(sale.id) : null;
+  const deleteImpact = forDelete ? saleDeleteImpact(forDelete) : null;
+
+  // Permanently deletes the sale (admins/managers, password). Each line is restocked or removed
+  // from inventory as chosen; a full copy goes to the audit log.
+  async function removeSale(formData: FormData): Promise<ActionResult> {
+    "use server";
+    return withErrorLog("sales/detail: removeSale", formData, async () => {
+      const actor = await getServerSession(authOptions);
+      if (!canVoidInvoices(actor?.user?.role as "admin" | "manager" | "staff" | undefined)) return { ok: false, error: "Only admins and managers can delete sales." };
+      const reauth = await checkReauth(formData);
+      if (!reauth.ok) return reauth;
+      let choices: Record<string, LineChoice> = {};
+      try {
+        choices = JSON.parse(String(formData.get("choices") || "{}"));
+      } catch {
+        // default: restock everything
+      }
+      const result = await deleteSale(params.id, choices);
+      if (!result.ok) return result;
+      await auditChange("SensitiveDelete", "Sale", params.id, actor?.user?.id, { deleted: result.snapshot, restocked: result.restocked, removed: result.removed });
+      for (const path of ["/sales", "/dashboard", "/reports", "/customers", "/items/phones", "/items/chargers", "/items/cables", "/items/handsfree", "/items/other", "/lots", "/quotations", "/recycle-bin", "/lite"]) revalidatePath(path);
+      return { ok: true };
+    });
+  }
 
   const invoice = sale.invoice;
   const totalAmount = Number(invoice?.totalAmount ?? sale.totalAmount);
@@ -153,7 +183,23 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
       <PageHeader
         title={`Sale ${sale.saleNumber}`}
         subtitle="Manage payments and view line items"
-        actions={<Link href={`/sales/${sale.id}/receipt`} className="btn btn-md btn-secondary">Print Receipt</Link>}
+        actions={
+          <>
+            <Link href={`/sales/${sale.id}/receipt`} className="btn btn-md btn-secondary">Print Receipt</Link>
+            {deleteImpact ? (
+              <SaleDeleteDialog
+                saleId={sale.id}
+                saleNumber={sale.saleNumber}
+                lines={deleteImpact.lines}
+                consequences={deleteImpact.consequences}
+                blocked={deleteImpact.blocked}
+                username={session.user?.username}
+                action={removeSale}
+                autoOpen={searchParams?.delete === "1"}
+              />
+            ) : null}
+          </>
+        }
         help={
           <p>
             This sale&apos;s invoice, payment history, and line items. If it isn&apos;t fully paid, record payments below

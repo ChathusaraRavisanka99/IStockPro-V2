@@ -37,7 +37,7 @@ const changed = (field: EditorField, next: string) => {
   return next.trim() !== field.value.trim();
 };
 
-function PasswordFields({ username }: { username?: string }) {
+export function PasswordFields({ username }: { username?: string }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <label className={modalField.label}>

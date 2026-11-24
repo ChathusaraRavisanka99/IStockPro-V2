@@ -154,6 +154,41 @@ describe("phone chrome", () => {
     await context.close();
   });
 
+  /** The open dialog fits the phone screen (no sideways scroll inside it). */
+  async function assertDialogFits(page) {
+    const fit = await page.getByRole("dialog").last().evaluate((dialog) => {
+      const rect = dialog.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, viewport: document.documentElement.clientWidth, inner: Array.from(dialog.querySelectorAll("*")).filter((node) => node.scrollWidth > node.clientWidth + 1 && !/(auto|scroll)/.test(getComputedStyle(node).overflowX) && getComputedStyle(node).overflowX !== "visible").length };
+    });
+    assert.ok(fit.left >= -1 && fit.right <= fit.viewport + 1, `dialog spans ${fit.left}–${fit.right} on a ${fit.viewport}px screen`);
+  }
+
+  test("Delete sale popup: per-item Restock / Remove, password, fits the phone", async () => {
+    const { page, context } = await openAt(360, "/ui-test");
+    await page.getByRole("button", { name: "Delete sale" }).click();
+    const dialog = page.getByRole("dialog");
+    await assertDialogFits(page);
+    assert.ok((await dialog.innerText()).includes("2 line(s) restocked · 0 line(s) removed"));
+    await dialog.getByRole("button", { name: "Remove all" }).click();
+    assert.ok((await dialog.innerText()).includes("0 line(s) restocked · 2 line(s) removed"));
+    assert.ok(await dialog.getByText(/Recycle Bin for 30 days/).isVisible());
+    assert.ok(await dialog.locator('input[name="confirmPassword"]').isVisible(), "asks for the password");
+    await context.close();
+  });
+
+  test("Move unit to another lot: Collection → Cleared is a sensitive change", async () => {
+    const { page, context } = await openAt(360, "/ui-test");
+    await page.getByRole("button", { name: "Edit" }).last().click();
+    const dialog = page.getByRole("dialog");
+    await assertDialogFits(page);
+    assert.equal(await dialog.locator('input[name="confirmPassword"]').count(), 0, "no password before a change");
+    await dialog.getByRole("button", { name: /LOT-0001/ }).click();
+    await page.getByRole("button", { name: /LOT-0002/ }).click();
+    assert.ok(await dialog.getByText(/Sensitive change/).isVisible(), "warns that the move is sensitive");
+    assert.ok(await dialog.locator('input[name="confirmPassword"]').isVisible(), "asks for the password");
+    await context.close();
+  });
+
   test("Price history picker opens a searchable popup", async () => {
     const { page, context } = await openAt(390, "/ui-test");
     await page.getByRole("button", { name: /choose a phone model or variant/i }).click();

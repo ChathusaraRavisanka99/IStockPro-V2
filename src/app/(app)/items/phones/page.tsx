@@ -256,6 +256,8 @@ export default async function PhonesPage({ searchParams }: Props) {
       revalidatePath("/items/phones");
       revalidatePath("/items/phone-catalog");
       revalidatePath("/items/phones/price-history");
+      revalidatePath("/lots", "layout");
+      revalidatePath("/dashboard");
       revalidatePath("/lots");
     }
     return result;
@@ -329,6 +331,8 @@ export default async function PhonesPage({ searchParams }: Props) {
       phoneVariantId: phone.phoneVariant.id,
       lotStatus: phone.lot.status,
       lotNumber: phone.lot.lotNumber,
+      lotId: phone.lot.id,
+      status: phone.status,
       grade: phone.grade,
       batteryHealth: phone.batteryHealth,
       notes: phone.notes,
@@ -545,6 +549,7 @@ export default async function PhonesPage({ searchParams }: Props) {
         username={session?.user?.username}
         action={editUnit}
         checkImei={checkImei}
+        lots={showCost ? (await prisma.lot.findMany({ where: { deletedAt: null }, orderBy: { purchaseDate: "desc" }, select: { id: true, lotNumber: true, status: true, supplier: { select: { name: true } } } })).map((item) => ({ id: item.id, label: `${item.lotNumber} — ${item.supplier.name}`, status: item.status })) : undefined}
         expenses={showCost ? { list: listUnitExpenses, add: addUnitExpense, categories: await expenseCategories() } : undefined}
         createVariant={{ action: createVariantFromPicker, models: models.map((model) => ({ id: model.id, label: `${model.brand} ${model.modelName}` })) }}
       >
