@@ -312,6 +312,7 @@ export default async function PhoneCatalogPage({ searchParams = {} }: { searchPa
                       ))}
                     </div>
                   ) : null}
+                  {/* responsive-ok: three short numbers */}
                   <dl className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-slate-50 px-3 py-2 text-center text-xs">
                     <div><dt className="text-slate-500">Variants</dt><dd className="text-base font-semibold text-slate-900">{list.length}</dd></div>
                     <div><dt className="text-slate-500">In stock</dt><dd className="text-base font-semibold text-slate-900">{inStock}</dd></div>

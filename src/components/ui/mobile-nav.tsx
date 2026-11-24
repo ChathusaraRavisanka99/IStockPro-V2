@@ -8,6 +8,7 @@ import { Menu, X } from "lucide-react";
 import { AppNav } from "@/components/ui/app-nav";
 import { LogoutButton } from "@/components/ui/logout-button";
 import { ModeSwitch } from "@/components/ui/mode-switch";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 type Props = {
   name?: string | null;
@@ -39,18 +40,23 @@ export function MobileNav({ name, role }: Props) {
 
   return (
     <>
-      <div className="glass-panel sticky top-0 z-30 mb-4 flex print:hidden items-center justify-between rounded-2xl border border-white/90 p-3 lg:hidden">
+      <div className="glass-panel topbar-solid sticky top-0 z-30 mb-4 flex print:hidden items-center justify-between rounded-2xl border border-white/90 p-3 lg:hidden">
         <Link href="/dashboard" className="rounded-xl px-2 py-1 text-lg font-semibold tracking-tight text-slate-950">
           IStockPro-v2
         </Link>
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label="Open menu"
-          className="rounded-lg border border-slate-300 bg-white p-2 text-slate-800"
-        >
-          <Menu className="size-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="w-[6.5rem]" data-testid="mobile-theme-toggle">
+            <ThemeToggle compact />
+          </div>
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-label="Open menu"
+            className="rounded-lg border border-slate-300 bg-white p-2 text-slate-800"
+          >
+            <Menu className="size-5" />
+          </button>
+        </div>
       </div>
       {open && typeof document !== "undefined"
         ? createPortal(

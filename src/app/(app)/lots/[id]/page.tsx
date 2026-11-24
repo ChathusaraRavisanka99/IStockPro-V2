@@ -698,7 +698,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
       />
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <Link href="/lots" className="text-sm text-slate-700 underline">Back to Lots</Link>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
         <BookmarkButton lotId={lot.id} bookmarked={bookmarked} action={toggleBookmark} withLabel />
         <EntityEditButton
           title={`Edit lot ${lot.lotNumber}`}

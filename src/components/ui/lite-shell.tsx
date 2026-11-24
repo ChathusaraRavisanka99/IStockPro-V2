@@ -41,11 +41,11 @@ export function LiteShell({ name, role, children }: { name?: string | null; role
 
   return (
     <div className="min-h-screen pb-[calc(4.5rem+env(safe-area-inset-bottom))] print:pb-0">
-      <header className="glass-panel sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-white/90 px-4 py-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] print:hidden">
+      <header className="glass-panel topbar-solid sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-white/90 px-4 py-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] print:hidden">
         <Link href="/lite" className="text-base font-semibold tracking-tight text-slate-950">
           IStockPro <span className="ml-1 rounded-md bg-sky-100 px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-sky-800">Lite</span>
         </Link>
-        <div className="w-28">
+        <div className="w-[6.5rem]" data-testid="lite-theme-toggle">
           <ThemeToggle compact />
         </div>
       </header>
@@ -53,6 +53,7 @@ export function LiteShell({ name, role, children }: { name?: string | null; role
       <main className="mx-auto w-full max-w-3xl px-3 py-4 sm:px-4 print:max-w-none print:p-0">{children}</main>
 
       <nav className="glass-panel fixed inset-x-0 bottom-0 z-40 border-t border-white/90 pb-[env(safe-area-inset-bottom)] print:hidden" aria-label="Lite navigation">
+        {/* responsive-ok: five thumb-sized tabs fit a 320px screen */}
         <div className="mx-auto grid max-w-3xl grid-cols-5">
           {TABS.map((tab) => {
             const active = tab.match(pathname);

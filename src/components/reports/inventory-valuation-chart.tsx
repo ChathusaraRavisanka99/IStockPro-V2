@@ -1,7 +1,7 @@
 "use client";
 
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { formatMoney } from "@/lib/currency";
+import { formatCompact, formatMoney } from "@/lib/currency";
 
 type Row = { category: string; cost: number; retail: number };
 
@@ -21,7 +21,7 @@ export function InventoryValuationChart({ data }: { data: Row[] }) {
         <BarChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
           <CartesianGrid stroke="#e1e0d9" vertical={false} />
           <XAxis dataKey="category" tick={{ fill: "#898781", fontSize: 12 }} axisLine={{ stroke: "#c3c2b7" }} tickLine={false} />
-          <YAxis tick={{ fill: "#898781", fontSize: 12 }} axisLine={false} tickLine={false} width={80} tickFormatter={(value) => formatMoney(value)} />
+          <YAxis tick={{ fill: "#898781", fontSize: 12 }} axisLine={false} tickLine={false} width={44} tickFormatter={(value) => formatCompact(Number(value))} />
           <Tooltip formatter={(value) => formatMoney(value as number)} contentStyle={{ borderRadius: 8, border: "1px solid #e1e0d9", fontSize: 12 }} />
           <Legend wrapperStyle={{ fontSize: 12, color: "#52514e" }} />
           <Bar dataKey="cost" name="Cost basis" fill={COST_COLOR} radius={[4, 4, 0, 0]} maxBarSize={36} />
