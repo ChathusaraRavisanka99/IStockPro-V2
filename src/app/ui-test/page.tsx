@@ -14,6 +14,7 @@ import { PriceHistoryPicker } from "@/components/items/price-history-picker";
 import { LotRestoreDialog } from "@/components/ui/lot-restore-dialog";
 import { EntityDeleteButton } from "@/components/ui/entity-editor";
 import { SaleDeleteDialog } from "@/components/sales/sale-delete-dialog";
+import { CostCard } from "@/components/ui/cost-breakdown-modal";
 import { UnitEditButton, UnitEditProvider } from "@/components/items/unit-edit";
 import { formatMoney } from "@/lib/currency";
 import { EXPENSE_OTHER_COLOR, EXPENSE_SERIES_COLORS } from "@/lib/chart-colors";
@@ -176,6 +177,11 @@ export default function UiTestPage() {
               >
                 <UnitEditButton unit={{ id: "p1", imei: LONG_IMEI, phoneVariantId: "v1", lotStatus: "Collection", lotNumber: "LOT-0001", lotId: "lot-a", status: "InStock", grade: null, batteryHealth: null, notes: null }} />
               </UnitEditProvider>
+            </div>
+            <div className="mt-3">
+              <CostCard data={{ name: `${LONG_PHONE} - IMEI ${LONG_IMEI}`, unitCost: 73500, totalCost: 76550, wholesalePrice: 93500, retailPrice: 0, salesForPhoneId: "sold-phone" }}>
+                <span data-testid="sold-unit">Sold unit cost card</span>
+              </CostCard>
             </div>
             <div className="mt-3">
               <LotRestoreDialog lotId="x" title="Lot LOT-0001" lotIssues={[]} action={noop} units={[{ id: "u1", imei: LONG_IMEI, name: LONG_PHONE, status: "Sold", soldIn: ["SAL-1788692115292"], withLot: true, blocked: null }]} />

@@ -189,6 +189,16 @@ describe("phone chrome", () => {
     await context.close();
   });
 
+  test("Cost popup of a sold phone has a 'Sold in' section", async () => {
+    const { page, context } = await openAt(360, "/ui-test");
+    await page.getByTestId("sold-unit").click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByText("Sold in").waitFor();
+    await dialog.getByText(/No sale found|Sale /).first().waitFor({ timeout: 15_000 });
+    await assertDialogFits(page);
+    await context.close();
+  });
+
   test("Price history picker opens a searchable popup", async () => {
     const { page, context } = await openAt(390, "/ui-test");
     await page.getByRole("button", { name: /choose a phone model or variant/i }).click();
