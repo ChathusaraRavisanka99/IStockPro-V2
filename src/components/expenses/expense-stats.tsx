@@ -210,6 +210,7 @@ export async function ExpenseStats({ from: fromParam, to: toParam }: { from?: st
             <InfoHelp size="sm" title="Items with the most spend">Phones and accessories with the most expenses linked to them in this period (repairs, parts, tags…). Click one for its details.</InfoHelp>
           </h2>
           {topItems.length ? (
+            <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -228,6 +229,7 @@ export async function ExpenseStats({ from: fromParam, to: toParam }: { from?: st
                 ))}
               </tbody>
             </table>
+            </div>
           ) : (
             <p className="text-sm text-slate-500">No expenses were linked to a phone or accessory in this period.</p>
           )}

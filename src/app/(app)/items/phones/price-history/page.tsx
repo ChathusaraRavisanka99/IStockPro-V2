@@ -15,6 +15,8 @@ import { PRICE_CHANGE_ACTION, PRICE_FIELD_LABELS, type PriceChangeDetails, type 
 import { SpecChips } from "@/components/ui/spec-chips";
 import { PriceTimelineChart, type PricePoint } from "@/components/items/price-timeline-chart";
 import { EntityLink } from "@/components/ui/entity-link";
+import { Suspense } from "react";
+import { PriceHistoryPicker } from "@/components/items/price-history-picker";
 
 type Props = { searchParams: { search?: string; filter?: string; from?: string; to?: string; page?: string; pageSize?: string; sel?: string } };
 
@@ -87,8 +89,18 @@ export default async function PhonePriceHistoryPage({ searchParams }: Props) {
   const catalog = await prisma.phoneModel.findMany({
     where: { deletedAt: null },
     orderBy: [{ brand: "asc" }, { modelName: "asc" }],
-    select: { id: true, brand: true, modelName: true, variants: { where: { deletedAt: null }, orderBy: { variantName: "asc" }, select: { id: true, variantName: true } } },
+    select: { id: true, brand: true, modelName: true, variants: { where: { deletedAt: null }, orderBy: { variantName: "asc" }, select: { id: true, variantName: true, color: true, storage: true, ram: true } } },
   });
+  // How many price changes each variant has had (for the picker's "only with changes" filter).
+  const changeCounts = await prisma.auditLog.groupBy({ by: ["entityId"], where: { action: PRICE_CHANGE_ACTION, entityType: "Phone" }, _count: true });
+  const changedPhones = await prisma.phone.findMany({ where: { id: { in: changeCounts.map((row) => row.entityId) } }, select: { id: true, phoneVariantId: true } });
+  const variantOfPhone = new Map(changedPhones.map((phone) => [phone.id, phone.phoneVariantId]));
+  const changesByVariant = new Map<string, number>();
+  for (const row of changeCounts) {
+    const variantId = variantOfPhone.get(row.entityId);
+    if (variantId) changesByVariant.set(variantId, (changesByVariant.get(variantId) ?? 0) + row._count);
+  }
+  const pickerModels = catalog.map((model) => ({ ...model, variants: model.variants.map((variant) => ({ ...variant, changes: changesByVariant.get(variant.id) ?? 0 })) }));
   const selectedModel = selKind === "m" ? catalog.find((model) => model.id === selId) : selKind === "v" ? catalog.find((model) => model.variants.some((variant) => variant.id === selId)) : undefined;
   const selectedVariant = selKind === "v" ? selectedModel?.variants.find((variant) => variant.id === selId) : undefined;
   const selectionLabel = selectedModel ? `${selectedModel.brand} ${selectedModel.modelName}${selectedVariant ? ` — ${selectedVariant.variantName}` : " (all variants)"}` : "";
@@ -172,26 +184,15 @@ export default async function PhonePriceHistoryPage({ searchParams }: Props) {
       </div>
 
       <Card className="mb-4">
-        <form method="get" className="flex flex-col gap-2 sm:flex-row sm:items-end">
-          <label className="grid min-w-0 flex-1 gap-1 text-xs font-medium text-slate-600">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <div className="grid min-w-0 flex-1 gap-1 text-xs font-medium text-slate-600">
             Show price over time for
-            <select name="sel" defaultValue={sel} className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
-              <option value="">— Choose a phone model or variant —</option>
-              {catalog.map((model) => (
-                <optgroup key={model.id} label={`${model.brand} ${model.modelName}`}>
-                  <option value={`m:${model.id}`}>All variants of {model.brand} {model.modelName}</option>
-                  {model.variants.map((variant) => (
-                    <option key={variant.id} value={`v:${variant.id}`}>
-                      {model.modelName} — {variant.variantName}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </label>
-          <button className="btn btn-md btn-primary">Show</button>
+            <Suspense fallback={null}>
+              <PriceHistoryPicker models={pickerModels} value={sel} label={selectionLabel || null} />
+            </Suspense>
+          </div>
           {sel ? <Link href="/items/phones/price-history" className="btn btn-md btn-secondary">Clear</Link> : null}
-        </form>
+        </div>
         {selectedModel ? (
           <div className="mt-4">
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">

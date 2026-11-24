@@ -25,13 +25,19 @@ export function SalePickerDialog({
   const [pending, startTransition] = useTransition();
   const [quickTotal, setQuickTotal] = useState("");
   const [showQuick, setShowQuick] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const requestId = useRef(0);
 
   function run(next: SaleSearchFilters) {
     const id = ++requestId.current;
+    setError(null);
     startTransition(async () => {
-      const data = await searchReturnableSales(next);
-      if (id === requestId.current) setResult(data);
+      try {
+        const data = await searchReturnableSales(next);
+        if (id === requestId.current) setResult(data);
+      } catch {
+        if (id === requestId.current) setError("Couldn't load sales — check your connection and try again.");
+      }
     });
   }
 
@@ -111,11 +117,17 @@ export function SalePickerDialog({
               Clear filters
             </button>
           ) : null}
-          <span className="ml-auto">{pending ? "Searching…" : result ? `${result.sales.length}${result.more ? "+" : ""} sale${result.sales.length === 1 ? "" : "s"}` : ""}</span>
+          <span className="ml-auto">{pending ? "Searching…" : error ? "" : result ? `${result.sales.length}${result.more ? "+" : ""} sale${result.sales.length === 1 ? "" : "s"}` : ""}</span>
         </div>
       </div>
 
       <div className="grid gap-2 p-3">
+        {error ? (
+          <p className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            {error}
+            <button type="button" className="btn btn-xs btn-secondary" onClick={() => run(filters)}>Retry</button>
+          </p>
+        ) : null}
         {result?.sales.map((sale) => (
           <button
             key={sale.id}

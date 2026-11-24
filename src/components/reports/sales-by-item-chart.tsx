@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { formatMoney } from "@/lib/currency";
+import { formatCompact, formatMoney } from "@/lib/currency";
 
 type Row = { label: string; qty: number; revenue: number };
 
@@ -43,7 +43,7 @@ export function SalesByItemChart({ data }: { data: Row[] }) {
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={top} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
           <CartesianGrid stroke="#e1e0d9" horizontal={false} />
-          <XAxis type="number" tick={{ fill: "#898781", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(value) => formatMoney(value)} />
+          <XAxis type="number" tick={{ fill: "#898781", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(value) => formatCompact(Number(value))} />
           <YAxis type="category" dataKey="shortLabel" tick={{ fill: "#52514e", fontSize: 12 }} axisLine={false} tickLine={false} width={yAxisWidth} />
           <Tooltip
             formatter={(value) => formatMoney(value as number)}

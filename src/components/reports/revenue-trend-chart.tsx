@@ -1,7 +1,7 @@
 "use client";
 
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { formatMoney } from "@/lib/currency";
+import { formatCompact, formatMoney } from "@/lib/currency";
 
 type Point = { date: string; revenue: number; profit: number };
 
@@ -21,7 +21,7 @@ export function RevenueTrendChart({ data }: { data: Point[] }) {
         <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
           <CartesianGrid stroke="#e1e0d9" vertical={false} />
           <XAxis dataKey="date" tick={{ fill: "#898781", fontSize: 12 }} axisLine={{ stroke: "#c3c2b7" }} tickLine={false} />
-          <YAxis tick={{ fill: "#898781", fontSize: 12 }} axisLine={false} tickLine={false} width={80} tickFormatter={(value) => formatMoney(value)} />
+          <YAxis tick={{ fill: "#898781", fontSize: 12 }} axisLine={false} tickLine={false} width={44} tickFormatter={(value) => formatCompact(Number(value))} />
           <Tooltip
             formatter={(value, name) => [formatMoney(value as number), name]}
             contentStyle={{ borderRadius: 8, border: "1px solid #e1e0d9", fontSize: 12 }}

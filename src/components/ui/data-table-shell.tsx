@@ -11,13 +11,13 @@ type DataTableShellProps = {
 
 export function DataTableShell({ title, toolbar, help, children }: DataTableShellProps) {
   return (
-    <Card>
+    <Card className="min-w-0">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="flex items-center gap-1.5 text-lg font-semibold text-slate-950">
           {title}
           {help ? <InfoHelp size="sm" title={title}>{help}</InfoHelp> : null}
         </h2>
-        {toolbar ? <div className="flex items-center gap-2">{toolbar}</div> : null}
+        {toolbar ? <div className="flex flex-wrap items-center gap-2">{toolbar}</div> : null}
       </div>
       <div className="overflow-x-auto">{children}</div>
     </Card>

@@ -112,6 +112,7 @@ export function LotAnalytics({ lots, showCost, sort }: { lots: LotAnalyticsRow[]
           </div>
         </div>
 
+        {/* responsive-ok: DataTableShell wraps its children in overflow-x-auto */}
         <table className="min-w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">

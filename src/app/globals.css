@@ -54,6 +54,32 @@
 /* Form fields: same height as .btn-md and 14px text on desktop, so a field and the button beside
    it line up. (Touch devices get 16px — see the iOS zoom rule further down.) */
 @layer base {
+  /* Responsive guard: grid cells may shrink below their content's width. Without this a single
+     wide child (a one-line truncated name, a chart, a table) makes its grid column — and the
+     whole page — wider than a phone screen. Utilities like min-w-[…] still override it. */
+  .grid > * {
+    min-width: 0;
+  }
+
+  /* Long unbroken strings (IMEIs, sale numbers, emails) wrap instead of pushing the page wide. */
+  body {
+    overflow-wrap: break-word;
+  }
+
+  /* Phones: tables inside a horizontal scroller keep each cell on one line and scroll sideways
+     within their card, instead of squeezing names to one word per line. Add .wrap-cell to a
+     cell that should still wrap (long notes). */
+  @media (max-width: 767px) {
+    .overflow-x-auto > table th,
+    .overflow-x-auto > table td {
+      white-space: nowrap;
+    }
+    .overflow-x-auto > table .wrap-cell {
+      white-space: normal;
+      min-width: 12rem;
+    }
+  }
+
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]),
   select {
     min-height: 2.5rem;
@@ -123,6 +149,15 @@ h3 {
 .dark .glass-panel {
   background: linear-gradient(160deg, rgba(30, 41, 59, 0.93), rgba(15, 23, 42, 0.9));
   border: 1px solid rgba(148, 163, 184, 0.34);
+}
+
+/* Sticky top bars are solid so scrolled content never shows through them. */
+.topbar-solid {
+  background: #ffffff;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+}
+.dark .topbar-solid {
+  background: #0f172a;
 }
 
 .skeleton-shimmer {

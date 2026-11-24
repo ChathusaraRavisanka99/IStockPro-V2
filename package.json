@@ -11,7 +11,11 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "test": "node --test \"tests/unit/*.test.mjs\"",
+    "test:ui": "node --test --test-concurrency=1 \"tests/ui/*.test.mjs\"",
+    "test:e2e": "node --test --test-concurrency=1 \"tests/e2e/*.test.mjs\"",
+    "check:responsive": "node scripts/check-responsive.mjs --list"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

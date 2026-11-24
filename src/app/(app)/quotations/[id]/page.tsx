@@ -115,7 +115,7 @@ export default async function QuotationDetailPage({ params }: { params: { id: st
             </div>
           </section>
 
-          {/* Desktop / print: table */}
+          {/* Desktop / print: table (hidden on phones, which get the card list) — responsive-ok */}
           <table className="mt-5 hidden w-full text-sm sm:table print:table">
             <thead>
               <tr className="bg-[#10233f] text-left text-white">
