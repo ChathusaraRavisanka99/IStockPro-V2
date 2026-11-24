@@ -563,9 +563,10 @@ export default async function LotDetailPage({ params }: { params: { id: string }
     const actor = await getServerSession(authOptions);
     const result = await editPhoneUnit(formData, { userId: actor?.user?.id, canEditCost: canViewCost(actor?.user?.role as "admin" | "manager" | "staff" | undefined) });
     if (result.ok) {
-      revalidatePath(`/lots/${params.id}`);
+      revalidatePath("/lots", "layout"); // a lot move changes both lots
       revalidatePath("/items/phones");
       revalidatePath("/items/phones/price-history");
+      revalidatePath("/dashboard");
     }
     return result;
   }
@@ -1032,6 +1033,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
           username={username}
           action={editUnit}
           checkImei={checkImei}
+          lots={showCost ? (await prisma.lot.findMany({ where: { deletedAt: null }, orderBy: { purchaseDate: "desc" }, select: { id: true, lotNumber: true, status: true, supplier: { select: { name: true } } } })).map((item) => ({ id: item.id, label: `${item.lotNumber} — ${item.supplier.name}`, status: item.status })) : undefined}
           expenses={showCost ? { list: listUnitExpenses, add: addUnitExpense, categories: await expenseCategories() } : undefined}
           createVariant={{ action: createVariantForLot, models: models.map((model) => ({ id: model.id, label: `${model.brand} ${model.modelName}` })) }}
         >
@@ -1060,6 +1062,8 @@ export default async function LotDetailPage({ params }: { params: { id: string }
                     phoneVariantId: phone.phoneVariantId,
                     lotStatus: lot.status,
                     lotNumber: lot.lotNumber,
+                    lotId: lot.id,
+                    status: phone.status,
                     grade: phone.grade,
                     batteryHealth: phone.batteryHealth,
                     notes: phone.notes,

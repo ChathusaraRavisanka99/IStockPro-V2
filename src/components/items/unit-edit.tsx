@@ -9,6 +9,7 @@ import { ItemComments } from "@/components/items/item-comments";
 import { Modal, modalButton, modalField } from "@/components/ui/modal";
 import { VariantPicker, type CreateVariantResult, type VariantPickerOption } from "@/components/items/variant-picker";
 import { ImeiConflictNotice, type ImeiOwner } from "@/components/items/imei-conflict-notice";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { ActionResult } from "@/components/ui/editable-row";
 
 export type EditableUnit = {
@@ -17,6 +18,9 @@ export type EditableUnit = {
   phoneVariantId: string;
   lotStatus: "Collection" | "Shipped" | "Cleared";
   lotNumber: string;
+  lotId?: string;
+  /** Phone status (InStock, Sold…) — moving a sold unit between lots is sensitive. */
+  status?: string;
   grade: string | null;
   batteryHealth: number | null;
   notes: string | null;
@@ -29,6 +33,8 @@ type Shared = {
   username?: string;
   action: (formData: FormData) => Promise<ActionResult>;
   checkImei: (imei: string, phoneId: string) => Promise<ImeiOwner | null>;
+  /** Lots a unit can be moved to — only passed for roles that can see cost. */
+  lots?: { id: string; label: string; status: string }[];
   createVariant?: { action: (formData: FormData) => Promise<CreateVariantResult>; models: { id: string; label: string }[] };
   /** Expense register inside the popup — only passed for roles that can see cost. */
   expenses?: {
@@ -91,7 +97,11 @@ function UnitEditDialog({ unit, shared, onClose }: { unit: EditableUnit; shared:
   };
   const canGrade = unit.lotStatus === "Cleared";
   const pricesChanged = Boolean(unit.prices && prices && (Object.keys(prices) as (keyof NonNullable<typeof prices>)[]).some((key) => Math.abs(prices[key] - unit.prices![key]) >= 0.005));
-  const needsPassword = pricesChanged && unit.lotStatus !== "Collection";
+  const [lotId, setLotId] = useState(unit.lotId ?? "");
+  const lotChanged = Boolean(unit.lotId && lotId && lotId !== unit.lotId);
+  const targetLot = shared.lots?.find((lot) => lot.id === lotId);
+  const lotMoveSensitive = lotChanged && (unit.lotStatus !== "Collection" || targetLot?.status !== "Collection" || (unit.status ?? "InStock") !== "InStock");
+  const pricePassword = pricesChanged && unit.lotStatus !== "Collection";
   const variantChanged = variantId !== unit.phoneVariantId;
   const fromVariant = shared.variants.find((variant) => variant.id === unit.phoneVariantId);
   const toVariant = shared.variants.find((variant) => variant.id === variantId);
@@ -118,6 +128,7 @@ function UnitEditDialog({ unit, shared, onClose }: { unit: EditableUnit; shared:
     if (imeiOwner) return;
     const formData = new FormData(event.currentTarget);
     formData.set("phoneVariantId", variantId);
+    if (lotChanged) formData.set("lotId", lotId);
     startTransition(async () => {
       const result = await shared.action(formData);
       if (!result.ok) {
@@ -183,6 +194,31 @@ function UnitEditDialog({ unit, shared, onClose }: { unit: EditableUnit; shared:
           )}
         </section>
 
+        {shared.lots && unit.lotId ? (
+          <section className="grid gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Lot</p>
+            <SearchableSelect
+              value={lotId}
+              placeholder="Choose a lot"
+              options={shared.lots.map((lot) => ({ value: lot.id, label: `${lot.label} · ${lot.status}` }))}
+              onChange={(next) => setLotId(next || unit.lotId || "")}
+            />
+            {lotChanged && targetLot ? (
+              <div className={`rounded-lg px-3 py-2 text-xs ${lotMoveSensitive ? "border border-amber-300 bg-amber-50 text-amber-900" : "bg-sky-50 text-sky-900"}`}>
+                Moving from lot <b>{unit.lotNumber}</b> ({unit.lotStatus}) to lot <b>{targetLot.label}</b> ({targetLot.status}):
+                <ul className="mt-1 list-disc pl-4">
+                  <li>its purchase price moves from lot {unit.lotNumber}&apos;s goods cost to lot {targetLot.label}&apos;s — what you owe each supplier and both payment statuses are recalculated;</li>
+                  <li>its share of shipping/tax/customs now comes from lot {targetLot.label}, so its landed cost and profit change;</li>
+                  <li>the unit keeps its IMEI, variant, prices, sale history and expenses.</li>
+                </ul>
+                {lotMoveSensitive ? <p className="mt-1 font-medium">Sensitive change: a lot is past Collection or the unit is already sold — confirm with your password below.</p> : null}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500">Registered to the wrong lot? Pick the right one to move it.</p>
+            )}
+          </section>
+        ) : null}
+
         <section className="grid gap-3 sm:grid-cols-2">
           <label className={`${modalField.label} sm:col-span-2`}>
             IMEI
@@ -228,7 +264,7 @@ function UnitEditDialog({ unit, shared, onClose }: { unit: EditableUnit; shared:
               {priceField("tagCost", "Tag cost")}
               {priceField("batteryCost", "Battery cost")}
             </div>
-            {needsPassword ? (
+            {pricePassword ? (
               <div className="grid gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 sm:grid-cols-2">
                 <p className="text-xs text-amber-900 sm:col-span-2">Lot {unit.lotNumber} is past Collection, so these price changes need your password:</p>
                 <ul className="grid gap-1 rounded-md bg-white/80 px-3 py-2 text-xs sm:col-span-2">
@@ -256,6 +292,20 @@ function UnitEditDialog({ unit, shared, onClose }: { unit: EditableUnit; shared:
               </div>
             ) : null}
           </section>
+        ) : null}
+
+        {lotMoveSensitive && !(prices && pricePassword) ? (
+          <div className="grid gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 sm:grid-cols-2">
+            <p className="text-xs text-amber-900 sm:col-span-2">Confirm the lot move with your password:</p>
+            <label className={modalField.label}>
+              Username
+              <input name="confirmUsername" required defaultValue={shared.username} className={modalField.input} />
+            </label>
+            <label className={modalField.label}>
+              Password
+              <input name="confirmPassword" type="password" required className={modalField.input} />
+            </label>
+          </div>
         ) : null}
 
         {error ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p> : null}

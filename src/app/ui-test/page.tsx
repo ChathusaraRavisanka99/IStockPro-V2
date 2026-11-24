@@ -13,6 +13,8 @@ import { ReturnForm } from "@/components/sales/return-form";
 import { PriceHistoryPicker } from "@/components/items/price-history-picker";
 import { LotRestoreDialog } from "@/components/ui/lot-restore-dialog";
 import { EntityDeleteButton } from "@/components/ui/entity-editor";
+import { SaleDeleteDialog } from "@/components/sales/sale-delete-dialog";
+import { UnitEditButton, UnitEditProvider } from "@/components/items/unit-edit";
 import { formatMoney } from "@/lib/currency";
 import { EXPENSE_OTHER_COLOR, EXPENSE_SERIES_COLORS } from "@/lib/chart-colors";
 import { LONG_IMEI, LONG_NAME, LONG_PHONE, reportExtras, tableRows, topSellers } from "./fixtures";
@@ -23,6 +25,10 @@ async function noop(): Promise<{ ok: false; error: string }> {
 }
 async function noopVoid() {
   "use server";
+}
+async function noImeiOwner() {
+  "use server";
+  return null;
 }
 
 /** The Full-version shell (as rendered by src/app/(app)/layout.tsx) around sample content. */
@@ -144,6 +150,32 @@ export default function UiTestPage() {
                   models={[{ id: "m1", brand: "Apple", modelName: "iPhone 13", variants: [{ id: "v1", variantName: "128GB · Blue", color: "Blue", storage: "128GB", ram: null, changes: 3 }] }]}
                 />
               </Suspense>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <SaleDeleteDialog
+                saleId="s1"
+                saleNumber="SAL-1795485410403"
+                username="demo"
+                action={noop}
+                blocked={null}
+                consequences={["Sale SAL-1795485410403 (LKR 1,234,567.89) is permanently deleted.", "Invoice INV-1795485410403 is deleted with it."]}
+                lines={[
+                  { id: "l1", label: `${LONG_PHONE} - IMEI ${LONG_IMEI}`, kind: "phone", quantity: 1, amount: 385500, note: null },
+                  { id: "l2", label: "USB-C fast charger 25W (SKU JK05-1224947)", kind: "accessory", quantity: 3, amount: 4500, note: null },
+                ]}
+              />
+              <UnitEditProvider
+                variants={[]}
+                username="demo"
+                action={noop}
+                checkImei={noImeiOwner}
+                lots={[
+                  { id: "lot-a", label: "LOT-0001 — NADEESHA GUNAHHTILAKA", status: "Collection" },
+                  { id: "lot-b", label: "LOT-0002 — Global Mobile Imports", status: "Cleared" },
+                ]}
+              >
+                <UnitEditButton unit={{ id: "p1", imei: LONG_IMEI, phoneVariantId: "v1", lotStatus: "Collection", lotNumber: "LOT-0001", lotId: "lot-a", status: "InStock", grade: null, batteryHealth: null, notes: null }} />
+              </UnitEditProvider>
             </div>
             <div className="mt-3">
               <LotRestoreDialog lotId="x" title="Lot LOT-0001" lotIssues={[]} action={noop} units={[{ id: "u1", imei: LONG_IMEI, name: LONG_PHONE, status: "Sold", soldIn: ["SAL-1788692115292"], withLot: true, blocked: null }]} />

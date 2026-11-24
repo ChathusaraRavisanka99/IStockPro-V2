@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-import { canViewCost } from "@/lib/rbac";
+import { canViewCost, canVoidInvoices } from "@/lib/rbac";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { ListControls } from "@/components/ui/list-controls";
@@ -28,6 +28,7 @@ function invoiceStatusColor(status?: string) {
 export default async function SalesPage({ searchParams }: { searchParams: { search?: string; filter?: string; filter2?: string; filter3?: string; view?: "list" | "grid"; page?: string; pageSize?: string } }) {
   const session = await getServerSession(authOptions);
   const showCost = canViewCost(session?.user?.role as "admin" | "manager" | "staff" | undefined);
+  const canDeleteSales = canVoidInvoices(session?.user?.role as "admin" | "manager" | "staff" | undefined);
   const search = searchParams.search?.trim() || "";
   const status = searchParams.filter || "";
   const paymentStatus = searchParams.filter2 || "";
@@ -257,6 +258,7 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
               <div className="mt-3 action-row">
                 <Link href={`/sales/${sale.id}`} className="btn btn-sm btn-secondary">Manage</Link>
                 <Link href={`/sales/${sale.id}/receipt`} className="btn btn-sm btn-secondary">Receipt</Link>
+                {canDeleteSales ? <Link href={`/sales/${sale.id}?delete=1`} className="btn btn-sm btn-danger">Delete</Link> : null}
               </div>
             </Card>
           ))}
@@ -297,6 +299,12 @@ export default async function SalesPage({ searchParams }: { searchParams: { sear
                     <Link href={`/sales/${sale.id}`} className="text-slate-800 underline">Manage</Link>
                     <span className="mx-1 text-slate-400">·</span>
                     <Link href={`/sales/${sale.id}/receipt`} className="text-slate-800 underline">Receipt</Link>
+                    {canDeleteSales ? (
+                      <>
+                        {" · "}
+                        <Link href={`/sales/${sale.id}?delete=1`} className="text-red-700 underline">Delete</Link>
+                      </>
+                    ) : null}
                   </td>
                 </tr>
               ))}

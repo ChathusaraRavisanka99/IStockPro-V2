@@ -3,6 +3,16 @@ import { prisma } from "@/lib/prisma";
 import { findImeiOwner } from "@/lib/imei";
 import { checkReauth } from "@/lib/reauth";
 import { priceChangeLogs } from "@/lib/price-history";
+import { recomputeLotPayments } from "@/lib/lots";
+
+/**
+ * Moving a unit to another lot changes both lots' goods cost, what's owed to each supplier and
+ * the unit's landed cost/profit. It's a sensitive change (password) unless both lots are still
+ * in Collection and the unit hasn't been sold — nothing financial is settled yet then.
+ */
+export function lotMoveIsSensitive(fromStatus: string, toStatus: string, unitStatus: string) {
+  return fromStatus !== "Collection" || toStatus !== "Collection" || unitStatus !== "InStock";
+}
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -23,7 +33,7 @@ export async function editPhoneUnit(formData: FormData, actor: { userId?: string
   const id = String(formData.get("id") || "");
   const phone = await prisma.phone.findUnique({
     where: { id },
-    select: { id: true, imei: true, deletedAt: true, phoneVariantId: true, purchasePrice: true, wholesalePrice: true, retailPrice: true, tagCost: true, batteryCost: true, lot: { select: { status: true } } },
+    select: { id: true, imei: true, status: true, deletedAt: true, lotId: true, phoneVariantId: true, purchasePrice: true, wholesalePrice: true, retailPrice: true, tagCost: true, batteryCost: true, lot: { select: { status: true, lotNumber: true } } },
   });
   if (!phone || phone.deletedAt) return { ok: false, error: "Unit not found." };
 
@@ -42,6 +52,23 @@ export async function editPhoneUnit(formData: FormData, actor: { userId?: string
     const check = await validateTargetVariant(variantId);
     if (!check.ok) return check;
     data.phoneVariantId = variantId;
+  }
+
+  // Move to another lot (cost roles only).
+  let reauthDone = false;
+  let lotMove: { from: string; to: string; fromNumber: string; toNumber: string } | null = null;
+  const lotId = String(formData.get("lotId") || phone.lotId);
+  if (lotId !== phone.lotId) {
+    if (!actor.canEditCost) return { ok: false, error: "Only admins and managers can move units between lots." };
+    const target = await prisma.lot.findUnique({ where: { id: lotId }, select: { id: true, lotNumber: true, status: true, deletedAt: true } });
+    if (!target || target.deletedAt) return { ok: false, error: "That lot no longer exists — pick another one." };
+    if (lotMoveIsSensitive(phone.lot.status, target.status, phone.status)) {
+      const check = await checkReauth(formData);
+      if (!check.ok) return check;
+      reauthDone = true;
+    }
+    data.lotId = lotId;
+    lotMove = { from: phone.lotId, to: lotId, fromNumber: phone.lot.lotNumber, toNumber: target.lotNumber };
   }
 
   if (formData.has("notes")) data.notes = String(formData.get("notes") || "").trim() || null;
@@ -64,7 +91,7 @@ export async function editPhoneUnit(formData: FormData, actor: { userId?: string
     };
     const changed = (Object.keys(prices) as (keyof typeof prices)[]).some((key) => Math.abs(Number(phone[key] ?? 0) - prices[key]) >= 0.005);
     if (changed) {
-      if (phone.lot.status !== "Collection") {
+      if (phone.lot.status !== "Collection" && !reauthDone) {
         const check = await checkReauth(formData);
         if (!check.ok) return check;
       }
@@ -74,6 +101,17 @@ export async function editPhoneUnit(formData: FormData, actor: { userId?: string
   }
 
   if (!Object.keys(data).length) return { ok: true };
-  await prisma.$transaction([prisma.phone.update({ where: { id }, data }), ...(priceLogs.length ? [prisma.auditLog.createMany({ data: priceLogs })] : [])]);
+  await prisma.$transaction(async (tx) => {
+    await tx.phone.update({ where: { id }, data });
+    if (priceLogs.length) await tx.auditLog.createMany({ data: priceLogs });
+    if (lotMove) {
+      // Both lots' goods cost changed — recompute what's owed and the payment status.
+      await recomputeLotPayments(lotMove.from, tx);
+      await recomputeLotPayments(lotMove.to, tx);
+      await tx.auditLog.create({
+        data: { action: "SensitiveEdit", entityType: "Phone", entityId: id, userId: actor.userId ?? null, details: { field: "lot", imei: phone.imei, from: lotMove.fromNumber, to: lotMove.toNumber, fromLotId: lotMove.from, toLotId: lotMove.to } },
+      });
+    }
+  });
   return { ok: true };
 }
