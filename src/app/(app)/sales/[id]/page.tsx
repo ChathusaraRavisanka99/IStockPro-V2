@@ -13,7 +13,8 @@ import { formatSaleItemName } from "@/lib/format-item-name";
 import { uploadFile, getSignedDownloadUrl, isStorageKey, buildKey } from "@/lib/storage";
 import { EntityLink } from "@/components/ui/entity-link";
 import { withErrorLog } from "@/lib/error-log";
-import { EntityEditButton } from "@/components/ui/entity-editor";
+import { EntityDeleteButton, EntityEditButton } from "@/components/ui/entity-editor";
+import { customerPaymentDeleteConsequences, softDeleteCustomerPayment } from "@/lib/payments";
 import { auditChange, requireReauthWhen } from "@/lib/entity-guard";
 import type { ActionResult } from "@/components/ui/editable-row";
 
@@ -30,7 +31,7 @@ export default async function SaleDetailPage({ params, searchParams }: { params:
     where: { id: params.id },
     include: {
       customer: true,
-      invoice: { include: { payments: { orderBy: { paidAt: "desc" } } } },
+      invoice: { include: { payments: { where: { deletedAt: null }, orderBy: { paidAt: "desc" } } } },
       items: { include: { phone: { include: { phoneVariant: { include: { phoneModel: true } } } }, accessory: true } },
     },
   });
@@ -38,6 +39,26 @@ export default async function SaleDetailPage({ params, searchParams }: { params:
   const canDeleteSale = canVoidInvoices(session.user?.role as "admin" | "manager" | "staff" | undefined);
   const forDelete = canDeleteSale ? await loadSaleForDelete(sale.id) : null;
   const deleteImpact = forDelete ? saleDeleteImpact(forDelete) : null;
+
+  // Customer payments are money records: deleting one is sensitive (admins/managers + password).
+  // It goes to the Recycle Bin and the invoice's paid total and status are recomputed.
+  async function removePayment(formData: FormData): Promise<ActionResult> {
+    "use server";
+    return withErrorLog("sales/detail: removePayment", formData, async () => {
+      const actor = await getServerSession(authOptions);
+      if (!canViewCost(actor?.user?.role as "admin" | "manager" | "staff" | undefined)) return { ok: false, error: "Only admins and managers can delete payments." };
+      const reauth = await checkReauth(formData);
+      if (!reauth.ok) return reauth;
+      const id = String(formData.get("id") || "");
+      const owned = await prisma.payment.findFirst({ where: { id, invoice: { saleId: params.id } }, select: { id: true } });
+      if (!owned) return { ok: false, error: "Payment not found on this sale." };
+      const result = await softDeleteCustomerPayment(id);
+      if (!result.ok) return result;
+      await auditChange("SensitiveDelete", "Payment", id, actor?.user?.id, { saleId: params.id, amount: Number(result.payment.amount), method: result.payment.method, paidAt: result.payment.paidAt.toISOString().slice(0, 10), reference: result.payment.reference });
+      for (const path of [`/sales/${params.id}`, "/sales", "/dashboard", "/reports", "/customers", "/recycle-bin", "/lite"]) revalidatePath(path);
+      return { ok: true };
+    });
+  }
 
   // Permanently deletes the sale (admins/managers, password). Each line is restocked or removed
   // from inventory as chosen; a full copy goes to the audit log.
@@ -321,6 +342,7 @@ export default async function SaleDetailPage({ params, searchParams }: { params:
                     <th className="px-2 py-2">Method</th>
                     <th className="px-2 py-2">Reference</th>
                     <th className="px-2 py-2">Slip</th>
+                    {canManagePayments ? <th className="px-2 py-2 text-right">Actions</th> : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -337,6 +359,20 @@ export default async function SaleDetailPage({ params, searchParams }: { params:
                           "-"
                         )}
                       </td>
+                      {canManagePayments ? (
+                        <td className="px-2 py-2 text-right">
+                          <EntityDeleteButton
+                            title={`Delete payment of ${formatMoney(Number(payment.amount))}?`}
+                            sensitive
+                            username={session.user?.username}
+                            fields={{ id: payment.id }}
+                            action={removePayment}
+                            confirmLabel="Delete payment"
+                            buttonClassName="btn btn-xs btn-danger"
+                            consequences={customerPaymentDeleteConsequences(payment, invoice)}
+                          />
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>

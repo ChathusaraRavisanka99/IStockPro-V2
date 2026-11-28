@@ -26,6 +26,7 @@ import { EntityDeleteButton, EntityEditButton } from "@/components/ui/entity-edi
 import { auditChange, diffFields, requireReauthWhen } from "@/lib/entity-guard";
 import { formatVariantSpecs } from "@/lib/format-item-name";
 import { lotDeleteImpact, recomputeLotPayments, softDeleteLot, toggleLotBookmark } from "@/lib/lots";
+import { softDeleteLotPayment } from "@/lib/payments";
 import { BookmarkButton } from "@/components/items/bookmark-button";
 import { priceChangeLogs } from "@/lib/price-history";
 import { findImeiOwner, liveImeiOwners } from "@/lib/imei";
@@ -51,7 +52,7 @@ export default async function LotDetailPage({ params }: { params: { id: string }
       include: {
         supplier: true,
         phones: { where: { deletedAt: null }, include: { phoneVariant: { include: { phoneModel: true } } }, orderBy: { createdAt: "desc" } },
-        payments: { orderBy: { paidAt: "desc" } },
+        payments: { where: { deletedAt: null }, orderBy: { paidAt: "desc" } },
         accessoryItems: { include: { accessory: true }, orderBy: { createdAt: "desc" } },
       },
     }),
@@ -524,20 +525,23 @@ export default async function LotDetailPage({ params }: { params: { id: string }
 
   async function deleteLotPayment(formData: FormData): Promise<ActionResult> {
     "use server";
+    const actor = await getServerSession(authOptions);
+    if (!canViewCost(actor?.user?.role as "admin" | "manager" | "staff" | undefined)) return { ok: false, error: "Only admins and managers can delete payments." };
     const guard = await requireReauthWhen(formData, true);
     if (!guard.ok) return guard;
     const id = String(formData.get("id") || "");
-    const payment = await prisma.lotPayment.findUnique({ where: { id } });
-    if (!payment || payment.lotId !== params.id) return { ok: false, error: "Payment not found." };
-    await prisma.$transaction(async (tx) => {
-      await tx.lotPayment.delete({ where: { id } });
-      await recomputeLotPayments(params.id, tx);
-    });
-    const actor = await getServerSession(authOptions);
+    const owned = await prisma.lotPayment.findFirst({ where: { id, lotId: params.id, deletedAt: null }, select: { id: true } });
+    if (!owned) return { ok: false, error: "Payment not found." };
+    // Soft delete: the payment goes to the Recycle Bin and the lot's paid total is recomputed.
+    const result = await softDeleteLotPayment(id);
+    if (!result.ok) return result;
+    const payment = result.payment;
     await auditChange("SensitiveDelete", "LotPayment", id, actor?.user?.id, { lotId: params.id, amount: Number(payment.amount), paidAt: payment.paidAt.toISOString().slice(0, 10), method: payment.method, reference: payment.reference });
     revalidatePath(`/lots/${params.id}`);
     revalidatePath("/lots");
     revalidatePath("/dashboard");
+    revalidatePath("/recycle-bin");
+    revalidatePath("/suppliers", "layout");
     return { ok: true };
   }
 
@@ -933,8 +937,8 @@ export default async function LotDetailPage({ params }: { params: { id: string }
                             consequences={[
                               `Paid to the supplier drops from ${formatMoney(lot.amountPaid)} to ${formatMoney(Number(lot.amountPaid) - Number(payment.amount))}; remaining owed rises to ${formatMoney(Math.max(0, totalCost - (Number(lot.amountPaid) - Number(payment.amount))))}.`,
                               `The lot's payment status is recalculated (currently ${lot.paymentStatus}).`,
-                              paymentProofLinks[i] ? "The attached payment slip is no longer reachable from the app." : "No payment slip is attached.",
-                              "This is permanent and recorded in the activity log.",
+                              paymentProofLinks[i] ? "Its attached payment slip goes with it and comes back if you restore it." : "No payment slip is attached.",
+                              "The payment goes to the Recycle Bin for 30 days — restoring it puts the money back on this lot. The deletion is recorded in the activity log.",
                             ]}
                           />
                         </div>

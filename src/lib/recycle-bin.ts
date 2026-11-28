@@ -2,8 +2,11 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { SOFT_DELETE_RETENTION_DAYS } from "@/lib/purge";
 import { formatPhoneName } from "@/lib/format-item-name";
+import { formatMoney } from "@/lib/currency";
+import { recomputeInvoicePayments } from "@/lib/payments";
+import { recomputeLotPayments } from "@/lib/lots";
 
-export type RecycleKind = "lot" | "phone" | "variant" | "model" | "customer" | "supplier" | "accessory";
+export type RecycleKind = "lot" | "phone" | "variant" | "model" | "customer" | "supplier" | "accessory" | "payment" | "lotPayment";
 
 /**
  * A reason a restore can't (fully) go ahead. "block" stops the restore; "warn" lets it
@@ -158,6 +161,45 @@ export async function checkRestore(kind: RecycleKind, id: string): Promise<Resto
         },
       ];
     }
+    case "payment": {
+      const payment = await prisma.payment.findUnique({ where: { id }, include: { invoice: { include: { sale: { select: { id: true, saleNumber: true } }, payments: { where: { deletedAt: null }, select: { amount: true } } } } } });
+      if (!payment?.deletedAt) return [{ level: "block", message: "This payment is no longer in the recycle bin." }];
+      const invoice = payment.invoice;
+      if (invoice.status === "Voided") return [{ level: "block", message: `Invoice ${invoice.invoiceNumber} is voided — payments can't be added back to it.`, href: `/sales/${invoice.sale.id}`, linkLabel: `Go to sale ${invoice.sale.saleNumber}` }];
+      const paid = invoice.payments.reduce((sum, row) => sum + Number(row.amount), 0);
+      const over = paid + Number(payment.amount) - Number(invoice.totalAmount);
+      if (over > 0.004) {
+        return [
+          {
+            level: "block",
+            message: `Restoring it would overpay invoice ${invoice.invoiceNumber} by ${formatMoney(over)} (already paid ${formatMoney(paid)} of ${formatMoney(invoice.totalAmount)}).`,
+            href: `/sales/${invoice.sale.id}`,
+            linkLabel: `Go to sale ${invoice.sale.saleNumber}`,
+            why: "A sale can't be paid more than its total — the extra would show as money the customer never owed.",
+            how: "Another payment was probably recorded after this one was deleted. Delete that one instead (or restore this and delete the other) so the total matches what the customer actually paid.",
+          },
+        ];
+      }
+      return [];
+    }
+    case "lotPayment": {
+      const payment = await prisma.lotPayment.findUnique({ where: { id }, include: { lot: { select: { id: true, lotNumber: true, deletedAt: true } } } });
+      if (!payment?.deletedAt) return [{ level: "block", message: "This payment is no longer in the recycle bin." }];
+      if (payment.lot.deletedAt) {
+        const lotNumber = originalLotNumber(payment.lot.lotNumber);
+        return [
+          {
+            level: "block",
+            message: `Its lot ${lotNumber} is deleted — restore the lot first.`,
+            href: binAnchor("lot", payment.lot.id),
+            linkLabel: `Go to lot ${lotNumber}`,
+            why: "A supplier payment always belongs to a lot — it pays for that lot's goods and charges.",
+            how: `Restore lot ${lotNumber} from its row here, then restore this payment.`,
+          },
+        ];
+      }
+      return [];
+    }
     default:
       return [];
   }
@@ -217,6 +259,22 @@ async function performRestore(kind: RecycleKind, id: string, issues: RestoreIssu
     case "accessory":
       await prisma.accessory.update({ where: { id }, data: { deletedAt: null } });
       return undefined;
+    case "payment": {
+      const payment = await prisma.payment.findUniqueOrThrow({ where: { id } });
+      const totals = await prisma.$transaction(async (tx) => {
+        await tx.payment.update({ where: { id }, data: { deletedAt: null } });
+        return recomputeInvoicePayments(payment.invoiceId, tx);
+      });
+      return `Payment restored — the invoice is now ${totals?.status === "PartiallyPaid" ? "partly paid" : totals?.status?.toLowerCase()} (${formatMoney(totals?.paidAmount ?? 0)} paid).`;
+    }
+    case "lotPayment": {
+      const payment = await prisma.lotPayment.findUniqueOrThrow({ where: { id } });
+      const totals = await prisma.$transaction(async (tx) => {
+        await tx.lotPayment.update({ where: { id }, data: { deletedAt: null } });
+        return recomputeLotPayments(payment.lotId, tx);
+      });
+      return `Payment restored — ${formatMoney(totals?.amountPaid ?? 0)} paid to the supplier on this lot (${totals?.paymentStatus}).`;
+    }
   }
 }
 

@@ -38,7 +38,7 @@ export default async function SupplierDetailPage({ params }: { params: { id: str
         where: { deletedAt: null },
         orderBy: { purchaseDate: "desc" },
         include: {
-          payments: { orderBy: { paidAt: "desc" } },
+          payments: { where: { deletedAt: null }, orderBy: { paidAt: "desc" } },
           accessoryItems: { select: { unitCost: true, quantity: true, accessory: { select: { name: true } } } },
           phones: {
             where: { deletedAt: null },

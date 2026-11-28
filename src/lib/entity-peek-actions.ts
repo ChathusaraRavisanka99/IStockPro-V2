@@ -34,7 +34,7 @@ export async function peekEntity(kind: EntityKind, id: string): Promise<PeekData
 
   switch (kind) {
     case "lot": {
-      const lot = await prisma.lot.findUnique({ where: { id }, include: { supplier: true, phones: { where: { deletedAt: null }, select: { status: true, purchasePrice: true } }, _count: { select: { payments: true } } } });
+      const lot = await prisma.lot.findUnique({ where: { id }, include: { supplier: true, phones: { where: { deletedAt: null }, select: { status: true, purchasePrice: true } }, _count: { select: { payments: { where: { deletedAt: null } } } } } });
       if (!lot) return null;
       const suppliers = await prisma.supplier.findMany({ where: { OR: [{ deletedAt: null }, { id: lot.supplierId }] }, orderBy: { name: "asc" }, select: { id: true, name: true } });
       const inStock = lot.phones.filter((phone) => phone.status === "InStock").length;

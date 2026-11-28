@@ -52,6 +52,10 @@ export async function purgeExpiredSoftDeletes(now = new Date()): Promise<PurgeCo
 
   await purgeRows("customers", ids(await prisma.customer.findMany({ where: expired, select: { id: true }, take: BATCH_LIMIT })), (id) => prisma.customer.delete({ where: { id } }), counts);
 
+  // Deleted payments are just money records — nothing references them.
+  await purgeRows("payments", ids(await prisma.payment.findMany({ where: expired, select: { id: true }, take: BATCH_LIMIT })), (id) => prisma.payment.delete({ where: { id } }), counts);
+  await purgeRows("lotPayments", ids(await prisma.lotPayment.findMany({ where: expired, select: { id: true }, take: BATCH_LIMIT })), (id) => prisma.lotPayment.delete({ where: { id } }), counts);
+
   await purgeRows("suppliers", ids(await prisma.supplier.findMany({ where: expired, select: { id: true }, take: BATCH_LIMIT })), (id) => prisma.supplier.delete({ where: { id } }), counts);
 
   return counts;

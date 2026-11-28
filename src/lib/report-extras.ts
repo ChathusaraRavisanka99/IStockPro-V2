@@ -56,7 +56,7 @@ export async function computeReportExtras(from: Date, to: Date) {
         },
       },
     }),
-    prisma.payment.groupBy({ by: ["method"], _sum: { amount: true }, _count: true, where: { paidAt: { gte: from, lte: to } } }),
+    prisma.payment.groupBy({ by: ["method"], _sum: { amount: true }, _count: true, where: { deletedAt: null, paidAt: { gte: from, lte: to } } }),
     prisma.expense.groupBy({ by: ["category"], _sum: { amount: true }, _count: true, where: { expenseDate: { gte: from, lte: to } } }),
     prisma.user.findMany({ select: { id: true, name: true, username: true } }),
   ]);

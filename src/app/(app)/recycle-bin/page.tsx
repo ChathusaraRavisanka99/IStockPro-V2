@@ -7,11 +7,12 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { RestoreButton, RestoreIssueList } from "@/components/ui/restore-button";
 import { formatPhoneName } from "@/lib/format-item-name";
+import { formatMoney } from "@/lib/currency";
 import { SOFT_DELETE_RETENTION_DAYS } from "@/lib/purge";
 import { checkRestore, daysLeft, lotRestoreOptions, originalLotNumber, restoreItem, restoreLotSelection, retentionCutoff, type RecycleKind, type RestoreIssue, type RestoreResult } from "@/lib/recycle-bin";
 import { LotRestoreDialog } from "@/components/ui/lot-restore-dialog";
 
-const KINDS: RecycleKind[] = ["lot", "phone", "variant", "model", "customer", "supplier", "accessory"];
+const KINDS: RecycleKind[] = ["lot", "phone", "variant", "model", "customer", "supplier", "accessory", "payment", "lotPayment"];
 
 type Row = { kind: RecycleKind; id: string; title: string; detail: string; deletedAt: Date };
 
@@ -23,6 +24,8 @@ const KIND_LABELS: Record<RecycleKind, string> = {
   customer: "Customers",
   supplier: "Suppliers",
   accessory: "Accessories",
+  payment: "Customer payments",
+  lotPayment: "Supplier payments",
 };
 
 export default async function RecycleBinPage({ searchParams }: { searchParams: { type?: string } }) {
@@ -42,7 +45,7 @@ export default async function RecycleBinPage({ searchParams }: { searchParams: {
   const typeFilter = KINDS.includes(searchParams.type as RecycleKind) ? (searchParams.type as RecycleKind) : null;
   const recent = { deletedAt: { not: null, gte: retentionCutoff() } };
 
-  const [lots, phones, variants, models, customers, suppliers, accessories] = await Promise.all([
+  const [lots, phones, variants, models, customers, suppliers, accessories, payments, lotPayments] = await Promise.all([
     prisma.lot.findMany({ where: recent, include: { supplier: true, _count: { select: { phones: true } } } }),
     prisma.phone.findMany({ where: recent, include: { lot: true, phoneVariant: { include: { phoneModel: true } } } }),
     prisma.phoneVariant.findMany({ where: recent, include: { phoneModel: true } }),
@@ -50,6 +53,8 @@ export default async function RecycleBinPage({ searchParams }: { searchParams: {
     prisma.customer.findMany({ where: recent }),
     prisma.supplier.findMany({ where: recent }),
     prisma.accessory.findMany({ where: recent }),
+    prisma.payment.findMany({ where: recent, include: { invoice: { select: { invoiceNumber: true, sale: { select: { saleNumber: true, customer: { select: { name: true } } } } } } } }),
+    prisma.lotPayment.findMany({ where: recent, include: { lot: { select: { lotNumber: true, supplier: { select: { name: true } } } } } }),
   ]);
 
   // Units deleted in the same action as their (still deleted) lot are restored from the lot's
@@ -67,13 +72,27 @@ export default async function RecycleBinPage({ searchParams }: { searchParams: {
     ...customers.map((customer) => ({ kind: "customer" as const, id: customer.id, title: customer.name, detail: [customer.phone, customer.email].filter(Boolean).join(" · ") || "Customer", deletedAt: customer.deletedAt! })),
     ...suppliers.map((supplier) => ({ kind: "supplier" as const, id: supplier.id, title: supplier.name, detail: [supplier.phone, supplier.email].filter(Boolean).join(" · ") || "Supplier", deletedAt: supplier.deletedAt! })),
     ...accessories.map((item) => ({ kind: "accessory" as const, id: item.id, title: item.name, detail: `${item.category} · SKU ${item.sku}`, deletedAt: item.deletedAt! })),
+    ...payments.map((payment) => ({
+      kind: "payment" as const,
+      id: payment.id,
+      title: `${formatMoney(payment.amount)} · ${payment.method}`,
+      detail: `Customer payment on sale ${payment.invoice.sale.saleNumber} (${payment.invoice.invoiceNumber})${payment.invoice.sale.customer ? ` · ${payment.invoice.sale.customer.name}` : ""} · paid ${payment.paidAt.toISOString().slice(0, 10)}${payment.reference ? ` · ref ${payment.reference}` : ""}`,
+      deletedAt: payment.deletedAt!,
+    })),
+    ...lotPayments.map((payment) => ({
+      kind: "lotPayment" as const,
+      id: payment.id,
+      title: `${formatMoney(payment.amount)}${payment.method ? ` · ${payment.method}` : ""}`,
+      detail: `Supplier payment on lot ${originalLotNumber(payment.lot.lotNumber)} · ${payment.lot.supplier.name} · paid ${payment.paidAt.toISOString().slice(0, 10)}${payment.reference ? ` · ref ${payment.reference}` : ""}`,
+      deletedAt: payment.deletedAt!,
+    })),
   ].sort((a, b) => b.deletedAt.getTime() - a.deletedAt.getTime());
 
   // Constraint pre-check, so conflicts show next to each item before anyone clicks Restore.
   const issuesByRow = new Map<string, RestoreIssue[]>(
     await Promise.all(
       rows
-        .filter((row) => row.kind === "lot" || row.kind === "phone" || row.kind === "variant")
+        .filter((row) => row.kind === "lot" || row.kind === "phone" || row.kind === "variant" || row.kind === "payment" || row.kind === "lotPayment")
         .map(async (row) => [`${row.kind}-${row.id}`, await checkRestore(row.kind, row.id)] as const)
     )
   );
@@ -92,7 +111,8 @@ export default async function RecycleBinPage({ searchParams }: { searchParams: {
     const result = await restoreItem(kind, id);
     if (result.ok) {
       await prisma.auditLog.create({ data: { action: "Restore", entityType: kind, entityId: id, userId: actor?.user?.id || null, details: {} } });
-      for (const path of ["/recycle-bin", "/lots", "/items/phones", "/items/phone-catalog", "/customers", "/suppliers", "/dashboard"]) revalidatePath(path);
+      for (const path of ["/recycle-bin", "/lots", "/items/phones", "/items/phone-catalog", "/customers", "/suppliers", "/dashboard", "/sales", "/reports", "/lite"]) revalidatePath(path);
+      if (kind === "lotPayment" || kind === "payment") revalidatePath("/", "layout");
     }
     return result;
   }

@@ -15,7 +15,7 @@ export type LineChoice = "restock" | "remove";
 
 const INCLUDE = {
   customer: { select: { name: true } },
-  invoice: { include: { payments: { select: { amount: true, method: true, paidAt: true, reference: true } } } },
+  invoice: { include: { payments: { where: { deletedAt: null }, select: { amount: true, method: true, paidAt: true, reference: true } } } },
   returns: { select: { id: true, returnNumber: true } },
   sourceQuotation: { select: { id: true, quoteNumber: true } },
   items: {

@@ -35,7 +35,7 @@ export async function lotDeleteImpact(id: string) {
   const lot = await prisma.lot.findUnique({
     where: { id },
     include: {
-      payments: { select: { amount: true } },
+      payments: { where: { deletedAt: null }, select: { amount: true } },
       accessoryItems: { select: { quantity: true, accessory: { select: { name: true } } } },
       bookmarks: { select: { userId: true } },
       phones: {
@@ -107,7 +107,7 @@ export async function recomputeLotPayments(lotId: string, tx: Tx | typeof prisma
   const lot = await tx.lot.findUnique({
     where: { id: lotId },
     include: {
-      payments: { select: { amount: true } },
+      payments: { where: { deletedAt: null }, select: { amount: true } },
       phones: { where: { deletedAt: null }, select: { purchasePrice: true } },
       accessoryItems: { select: { unitCost: true, quantity: true } },
     },
