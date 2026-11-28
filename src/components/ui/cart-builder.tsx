@@ -218,7 +218,65 @@ export function CartBuilder({ items: serverItems, lines, onChange, fieldName = "
       ) : null}
 
       {lines.length ? (
-        <div className="overflow-x-auto rounded-xl border border-slate-200">
+        <>
+        {/* Phones: one card per line so price, quantity and Remove are all visible without
+            swiping sideways. Tablets and up get the table below. */}
+        <ul className="grid gap-2 md:hidden" data-testid="cart-cards">
+          {lines.map((line) => (
+            <li key={line.key} className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
+              <div className="flex items-start justify-between gap-2">
+                <span className="min-w-0 break-words font-medium text-slate-900">
+                  {line.key.startsWith("phone:") || line.key.startsWith("accessory:") ? (
+                    <EntityLink kind={line.key.startsWith("phone:") ? "phone" : "accessory"} id={line.key.split(":")[1]}>
+                      {line.label}
+                    </EntityLink>
+                  ) : (
+                    line.label
+                  )}
+                </span>
+                <button type="button" onClick={() => removeLine(line.key)} className="shrink-0 text-xs text-red-700 underline" aria-label={`Remove ${line.label}`}>
+                  Remove
+                </button>
+              </div>
+              {showNotes && line.notes ? <p className="mt-0.5 text-xs italic text-amber-700">Note: {line.notes}</p> : null}
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <label className="grid min-w-0 gap-1 text-xs text-slate-500">
+                  Qty{line.maxQuantity !== undefined ? ` (of ${line.maxQuantity})` : ""}
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={line.maxQuantity}
+                    value={line.quantity}
+                    onChange={(event) => {
+                      const raw = Math.max(1, Number(event.target.value) || 1);
+                      const clamped = line.maxQuantity !== undefined ? Math.min(raw, Math.max(1, line.maxQuantity)) : raw;
+                      updateLine(line.key, { quantity: clamped });
+                    }}
+                    className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900"
+                  />
+                </label>
+                <label className="grid min-w-0 gap-1 text-xs text-slate-500">
+                  Unit price
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step="0.01"
+                    value={line.unitPrice}
+                    onChange={(event) => updateLine(line.key, { unitPrice: Math.max(0, Number(event.target.value) || 0) })}
+                    className={`w-full min-w-0 rounded-lg border bg-white px-2 py-1.5 text-sm text-slate-900 ${line.unitPrice <= 0 ? "border-amber-400" : "border-slate-300"}`}
+                  />
+                </label>
+              </div>
+              <p className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-500">
+                {line.unitPrice <= 0 ? <span className="font-medium text-amber-700">⚠ No price</span> : <span>Line total</span>}
+                <span className="text-sm font-semibold text-slate-900">{formatMoney(line.unitPrice * line.quantity)}</span>
+              </p>
+            </li>
+          ))}
+        </ul>
+        <div className="hidden overflow-x-auto rounded-xl border border-slate-200 md:block">
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -279,6 +337,7 @@ export function CartBuilder({ items: serverItems, lines, onChange, fieldName = "
             </tbody>
           </table>
         </div>
+        </>
       ) : (
         <p className="rounded-xl border border-dashed border-slate-300 px-3 py-4 text-center text-sm text-slate-500">No items added yet.</p>
       )}

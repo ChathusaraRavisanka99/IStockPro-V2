@@ -1,4 +1,5 @@
 import type { ReportExtras } from "@/lib/report-extras";
+import type { CartItemOption } from "@/components/ui/cart-builder";
 
 /** Deliberately long, realistic values — the things that overflow phones in real data. */
 export const LONG_PHONE = "Apple iPhone 13 Pro Max - 256GB · 6GB RAM · Sierra Blue Graphite Edition";
@@ -38,3 +39,17 @@ export const reportExtras: ReportExtras = {
   ],
   expensesByCategory: [{ category: "Repairs and battery replacement for returned units", amount: 45000, count: 3 }],
 };
+
+/** Sample stock: long phone names with IMEIs plus accessories (what the sale/quote pickers list). */
+export const sampleItems: CartItemOption[] = [
+  ...Array.from({ length: 12 }, (_, index) => ({
+    value: `phone:${index}`,
+    label: `${LONG_PHONE} - IMEI ${LONG_IMEI.slice(0, 14)}${index}`,
+    price: 385500 + index * 1000,
+    wholesalePrice: 350000,
+    category: "Phones",
+    notes: index === 0 ? "Small scratch on the back — mention to the customer" : null,
+  })),
+  { value: "acc:1", label: "USB-C fast charger 25W (SKU JK05-1224947)", price: 4500, wholesalePrice: 3500, maxQuantity: 31, category: "Chargers" },
+];
+

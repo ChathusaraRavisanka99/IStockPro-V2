@@ -23,7 +23,7 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
 
   return (
     <main className="mx-auto max-w-3xl p-6">
-      <div className="mb-4 flex items-center justify-between print:hidden">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 print:hidden">
         <Link href="/sales" className="text-sm text-slate-700 underline">Back to Sales</Link>
         <ReceiptActions saleId={sale.id} fileName={sale.invoice?.invoiceNumber || sale.saleNumber} />
       </div>
