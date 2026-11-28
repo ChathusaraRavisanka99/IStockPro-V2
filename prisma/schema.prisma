@@ -213,6 +213,8 @@ model LotPayment {
   proofImageUrl String?
   paidAt        DateTime       @default(now())
   createdAt     DateTime       @default(now())
+  /// Soft delete: deleted payments sit in the Recycle Bin for 30 days and no longer count as paid.
+  deletedAt     DateTime?
 }
 
 model Phone {
@@ -358,6 +360,8 @@ model Payment {
   proofImageUrl String?
   paidAt        DateTime      @default(now())
   createdAt     DateTime      @default(now())
+  /// Soft delete: deleted payments sit in the Recycle Bin for 30 days and no longer count as paid.
+  deletedAt     DateTime?
 }
 
 model Return {

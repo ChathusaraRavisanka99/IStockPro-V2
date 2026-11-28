@@ -18,7 +18,7 @@ type QuotationLite = {
 const STATUS_OPTIONS = ["Draft", "Sent", "Accepted", "Rejected"].map((value) => ({ value, label: value }));
 
 /** Edit + Delete for a quotation (non-sensitive: nothing moves money or stock until converted). */
-export function QuotationRowActions({ quotation, large, redirectAfterDelete }: { quotation: QuotationLite; large?: boolean; redirectAfterDelete?: string }) {
+export function QuotationRowActions({ quotation, large, redirectAfterDelete, canDeleteConverted, username }: { quotation: QuotationLite; large?: boolean; redirectAfterDelete?: string; canDeleteConverted?: boolean; username?: string }) {
   const converted = quotation.status === "Converted";
   const editClass = large ? "btn btn-sm btn-secondary" : undefined;
   const deleteClass = large ? "btn btn-sm btn-danger" : undefined;
@@ -48,11 +48,16 @@ export function QuotationRowActions({ quotation, large, redirectAfterDelete }: {
         action={deleteQuotationAction}
         redirectTo={redirectAfterDelete}
         buttonClassName={deleteClass}
-        blockedReason={converted ? `It was converted to sale ${quotation.convertedSaleNumber ?? ""} — the quotation is kept as the record of what was offered.`.replace("  ", " ") : null}
+        sensitive={converted}
+        username={username}
+        blockedReason={converted && !canDeleteConverted ? `It was converted to sale ${quotation.convertedSaleNumber ?? ""} — only an admin or manager can delete it.`.replace("  ", " ") : null}
         consequences={[
           `The quotation and its ${quotation.itemCount} line item${quotation.itemCount === 1 ? "" : "s"} (${formatMoney(quotation.totalAmount)}) are removed.`,
+          ...(converted
+            ? [`Sale ${quotation.convertedSaleNumber ?? ""} stays exactly as it is — it just no longer links back to this quotation.`.replace("  ", " ")]
+            : []),
           "Any PDF already sent to the customer stays with them, but it can't be reopened or converted here.",
-          "No stock or money is affected. This is permanent and recorded in the activity log.",
+          "No stock or money is affected. This is permanent; a full copy of the quotation is kept in the activity log.",
         ]}
       />
     </>

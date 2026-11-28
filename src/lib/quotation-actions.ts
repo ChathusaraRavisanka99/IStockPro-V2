@@ -5,6 +5,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { auditChange } from "@/lib/entity-guard";
+import { canViewCost } from "@/lib/rbac";
+import { checkReauth } from "@/lib/reauth";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -45,11 +47,25 @@ export async function deleteQuotationAction(formData: FormData): Promise<Result>
   const session = await getServerSession(authOptions);
   if (!session?.user) return { ok: false, error: "Sign in again." };
   const id = String(formData.get("id") || "");
-  const quotation = await prisma.quotation.findUnique({ where: { id }, select: { status: true, quoteNumber: true, totalAmount: true } });
+  const quotation = await prisma.quotation.findUnique({ where: { id }, include: { items: true, convertedSale: { select: { id: true, saleNumber: true } } } });
   if (!quotation) return { ok: false, error: "Quotation not found." };
-  if (quotation.status === "Converted") return { ok: false, error: "This quotation was converted to a sale and can't be deleted." };
-  await prisma.quotation.delete({ where: { id } });
-  await auditChange("Delete", "Quotation", id, session.user.id, { quoteNumber: quotation.quoteNumber, total: Number(quotation.totalAmount) });
+  // A converted quotation is the record of what was offered for a sale: deleting it is a
+  // sensitive action (admins/managers + password). The sale itself is not touched.
+  const converted = quotation.status === "Converted" || Boolean(quotation.convertedSaleId);
+  if (converted) {
+    if (!canViewCost(session.user.role as "admin" | "manager" | "staff" | undefined)) return { ok: false, error: "Only admins and managers can delete a quotation that was converted to a sale." };
+    const reauth = await checkReauth(formData);
+    if (!reauth.ok) return reauth;
+  }
+  await prisma.quotation.delete({ where: { id } }); // its line items cascade
+  await auditChange(converted ? "SensitiveDelete" : "Delete", "Quotation", id, session.user.id, {
+    quoteNumber: quotation.quoteNumber,
+    status: quotation.status,
+    total: Number(quotation.totalAmount),
+    convertedSale: quotation.convertedSale?.saleNumber ?? null,
+    items: quotation.items.map((item) => ({ description: item.description, quantity: item.quantity, unitPrice: String(item.unitPrice) })),
+  });
   revalidatePath("/quotations");
+  if (quotation.convertedSale) revalidatePath(`/sales/${quotation.convertedSale.id}`);
   return { ok: true };
 }
