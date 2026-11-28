@@ -95,6 +95,67 @@ for (const theme of ["light", "dark"]) {
   });
 }
 
+describe("big forms fit a phone (new sale, quotation, register units)", () => {
+  for (const width of [320, 360, 390]) {
+    test(`/ui-test/forms empty at ${width}px`, async () => {
+      const { page, context } = await openAt(width, "/ui-test/forms");
+      const report = await overflowReport(page);
+      await context.close();
+      assert.ok(report.pageWidth <= report.viewport + 1, `page is ${report.pageWidth}px wide on a ${report.viewport}px screen. Sticking out: ${report.offenders.join(" | ")}`);
+      assert.deepEqual(report.offenders, [], "elements stick out of the screen");
+    });
+
+    test(`/ui-test/forms with a 12-item bill at ${width}px`, async () => {
+      const context = await browser.newContext({ viewport: { width, height: 800 }, isMobile: true, hasTouch: true });
+      await context.addInitScript(() => {
+        const lines = Array.from({ length: 11 }, (_, index) => ({ key: `phone:${index}`, label: `Apple iPhone 13 Pro Max - 256GB · 6GB RAM · Sierra Blue Graphite Edition - IMEI 3596285429283${index}`, unitPrice: 385500 + index * 1000, quantity: 1, notes: index === 0 ? "Small scratch on the back — mention to the customer" : null }));
+        lines.push({ key: "acc:1", label: "USB-C fast charger 25W (SKU JK05-1224947)", unitPrice: 4500, quantity: 3, maxQuantity: 31 });
+        sessionStorage.setItem("istockpro-sale-draft", JSON.stringify({ lines, saleType: "Retail", taxMode: "Amount", taxValue: "0", handlingFee: "1500", discount: "2500" }));
+      });
+      const page = await context.newPage();
+      await page.goto(BASE + "/ui-test/forms", { waitUntil: "networkidle" });
+      await page.getByTestId("harness-ready").waitFor();
+      await page.waitForFunction(() => document.body.innerText.includes("USB-C fast charger"), null, { timeout: 15_000 });
+      const report = await overflowReport(page);
+      await context.close();
+      assert.ok(report.pageWidth <= report.viewport + 1, `page is ${report.pageWidth}px wide on a ${report.viewport}px screen. Sticking out: ${report.offenders.join(" | ")}`);
+      assert.deepEqual(report.offenders, [], "elements stick out of the screen");
+    });
+  }
+});
+
+describe("key figures are visible on a phone without swiping", () => {
+  /** True if the element is fully inside the screen horizontally. */
+  const onScreen = (locator) => locator.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.left >= -1 && rect.right <= document.documentElement.clientWidth + 1;
+  });
+
+  test("sale cart: price, quantity and Remove of every line are on screen at 360px", async () => {
+    const context = await browser.newContext({ viewport: { width: 360, height: 800 }, isMobile: true, hasTouch: true });
+    await context.addInitScript(() => {
+      const lines = [{ key: "phone:0", label: "Apple iPhone 13 Pro Max - 256GB · 6GB RAM · Sierra Blue Graphite Edition - IMEI 359628542928350", unitPrice: 385500, quantity: 1 }];
+      sessionStorage.setItem("istockpro-sale-draft", JSON.stringify({ lines, saleType: "Retail", taxMode: "Amount", taxValue: "0", handlingFee: "0", discount: "0" }));
+    });
+    const page = await context.newPage();
+    await page.goto(BASE + "/ui-test/forms", { waitUntil: "networkidle" });
+    const card = page.getByTestId("cart-cards").locator("li").first();
+    await card.waitFor({ timeout: 15_000 });
+    assert.ok(await onScreen(card.getByLabel("Unit price")), "unit price input on screen");
+    assert.ok(await onScreen(card.getByRole("button", { name: /^Remove/ })), "Remove on screen");
+    assert.ok(await onScreen(card.getByText("LKR 385,500.00")), "line total on screen");
+    await context.close();
+  });
+
+  test("report breakdowns: revenue of each row is on screen at 360px", async () => {
+    const { page, context } = await openAt(360, "/ui-test");
+    const list = page.getByTestId("breakdown-list").first();
+    assert.ok(await list.isVisible(), "phone list is shown instead of the wide table");
+    assert.ok(await onScreen(list.getByText(/^LKR /).first()), "revenue on screen");
+    await context.close();
+  });
+});
+
 describe("phone chrome", () => {
   test("Full version: theme switch is in the top bar and switches Light / Dark / System", async () => {
     const { page, context } = await openAt(390, "/ui-test");

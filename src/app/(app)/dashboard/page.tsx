@@ -255,7 +255,28 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
           }
         >
           {unpaidSales.length ? (
-            <table className="min-w-full text-sm">
+            <>
+            {/* Phones: list rows with the amount due visible; tablets and up: the table. */}
+            <ul className="grid gap-2 text-sm md:hidden">
+              {unpaidSales.slice(0, 10).map((row) => (
+                <li key={row.saleId} className="flex items-start justify-between gap-3 border-b border-slate-100 pb-2 last:border-0">
+                  <span className="min-w-0">
+                    <span className="block font-medium"><EntityLink kind="sale" id={row.saleId}>{row.saleNumber}</EntityLink></span>
+                    <span className="block truncate text-xs text-slate-600">
+                      {row.customerId ? <EntityLink kind="customer" id={row.customerId}>{row.customer ?? "Customer"}</EntityLink> : "Walk-in"} · paid {formatMoney(row.paid)}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <span className="block font-semibold text-slate-900">{formatMoney(row.due)}</span>
+                    <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${row.overdue || row.ageDays > 30 ? "bg-red-50 text-red-700" : row.ageDays > 7 ? "bg-amber-50 text-amber-800" : "bg-slate-100 text-slate-700"}`}>
+                      {row.ageDays}d{row.overdue ? " · overdue" : ""}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {/* responsive-ok: DataTableShell wraps its children in overflow-x-auto */}
+            <table className="hidden min-w-full text-sm md:table">
               <thead>
                 <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                   <th className="px-2 py-2">Sale</th>
@@ -281,6 +302,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
                 ))}
               </tbody>
             </table>
+            </>
           ) : (
             <p className="text-sm text-slate-500">✓ Every sale is fully paid.</p>
           )}

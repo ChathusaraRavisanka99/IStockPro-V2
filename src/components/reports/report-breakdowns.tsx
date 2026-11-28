@@ -40,11 +40,11 @@ export function PeriodComparison({ comparison, showCost }: { comparison: ReportE
         <span className="text-xs font-normal text-slate-500">({day(comparison.previousFrom)} to {day(comparison.previousTo)})</span>
         <InfoHelp size="sm" title="Period comparison">Each figure for your selected range next to the same figure for the period of equal length just before it.</InfoHelp>
       </h3>
-      <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-5">
         {items.map((item) => (
           <div key={item.label} className="rounded-xl border border-slate-200 px-3 py-2">
             <p className="text-xs font-medium text-slate-500">{item.label}</p>
-            <p className="mt-0.5 text-lg font-semibold text-slate-900">{item.now}</p>
+            <p className="mt-0.5 break-words text-base font-semibold text-slate-900 sm:text-lg">{item.now}</p>
             <p className="flex flex-wrap items-center gap-x-2 text-xs text-slate-500">
               <Change value={item.change} /> <span>was {item.before}</span>
             </p>
@@ -82,7 +82,29 @@ function BreakdownTable({
         <InfoHelp size="sm" title={title}>{help}</InfoHelp>
       </h3>
       {rows.length ? (
-        <div className="overflow-x-auto">
+        <>
+        {/* Phones: a compact two-line list so revenue and profit are visible without swiping. */}
+        <ul className="grid gap-2.5 text-sm md:hidden" data-testid="breakdown-list">
+          {rows.slice(0, limit).map((row) => (
+            <li key={row.key}>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="min-w-0 break-words">{name(row)}</span>
+                <span className="shrink-0 whitespace-nowrap font-semibold text-slate-900">{formatMoney(row.revenue)}</span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-full bg-[#2a78d6]" style={{ width: `${total > 0 ? (row.revenue / total) * 100 : 0}%` }} />
+              </div>
+              <p className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-slate-500">
+                <span>{total > 0 ? ((row.revenue / total) * 100).toFixed(0) : 0}% of revenue</span>
+                {showSales ? <span>{row.sales} sale{row.sales === 1 ? "" : "s"}</span> : null}
+                <span>{row.units} unit{row.units === 1 ? "" : "s"}</span>
+                {showCost ? <span className={row.profit >= 0 ? "text-emerald-700" : "text-red-700"}>profit {formatMoney(row.profit)} ({row.margin.toFixed(1)}%)</span> : null}
+              </p>
+            </li>
+          ))}
+          {rows.length > limit ? <li className="text-xs text-slate-500">+{rows.length - limit} more</li> : null}
+        </ul>
+        <div className="hidden overflow-x-auto md:block">
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -117,6 +139,7 @@ function BreakdownTable({
           </table>
           {rows.length > limit ? <p className="mt-2 text-xs text-slate-500">+{rows.length - limit} more</p> : null}
         </div>
+        </>
       ) : (
         <p className="text-sm text-slate-600">No completed sales in this period.</p>
       )}
@@ -130,10 +153,10 @@ function SimpleBars({ title, help, rows, footer }: { title: string; help: ReactN
   const max = Math.max(1, ...rows.map((row) => row.amount));
   return (
     <Card className="min-w-0">
-      <h3 className="mb-3 flex items-center gap-1.5 text-base font-semibold">
+      <h3 className="mb-3 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-base font-semibold">
         {title}
         <InfoHelp size="sm" title={title}>{help}</InfoHelp>
-        <span className="ml-auto text-sm font-normal text-slate-600">{formatMoney(total)}</span>
+        <span className="ml-auto whitespace-nowrap text-sm font-normal text-slate-600">{formatMoney(total)}</span>
       </h3>
       {rows.length ? (
         <ul className="grid gap-2.5 text-sm">
